@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Future Meat Market</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&family=Caveat:wght@600&family=Long+Cang&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    } }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="hotspots"></div>
+  <div id="products"></div>
+  <div id="labspots"></div>
+  <div id="tankspots"></div>
+
+  <!-- 观察室：你的批次的数据化标注层 -->
+  <section id="hud">
+    <svg class="lines" aria-hidden="true"></svg>
+    <div class="hcol l">
+      <div class="htitle">
+        <div class="tag"><i></i>LIVE · BR-02</div>
+        <h3 data-h="title"></h3>
+        <div class="sub" data-h="sub"></div>
+      </div>
+      <div class="hbox" data-anchor="lid"><label>培养进度 · DAY</label><div class="val" data-h="day"></div><div class="bar"><i data-h="pbar"></i></div><div class="sub" data-h="status"></div></div>
+      <div class="hbox" data-anchor="medium"><label>细胞密度 · CELL DENSITY</label><div class="val" data-h="density"></div><div class="sub">cells / mL · 上限 <span data-h="k"></span></div></div>
+      <div class="hbox" data-anchor="tissue"><label>存活率 · VIABILITY</label><div class="val" data-h="via"></div><div class="sub" data-h="grams"></div></div>
+      <div class="hactions">
+        <button class="hbtn" data-act="boost">加速生长 ×1.5 · ¥28</button>
+      </div>
+    </div>
+    <div class="hcol r">
+      <div class="hbox" data-anchor="probe"><label>培养环境 · ENVIRONMENT</label><div class="env" data-h="env"></div></div>
+      <div class="hbox" data-anchor="bubbles"><label>生长速率 · μ</label><div class="val" data-h="mu"></div><div class="sub" data-h="dbl"></div><svg class="curve" viewBox="0 0 220 60" data-h="curve"></svg></div>
+      <div class="hbox" data-anchor="base"><label>细胞来源 · ORIGIN</label><div class="src" data-h="src"></div></div>
+      <div class="upsell" data-h="upsell"></div>
+    </div>
+  </section>
+
+  <aside id="labpanel">
+    <button class="close" aria-label="关闭">×</button>
+    <div class="body"></div>
+  </aside>
+
+  <header class="top">
+    <button id="back" aria-label="返回"><span class="circle">←</span><span>门店</span></button>
+    <div class="brand"><span class="mark"></span>FUTURE MEAT MARKET</div>
+    <div id="cart"></div>
+  </header>
+
+  <section id="screen">
+    <button class="close" aria-label="关闭">×</button>
+    <div class="body"></div>
+  </section>
+
+  <!-- 门店：走近之后的引线标注 -->
+  <section id="callouts"><svg aria-hidden="true"></svg><div class="boxes"></div></section>
+
+  <!-- 技术报告 -->
+  <section id="paper">
+    <div class="sheet">
+      <button class="close" aria-label="关闭">×</button>
+      <div class="body"></div>
+    </div>
+  </section>
+
+  <div id="tutorial"><div class="icon"></div><div class="big"></div><div class="small"></div></div>
+  <div id="toast"></div>
+  <div id="marquee"><div class="track"></div></div>
+  <!-- 转场：一块 T 骨牛排的线稿先画出来、再填上颜色，一刀切过去，画面揭开；外面一圈慢慢转的店名 -->
+  <div id="fade"><div class="grain"></div><div class="stage"><svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringF" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
+        <text><textPath href="#ringF" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg><div class="mt"><svg class="steak" viewBox="0 0 120 100" aria-hidden="true">
+      <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
+      <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
+      <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
+      <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
+    </svg><i class="slash"></i></div></div><div class="tl"></div></div>
+  <!-- 开场加载：同一块牛排 + 环形店名 + 一圈真实进度 -->
+  <div id="loading"><div class="grain"></div><div class="stage"><svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringL" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
+        <text><textPath href="#ringL" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg>
+      <svg class="progress" viewBox="0 0 220 220" aria-hidden="true"><circle class="track" cx="110" cy="110" r="80"/><circle class="prog" cx="110" cy="110" r="80" pathLength="1"/></svg>
+      <div class="mt"><svg class="steak" viewBox="0 0 120 100" aria-hidden="true">
+      <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
+      <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
+      <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
+      <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
+    </svg></div></div><div class="lt">准备招牌 · 0%</div></div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>

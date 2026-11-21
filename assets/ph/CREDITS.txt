@@ -1,0 +1,10 @@
+Textures, models and HDRIs in this folder are from Poly Haven (https://polyhaven.com), licensed CC0 (public domain).
+贴图、模型、HDRI 来自 Poly Haven，CC0 授权（可免费商用，无需署名）。
+assets/ph/tex/canvas_fabric is Fabric061 from ambientCG (https://ambientcg.com), CC0.
+
+第二批（2026-11-16）：
+- tex/ 下以大写字母开头的（Tiles133B、DiamondPlate008A、Cardboard001、PaintedMetal016、OfficeCeiling003、Sign0xx、Tape00x 等）来自 ambientCG（https://ambientcg.com），CC0。
+- decal/Leaking*、Smear*、Fingerprints*、SurfaceImperfections*、Rust001、Scratches* 来自 ambientCG，CC0。
+- decal/decal_10、decal_11、decal_17、decal_18、decal_20 来自 ShareTextures（https://sharetextures.com），CC0。
+- 其余小写名字的贴图和模型来自 Poly Haven，CC0。
+- manifest.json 是脚本生成的清单（每套贴图实际有哪几张图），换素材后要重新生成。
