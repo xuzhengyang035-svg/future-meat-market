@@ -196,3 +196,16 @@ export function userMat(file, w = 1, h = 1, { size = 1, bump = 0, offset, rotati
   if (bump) { m.bumpMap = map; m.bumpScale = bump; }
   return m;
 }
+
+// ------------------------------------------------------------------ 刷在铁皮上的大字（门上的号码）：油漆磨掉的地方用真实扫描的瑕疵图（SurfaceImperfections）去擦，不是随机画的小点
+export function paintedText(txt, { W = 512, H = 360, size = 300, color = 'rgba(150,40,30,.9)', y = 0.84, mask = 'SurfaceImperfections011', font = '"Inter", "Noto Sans SC", sans-serif', weight = 800, amount = 1 } = {}) {
+  const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+  g.fillStyle = color; g.font = `${weight} ${size}px ${font}`; g.textAlign = 'center'; g.fillText(txt, W / 2, H * y);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const im = new Image();
+  im.onload = () => { const m = document.createElement('canvas'); m.width = W; m.height = H; const mg = m.getContext('2d'); mg.drawImage(im, 0, 0, W, H);
+    const d = mg.getImageData(0, 0, W, H), p = d.data; for (let i = 0; i < p.length; i += 4) p[i + 3] = Math.max(0, Math.min(255, (p[i] - 80) * 2.2 * amount));
+    mg.putImageData(d, 0, 0); g.globalCompositeOperation = 'destination-out'; g.drawImage(m, 0, 0); g.globalCompositeOperation = 'source-over'; t.needsUpdate = true; };
+  im.src = BASE + 'decal/' + mask + '/opacity.jpg';
+  return t;
+}

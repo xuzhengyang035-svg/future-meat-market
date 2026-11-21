@@ -195,7 +195,7 @@ export function createCartonKit({ normalMap } = {}) {
   // 码一托：1.2 × 1.0 的托盘上按箱子尺寸排成网格，一层层往上码；有的托是混装的，最上面一层不满，个别箱子歪了、被压塌、开着口
   function stackPallet(parent, x, y, kind, { maxH = 1.15, mixed = 0.35, z0 = 0 } = {}) {
     const r = rng(seed++ * 7);
-    let d = pick(kind, r), yy = y;
+    let d = pick(kind, r), yy = y, mw = 0, md = 0;                                   // 返回这一垛的高度和占地（缠膜、贴胶带、写字用）
     for (let layer = 0; layer < 6; layer++) {
       if (layer > 0 && r() < mixed) d = pick(r() < 0.25 ? 'reuse' : kind, r);
       const [w0, h0, d0] = d.size, rot = r() < 0.5 && w0 < 0.98 && d0 < 1.18;    // 有时整层转 90° 码
@@ -203,6 +203,7 @@ export function createCartonKit({ normalMap } = {}) {
       const nx = Math.max(1, Math.floor(1.18 / (fw + 0.01))), nz = Math.max(1, Math.floor(0.98 / (fd + 0.01)));
       if (yy + h0 - y > maxH) break;
       const top = yy + h0 * 2 - y > maxH || layer >= 2 && r() < 0.3;
+      mw = Math.max(mw, nx * (fw + 0.01)); md = Math.max(md, nz * (fd + 0.01));
       const shift = [(r() - 0.5) * 0.06, (r() - 0.5) * 0.06];                         // 整层歪一点
       for (let i = 0; i < nx; i++) for (let k = 0; k < nz; k++) {
         if (top && r() < 0.35) continue;                                             // 最上面一层不满
@@ -212,6 +213,7 @@ export function createCartonKit({ normalMap } = {}) {
       yy += h0 * 1.0 + 0.002;
       if (top) break;
     }
+    return { h: yy - y, w: Math.min(1.2, mw), d: Math.min(1.0, md) };
   }
   function flush() {
     for (const [parent, geos] of batches) { const merged = mergeGeometries(geos); const mesh = new THREE.Mesh(merged, material); mesh.matrixAutoUpdate = false; parent.add(mesh); geos.forEach((g) => g.dispose()); }

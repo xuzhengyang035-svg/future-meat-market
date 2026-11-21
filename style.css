@@ -577,6 +577,9 @@ body.scene-focus #streetspots, body.scene-focus #whspots { display: none; }
 #roomnav { position: fixed; inset: 0; pointer-events: none; z-index: 5; transition: opacity .3s; }
 #roomnav.off, body:not([data-view="room"]) #roomnav { opacity: 0; }
 #roomnav.off .navpt { pointer-events: none; }
+#whnav { position: fixed; inset: 0; pointer-events: none; z-index: 5; transition: opacity .3s; }
+#whnav.off, body:not([data-view="warehouse"]) #whnav { opacity: 0; }
+#whnav.off .navpt, body:not([data-view="warehouse"]) #whnav .navpt { pointer-events: none; }
 .navpt { position: absolute; left: 0; top: 0; width: 120px; height: 90px; background: none; border: 0; padding: 0; cursor: pointer; pointer-events: auto; transition: opacity .3s; }
 .navpt.hidden { opacity: 0; pointer-events: none; }
 .navpt .ring { position: absolute; left: 50%; top: 62px; width: 64px; height: 64px; margin: -32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.85); background: rgba(255,255,255,.12); transform: rotateX(68deg); box-shadow: 0 0 18px rgba(255,255,255,.35); animation: navpulse 2.2s ease-in-out infinite; }
@@ -598,3 +601,4 @@ body.scene-focus #streetspots, body.scene-focus #whspots { display: none; }
 .ledger .fine { position: absolute; left: 26px; bottom: 14px; margin: 0; font: 11px "Noto Sans SC", sans-serif; color: #7a6a5a; }
 .ledger .stamp { position: absolute; right: 30px; bottom: 18px; width: 74px; height: 74px; border: 3px solid rgba(178,34,28,.7); border-radius: 50%; color: rgba(178,34,28,.75);
   display: grid; place-items: center; font: 700 13px "Noto Sans SC", sans-serif; transform: rotate(-12deg); }
+#tutorial .big:empty, #tutorial .small:empty { display: none; }

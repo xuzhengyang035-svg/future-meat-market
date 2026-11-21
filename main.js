@@ -11,7 +11,7 @@ import { renderPosters, posterTexture } from './posters.js';
 import { paperHTML } from './papers.js';
 import { ROOM_STATIONS } from './data.js';
 import { SPECIES, ORDER, OPTIONS, GROWTH, HOTSPOTS, MARQUEE, DONOR_PR, DONOR_STEPS, AD, CALLOUTS, CERAMIC_BASE, BRAND_FILM, BRAND_FINE,
-  STREET_MARQUEE, STREET_HOTSPOTS, WH_MARQUEE, WH_HOTSPOTS,
+  STREET_MARQUEE, STREET_HOTSPOTS, WH_MARQUEE, WH_HOTSPOTS, WH_NAV,
   LAB_MARQUEE, LAB_HOTSPOTS, LAB_FOCUS, CELLBANK_ROWS, ASK, ASK_FALLBACK, ASK_ANIMAL } from './data.js';
 import { meatGeometry, meatHeight, kindFor } from './meat.js';
 import { makeBatch, stepBatch, readout, curve, sci } from './growth.js';
@@ -104,7 +104,7 @@ const labLook = { yaw: -6, pitch: -6, tYaw: -6, tPitch: -6, fov: 60 };
 const STREET_EYE = new THREE.Vector3(-0.8, 1.7, 11.5);
 const WH_EYE = new THREE.Vector3(-1.3, 1.65, 2.6);
 const streetLook = { yaw: 0, pitch: 11, tYaw: 0, tPitch: 11, fov: 62 };
-const whLook = { yaw: -12, pitch: 3, tYaw: -12, tPitch: 3, fov: 64 };
+const whLook = { yaw: -12, pitch: -6, tYaw: -12, tPitch: -6, fov: 64 };
 const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72 }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66 },
   street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70 } };
 window.__looks = LOOKS;   // 调试 / 截图用
@@ -130,7 +130,7 @@ canvas.addEventListener('pointermove', (e) => {
   L.tYaw -= dx * 0.14;
   L.tPitch = THREE.MathUtils.clamp(L.tPitch + dy * 0.1, -28, 28);
 });
-const endDrag = () => { drag = null; document.body.classList.remove('grabbing'); };
+const endDrag = () => { lastDragMoved = drag ? drag.moved : 0; drag = null; document.body.classList.remove('grabbing'); };
 canvas.addEventListener('pointerup', endDrag);
 // 冷柜触摸屏上的电子菜单（同一页手写便签）：指针移上去那一行涂上荧光笔；
 // 点培养肉那几行 → 在冷柜里打开这件商品下单；点堂食 → 去吧台试吃；划掉的那行今天没有
@@ -205,7 +205,7 @@ function sceneSpot(h) {
 }
 function hideInfo() { infoOpen = null; calloutLayer.classList.remove('on'); callouts = []; calloutLines.innerHTML = ''; }
 // 店外 / 仓库里的走近：眼睛从现在的位置走到 h.eye，一路看着 h.at；到了再出引线标注
-const SCENE_HOME = { street: { eye: STREET_EYE.clone(), yaw: 0, pitch: 11, fov: 62 }, warehouse: { eye: WH_EYE.clone(), yaw: -12, pitch: 3, fov: 64 } };
+const SCENE_HOME = { street: { eye: STREET_EYE.clone(), yaw: 0, pitch: 11, fov: 62 }, warehouse: { eye: WH_EYE.clone(), yaw: -12, pitch: -6, fov: 64 } };
 let sceneWalk, sceneTimer;
 function walkLook(L, eyeV, to, aim, fov, duration) {
   const from = eyeV.clone(), target = new THREE.Vector3(...to), p = { t: 0 };
@@ -229,24 +229,155 @@ function focusScene(id) {
   state.sfocus = id;
   document.body.classList.add('scene-focus');
   updateBack();
-  walkLook(l, eye, h.eye, h.at, h.fov || 52, dur);
+  if (state.view === 'warehouse' && h.view) { whTok++; whWalking = false; sceneWalk?.kill(); clearArrows(); fcStart(h); }   // 仓库：换成这个点自己的镜头（可以拖着转 / 平移）
+  else walkLook(l, eye, h.eye, h.at, h.fov || 52, dur);
   sceneTimer = setTimeout(() => { if (state.sfocus === id && location.hash.endsWith('/' + id)) showCallouts(h.info); }, dur * 1000 - 100);
   setMarquee(h.marquee);
 }
 function unfocusScene(instant = false) {
   clearTimeout(sceneTimer);
   const home = SCENE_HOME[state.view];
-  if (instant) { sceneWalk?.kill(); for (const [k, v] of Object.entries(SCENE_HOME)) LOOKS[k].eye.copy(v.eye); }
+  if (instant) { sceneWalk?.kill(); for (const [k, v] of Object.entries(SCENE_HOME)) LOOKS[k].eye.copy(v.eye); fcEnd(null, true); }
   if (!state.sfocus) return;
   hideInfo();
   state.sfocus = null;
   document.body.classList.remove('scene-focus');
   updateBack();
-  if (!instant && home) walkLook(LOOKS[state.view].l, LOOKS[state.view].eye, home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov, 1.7);
+  if (!instant && state.view === 'warehouse' && FC.on) fcEnd(home);                   // 仓库：从这个点的镜头退回原来的站位
+  else if (!instant && home) walkLook(LOOKS[state.view].l, LOOKS[state.view].eye, home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov, 1.7);
   setMarquee(currentMarquee());
 }
 const streetEls = makeHotspots(STREET_HOTSPOTS, sceneLayer('streetspots'), sceneSpot);
 const whEls = makeHotspots(WH_HOTSPOTS, sceneLayer('whspots'), sceneSpot);
+
+// ---- 仓库里走动（像街景）：脚下只显示通往相邻站位的箭头，点一下走过去一段——镜头只是平移过去、看着前进的方向，不会拉近到某样东西；
+//      上下月台走钢楼梯（路上经过楼梯的几个点）。箭头贴在地上：摆之前往下打一条射线，落在家具上就换一个距离，一定落在地面 / 月台 / 踏步上。
+//      没有文字说明：箭头一呼一吸地亮，指过去会变大，点了就走。
+const WH_ENTRY = { eye: WH_EYE.clone(), yaw: -12, pitch: -6 };
+state.whStation = WH_NAV.start;
+const navNode = (id) => { const n = WH_NAV.nodes[id]; return new THREE.Vector3(n[0], n[2] || 1.65, n[1]); };
+const navEdges = (id) => WH_NAV.edges.flatMap(([a, b, via = []]) => (a === id ? [{ to: b, via }] : b === id ? [{ to: a, via: [...via].reverse() }] : []));
+const arrowGeo = new THREE.ShapeGeometry(new THREE.Shape([[0, 0.24], [0.27, -0.03], [0.18, -0.12], [0, 0.075], [-0.18, -0.12], [-0.27, -0.03]].map(([x, y]) => new THREE.Vector2(x, y))));
+arrowGeo.rotateX(-Math.PI / 2);                                                       // 平躺在地上，尖朝 −z
+const arrowShadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
+const arrowHitGeo = new THREE.CircleGeometry(0.45, 20).rotateX(-Math.PI / 2);
+const navArrows = [], floorRay = new THREE.Raycaster(), DOWN = new THREE.Vector3(0, -1, 0);
+function floorAt(x, z, fromY) {                                                       // 这一点往下第一个不透明的面：能走的面返回高度，家具返回 null
+  floorRay.set(new THREE.Vector3(x, fromY, z), DOWN); floorRay.far = 4; floorRay.camera = camera;
+  for (const h of floorRay.intersectObject(wh.scene, true)) {
+    const o = h.object; if (o.userData.nav || !o.visible || o.isSprite || (o.material && (o.material.transparent || o.material.alphaTest > 0 && !o.userData.walk))) continue;
+    return o.userData.walk ? h.point.y : null; }
+  return null;
+}
+function clearArrows() { for (const a of navArrows) wh.scene.remove(a.g); navArrows.length = 0; navHover = null; canvas.style.cursor = ''; }
+function buildArrows() {
+  clearArrows();
+  if (state.view !== 'warehouse' || state.sfocus) return;
+  const here = navNode(state.whStation), floorY = here.y - 1.65;
+  for (const e of navEdges(state.whStation)) {
+    const path = [here, ...e.via.map((p) => new THREE.Vector3(...p)), navNode(e.to)], total = path.reduce((acc, p, k) => acc + (k ? Math.hypot(p.x - path[k - 1].x, p.z - path[k - 1].z) : 0), 0);
+    const along = (d) => { for (let k = 1; k < path.length; k++) { const a = path[k - 1], b = path[k], L = Math.hypot(b.x - a.x, b.z - a.z); if (d <= L || k === path.length - 1) { const t = Math.min(1, d / (L || 1)); return { p: new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t), dir: new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize() }; } d -= L; } };
+    let pos = null, dir = null;
+    for (const d0 of [3.0, 2.6, 3.4, 2.2, 1.8]) { const q = along(Math.min(d0, total * 0.85)); const y = floorAt(q.p.x, q.p.z, Math.max(here.y, path[path.length - 1].y) + 0.2);   /* 沿着要走的路量 3 m 左右；楼梯上就落在踏步上 */
+      if (y !== null && y > floorY - 1.4 && y < floorY + 1.4) { pos = new THREE.Vector3(q.p.x, y + 0.012, q.p.z); dir = q.dir; break; } }
+    if (!pos) continue;                                                                 // 前面没有能落脚的地方就不显示这支箭头
+    const g = new THREE.Group(); g.position.copy(pos); g.rotation.y = Math.atan2(-dir.x, -dir.z);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
+    const sh = new THREE.Mesh(arrowGeo, arrowShadowMat); sh.scale.setScalar(1.16); sh.position.set(0, -0.003, 0.012);
+    const ar = new THREE.Mesh(arrowGeo, mat), hit = new THREE.Mesh(arrowHitGeo, mat); hit.visible = false;
+    for (const m of [sh, ar, hit]) m.userData.nav = true;
+    g.add(sh, ar, hit); wh.scene.add(g); navArrows.push({ g, e, mat, ar, hit, k: 1 });
+  }
+}
+const navRay = new THREE.Raycaster(), navNdc = new THREE.Vector2();
+let navHover = null, lastDragMoved = 0, whWalking = false, whTok = 0;
+function navPick(e) {
+  if (state.view !== 'warehouse' || state.sfocus || whWalking || !navArrows.length) return null;
+  const r = canvas.getBoundingClientRect(); navNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  navRay.setFromCamera(navNdc, camera);
+  const h = navRay.intersectObjects(navArrows.map((a) => a.hit), false)[0];
+  return h ? navArrows.find((a) => a.hit === h.object) : null;
+}
+canvas.addEventListener('pointermove', (e) => { if (state.view !== 'warehouse' || drag || fdrag) return; const a = navPick(e); if (a !== navHover) { navHover = a; canvas.style.cursor = a ? 'pointer' : ''; } });
+canvas.addEventListener('click', (e) => { if (lastDragMoved > 6) return; const a = navPick(e); if (a) whStep(a.e); });
+function whStep(e) {
+  const pts = [...e.via.map((p) => new THREE.Vector3(...p)), navNode(e.to)], tok = ++whTok;
+  state.whStation = e.to; whWalking = true; clearArrows(); hideTutorial(); hideInfo();
+  let i = 0;
+  const next = () => {
+    if (tok !== whTok) return;
+    if (i >= pts.length) { whWalking = false; SCENE_HOME.warehouse.eye.copy(WH_EYE); Object.assign(SCENE_HOME.warehouse, { yaw: whLook.tYaw, pitch: whLook.tPitch }); buildArrows(); return; }
+    const p = pts[i], dist = p.distanceTo(WH_EYE), dir = p.clone().sub(WH_EYE).setY(0);
+    if (dir.lengthSq() < 1e-4) dir.set(Math.sin(THREE.MathUtils.degToRad(whLook.yaw)), 0, -Math.cos(THREE.MathUtils.degToRad(whLook.yaw)));
+    dir.normalize(); const aim = p.clone().addScaledVector(dir, 3); aim.y = p.y - 0.26;   // 看着前进的方向，略微朝下（看得见下一组箭头）
+    const dur = 0.35 + dist * 0.33;
+    walkLook(whLook, WH_EYE, p.toArray(), aim.toArray(), whLook.fov, dur);
+    i++; setTimeout(next, dur * 1000);
+  };
+  next();
+}
+window.__whNav = { step: (to) => { const e = navEdges(state.whStation).find((x) => x.to === to); if (e) whStep(e); return !!e; }, arrows: () => navArrows.map((a) => ({ to: a.e.to, p: a.g.position.toArray().map((v) => +v.toFixed(2)) })), at: () => state.whStation };   // 调试
+function placeWhNav(t = 0) {                                                          // 每帧：箭头一呼一吸，指过去的那支变大变亮
+  const on = state.view === 'warehouse' && !state.sfocus && !whWalking;
+  navArrows.forEach((a, i) => { a.g.visible = on; const hov = a === navHover; a.k += ((hov ? 1.18 : 1) - a.k) * 0.25; a.g.scale.setScalar(a.k);
+    a.mat.opacity = hov ? 1 : 0.62 + 0.26 * (0.5 + 0.5 * Math.sin(t * 2.6 + i * 0.9)); });
+}
+
+// ---- 点进一样东西以后的镜头：每个点按东西的样子给不同的看法，拖动就能换角度
+//   orbit：绕着这样东西转（左右有限度、上下有限度，滚轮拉近拉远）——桌子、冷柜、运输笼……
+//   track：沿着一条轨道平移（左右拖 = 沿着走，上下拖 = 抬头低头）——冷冻区是从上往下看、沿着一排冷柜移；货架是沿着货架正面走
+const FC = { on: false, exiting: false, h: null, v: null, blend: 0, fromEye: new THREE.Vector3(), fromAt: new THREE.Vector3(), u: 0.5, tu: 0.5, az: 0, taz: 0, el: 0, tel: 0, d: 1, td: 1, tilt: 0, ttilt: 0, fov: 56, side: 1, az0: 0, d0: 1 };
+const fcEye = new THREE.Vector3(), fcAt = new THREE.Vector3();
+let fdrag = null;
+function fcPose(eye, at) {
+  const v = FC.v;
+  if (v.mode === 'orbit') { at.set(...FC.h.at); eye.set(at.x + Math.sin(FC.az) * Math.cos(FC.el) * FC.d, at.y + Math.sin(FC.el) * FC.d, at.z + Math.cos(FC.az) * Math.cos(FC.el) * FC.d); }
+  else { eye.lerpVectors(new THREE.Vector3(...v.a), new THREE.Vector3(...v.b), FC.u); const L = new THREE.Vector3(...v.look); const hz = Math.hypot(L.x, L.z), p = Math.atan2(L.y, hz) + FC.tilt;
+    at.set(eye.x + (L.x / hz) * Math.cos(p) * 2, eye.y + Math.sin(p) * 2, eye.z + (L.z / hz) * Math.cos(p) * 2); }
+}
+function fcStart(h) {
+  FC.h = h; FC.v = h.view; FC.on = true; FC.exiting = false; FC.blend = 0;
+  FC.fromEye.copy(camera.position); FC.fromAt.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
+  FC.fov = h.view.fov || h.fov || 54;
+  if (FC.v.mode === 'orbit') { const e = new THREE.Vector3(...h.eye), a = new THREE.Vector3(...h.at), d = e.distanceTo(a);
+    FC.d0 = FC.d = FC.td = d; FC.az0 = FC.az = FC.taz = Math.atan2(e.x - a.x, e.z - a.z); FC.el = FC.tel = Math.asin((e.y - a.y) / d); }
+  else { FC.u = FC.tu = FC.v.u0 ?? 0.5; FC.tilt = FC.ttilt = 0;
+    const L = new THREE.Vector3(...FC.v.look), right = new THREE.Vector3(L.x, 0, L.z).normalize().cross(new THREE.Vector3(0, 1, 0));
+    FC.side = Math.sign(new THREE.Vector3(...FC.v.b).sub(new THREE.Vector3(...FC.v.a)).dot(right)) || 1; }
+  gsap.to(FC, { blend: 1, duration: 1.5, ease: 'power2.inOut', overwrite: true });
+  setTimeout(() => { if (FC.on && !FC.exiting) showTutorial('', '', 'drag'); }, 1500);                    // 只给一个拖动的小图标，不写字
+}
+function fcEnd(home, instant) {
+  if (!FC.on) return;
+  if (instant) { FC.on = false; return; }
+  FC.exiting = true; fcPose(FC.fromEye, FC.fromAt);                                     // 从现在的样子回到站位
+  const y = THREE.MathUtils.degToRad(home.yaw), p = THREE.MathUtils.degToRad(home.pitch);
+  const hEye = home.eye.clone(), hAt = hEye.clone().add(new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)).multiplyScalar(3));
+  FC.blend = 0; FC.back = { eye: hEye, at: hAt, fov: home.fov || 64 };
+  gsap.to(FC, { blend: 1, duration: 1.3, ease: 'power2.inOut', overwrite: true, onComplete: () => {
+    FC.on = false; FC.exiting = false; WH_EYE.copy(hEye); Object.assign(whLook, { yaw: home.yaw, tYaw: home.yaw, pitch: home.pitch, tPitch: home.pitch, fov: home.fov || 64 }); buildArrows(); } });
+}
+function fcStep() {
+  const k = 0.16, v = FC.v;
+  FC.u += (FC.tu - FC.u) * k; FC.az += (FC.taz - FC.az) * k; FC.el += (FC.tel - FC.el) * k; FC.d += (FC.td - FC.d) * k; FC.tilt += (FC.ttilt - FC.tilt) * k;
+  let fov;
+  if (!FC.exiting) { fcPose(fcEye, fcAt); const b = FC.blend; camera.position.lerpVectors(FC.fromEye, fcEye, b); fcAt.lerpVectors(FC.fromAt, fcAt, b); fov = THREE.MathUtils.lerp(camera.fov, FC.fov, 0.12); }
+  else { const b = FC.blend; camera.position.lerpVectors(FC.fromEye, FC.back.eye, b); fcAt.lerpVectors(FC.fromAt, FC.back.at, b); fov = THREE.MathUtils.lerp(camera.fov, FC.back.fov, 0.12); }
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  camera.lookAt(fcAt); camera.updateMatrixWorld();
+}
+canvas.addEventListener('pointerdown', (e) => { if (!(state.view === 'warehouse' && FC.on && !FC.exiting && FC.blend > 0.95)) return; fdrag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); document.body.classList.add('grabbing'); hideTutorial(); });
+canvas.addEventListener('pointermove', (e) => {
+  if (!fdrag) return; const dx = e.clientX - fdrag.x, dy = e.clientY - fdrag.y; fdrag.x = e.clientX; fdrag.y = e.clientY; const v = FC.v;
+  if (v.mode === 'orbit') { const r = THREE.MathUtils.degToRad(v.az); FC.taz = THREE.MathUtils.clamp(FC.taz - dx * 0.006, FC.az0 - r, FC.az0 + r);
+    FC.tel = THREE.MathUtils.clamp(FC.tel + dy * 0.005, THREE.MathUtils.degToRad(v.el[0]), THREE.MathUtils.degToRad(v.el[1])); }
+  else { const len = new THREE.Vector3(...v.a).distanceTo(new THREE.Vector3(...v.b)); FC.tu = THREE.MathUtils.clamp(FC.tu - FC.side * dx * 2.4 / (innerWidth * len), 0, 1);   // 画面跟着手走
+    FC.ttilt = THREE.MathUtils.clamp(FC.ttilt + dy * 0.003, -THREE.MathUtils.degToRad(v.tilt), THREE.MathUtils.degToRad(v.tilt)); }
+});
+const endFDrag = () => { if (fdrag) { fdrag = null; document.body.classList.remove('grabbing'); } };
+canvas.addEventListener('pointerup', endFDrag); canvas.addEventListener('pointercancel', endFDrag);
+canvas.addEventListener('wheel', (e) => { if (!(state.view === 'warehouse' && FC.on && !FC.exiting)) return;
+  if (FC.v.mode === 'orbit') FC.td = THREE.MathUtils.clamp(FC.td * (1 + e.deltaY * 0.001), FC.d0 * 0.6, FC.d0 * 1.35); else FC.fov = THREE.MathUtils.clamp(FC.fov + e.deltaY * 0.02, 38, 70); }, { passive: true });
 
 function enterHotspot(h) {
   if (state.busy) return;
@@ -1196,14 +1327,15 @@ function route() {
       closeProduct(true);
       setView(page);
       unfocusScene(true);
-      Object.assign(L, page === 'street' ? { yaw: 0, tYaw: 0, pitch: 11, tPitch: 11, fov: 62 } : { yaw: -12, tYaw: -12, pitch: 3, tPitch: 3, fov: 64 });
+      const wh = SCENE_HOME.warehouse; Object.assign(L, page === 'street' ? { yaw: 0, tYaw: 0, pitch: 11, tPitch: 11, fov: 62 } : { yaw: wh.yaw, tYaw: wh.yaw, pitch: wh.pitch, tPitch: wh.pitch, fov: 64 });
       camera.fov = L.fov; camera.updateProjectionMatrix();
       if (sub) setTimeout(() => { if (state.view === page && location.hash === `#/${page}/${sub}`) focusScene(sub); }, 450);
       setMarquee(page === 'street' ? STREET_MARQUEE : WH_MARQUEE);
       if (page === 'street' && firstStreet) { firstStreet = false; setTimeout(() => { if (state.view === 'street') showTutorial('拖动 · 环顾街道', '点击圆形标签进店或查看细节', 'drag'); }, 700); }
-      if (page === 'warehouse' && firstWh) { firstWh = false; setTimeout(() => { if (state.view === 'warehouse') showTutorial('拖动 · 环顾仓库', '点击圆形标签查看物品', 'drag'); }, 700); }
+      if (page === 'warehouse') { whTok++; whWalking = false; setTimeout(() => { if (state.view === 'warehouse' && !state.sfocus) buildArrows(); }, 60); }
+      if (page === 'warehouse' && firstWh) { firstWh = false; setTimeout(() => { if (state.view === 'warehouse') showTutorial('', '', 'drag'); }, 700); }   // 不写字：一个拖动的小图标 + 地上一呼一吸的箭头
     };
-    if (state.view !== page) fade(enter, page === 'street' ? '店外 · STREET' : '仓库 · WAREHOUSE');
+    if (state.view !== page) fade(() => { if (page === 'warehouse') { Object.assign(SCENE_HOME.warehouse, { yaw: WH_ENTRY.yaw, pitch: WH_ENTRY.pitch }); SCENE_HOME.warehouse.eye.copy(WH_ENTRY.eye); state.whStation = WH_NAV.start; } enter(); }, page === 'street' ? '店外 · STREET' : '仓库 · WAREHOUSE');   // 从外面进仓库：站回门口
     else if (sub) focusScene(sub);
     else if (state.sfocus) unfocusScene();
     else enter();
@@ -1322,15 +1454,15 @@ function loop() {
     stepLook(look, ROOM_EYE, dt);
     room.tick(t, state.order);
     placeHotspots(hsEls, 3.3);                                                   // 走近了（3.3 m 以内）才出现这件东西的交互按钮
-    placeNav();
+    placeNav(); placeWhNav();
     if (postRoom) postRoom.render(t); else renderer.render(room.scene, camera);
     renderCSS();
     if (callouts.length) updateCallouts();
   } else if (state.view === 'street' || state.view === 'warehouse') {
     const S = state.view === 'street' ? street : wh;
-    stepLook(LOOKS[state.view].l, LOOKS[state.view].eye, dt);
+    if (state.view === 'warehouse' && FC.on) fcStep(); else stepLook(LOOKS[state.view].l, LOOKS[state.view].eye, dt);
     S.tick(t);
-    placeHotspots(state.view === 'street' ? streetEls : whEls);
+    if (state.view === 'street') placeHotspots(streetEls); else { placeHotspots(whEls, 5.5); placeWhNav(t); }   // 仓库：走近了（5.5 m 内）才出现标签；地上的箭头
     const P = state.view === 'street' ? postStreet : postWh;
     if (P) P.render(t); else renderer.render(S.scene, camera);
     if (callouts.length) updateCallouts();

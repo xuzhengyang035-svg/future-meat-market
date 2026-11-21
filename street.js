@@ -7,7 +7,7 @@
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
 import { canvasTexture } from './textures.js';
-import { pbr, model, decal, userDecal, userMat } from './assets.js';
+import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { meatGeometry, meatMaterial } from './meat.js';
 import { grimeMap, ageCanvas, blobShadow, puddleDecal, grimeLayer, brushedSteelMaps } from './materials.js';
 
@@ -69,12 +69,12 @@ export function createStreet(env) {
     plaster: (w, h, c = 0x9a968c) => pbr('worn_mossy_plasterwall', w, h, { size: 3.0, roughness: 0.95, color: c }),
     stone: (w, h) => pbr('plastered_stone_wall', w, h, { size: 2.2, roughness: 0.95, color: 0x8a867e }),
     green: (w = 1, h = 1) => pbr('green_rough_planks', w, h, { size: 1.6, roughness: 0.7, color: 0x8aa294 }),
-    iron: new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: 0.5, metalness: 0.7, map: grimeMap(42) }),
+    iron: pbr('PaintedMetal012', 1, 1, { metalness: 1, roughness: 1, color: 0x2a2c2e }),   // 黑漆铸铁 / 铁框：真实扫描的旧漆面（压暗），磨掉的地方露铁起锈
     sill: pbr('white_plaster_02', 1, 1, { size: 0.8, color: 0xa8a49a }),
     glass: new THREE.MeshPhysicalMaterial({ color: 0xcfd8dc, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.07, envMapIntensity: 0.7, depthWrite: false }),
     warm: new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.2, 1.3) }),
     steel: new THREE.MeshStandardMaterial({ color: 0xc8c8c4, roughness: 0.25, metalness: 1 }),
-    co2: new THREE.MeshStandardMaterial({ color: 0xa8aca8, roughness: 0.3, metalness: 0.85, map: grimeMap(46) }),
+    co2: pbr('Metal009', 1, 1, { metalness: 1, roughness: 0.8, color: 0xb4b8b4 }),         // 气瓶：拉丝钢（真实扫描）
     co2top: new THREE.MeshStandardMaterial({ color: 0x2e6a48, roughness: 0.5, metalness: 0.4 }),
   };
 
@@ -130,10 +130,11 @@ export function createStreet(env) {
   // ---------------------------------------------------------------- 底层：石砌墙（店面两边、右边侧门那一段）
   const SX0 = -6.3, SX1 = 2.8;
   box(SX0 - BX0, GH, 1.0, M.stone(SX0 - BX0, GH), (BX0 + SX0) / 2, GH / 2, -0.5, root);
-  box(BX1 - SX1, GH, 1.0, M.stone(BX1 - SX1, GH), (SX1 + BX1) / 2, GH / 2, -0.5, root);
+  { const D0 = 5.4, D1 = 7.4, DT = 3.15;                                         // 右边这段墙在 02 号门那里真的开一个门洞（以前是一整块墙，门里只是一张画）
+    box(D0 - SX1, GH, 1.0, M.stone(D0 - SX1, GH), (SX1 + D0) / 2, GH / 2, -0.5, root); box(BX1 - D1, GH, 1.0, M.stone(BX1 - D1, GH), (D1 + BX1) / 2, GH / 2, -0.5, root);
+    box(D1 - D0, GH - DT, 1.0, M.stone(D1 - D0, GH - DT), (D0 + D1) / 2, DT + (GH - DT) / 2, -0.5, root); }
   box(SX1 - SX0, GH - 4.25, 1.0, M.stone(SX1 - SX0, 0.1), (SX0 + SX1) / 2, 4.25 + (GH - 4.25) / 2, -0.5, root);
-  { const st = canvasTexture(800, 300, (g, W, H) => { g.clearRect(0, 0, W, H); grimeLayer(g, W, H, R(91), { stains: 6, drips: 40, rust: 4, mould: 3, unit: 180, dripCol: '20,22,20' }); });
-    for (const [x0, x1] of [[BX0, SX0], [SX1, BX1]]) plane(x1 - x0, GH, new THREE.MeshStandardMaterial({ map: st, transparent: true, depthWrite: false }), (x0 + x1) / 2, GH / 2, 0.012, 0, root);
+  {   // 墙上的脏只用真实扫描的流痕贴花（以前那层画出来的脏去掉了）
     for (const [x, w, k] of [[(BX0 + SX0) / 2, SX0 - BX0, 'Leaking008'], [4.2, 2.4, 'Leaking009'], [7.4, 1.2, 'Leaking007']]) decal(k, root, { pos: [x, 0.75, 0.016], w, h: 1.2, color: 0x2a2a24, opacity: 0.7 }); }
 
   // ---------------------------------------------------------------- 店面：墨绿色旧木头，左大橱窗、中间对开门、右小橱窗
@@ -250,17 +251,35 @@ export function createStreet(env) {
   const note = (t, s, seed) => canvasTexture(200, 260, (g, W, H) => { g.fillStyle = '#ddd6c2'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 36px ${SANS}`; g.textAlign = 'center'; g.fillText(t, W / 2, 60); g.font = `400 20px ${SANS}`; s.forEach((l, i) => g.fillText(l, W / 2, 110 + i * 30)); ageCanvas(g, W, H, { amount: 1.2, seed }); });
   for (const [x, y, t, l] of [[4.55, 2.05, '通知', ['本楼地下室', '夜间施工']], [4.85, 1.65, '招工', ['夜班分拣', '日结']], [4.45, 1.45, '熟客', ['请走侧门', '敲三下']], [5.0, 2.3, '寻猫', ['灰色 · 母', '酬谢']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
   const SDX = 6.4;
-  box(1.25, 2.55, 0.12, M.stone(1.3, 2.6), SDX, 1.43, 0.0, root);
-  box(1.05, 2.35, 0.08, M.green(1.05, 2.35), SDX, 1.33, 0.06, root);
-  for (let k = 0; k < 8; k++) box(0.75, 0.025, 0.05, M.iron, SDX, 0.35 + k * 0.055, 0.12, root);
-  for (let k = 0; k < 6; k++) box(0.6, 0.025, 0.05, M.iron, SDX, 2.05 + k * 0.05, 0.12, root);
-  box(0.05, 0.18, 0.06, M.steel, SDX + 0.4, 1.25, 0.12, root);
+  // 仓库的 02 号门（和仓库里那扇是同一扇）：卷帘门拉起来一半，里面暖黄的灯照出来，看得见运输笼和托盘
+  { const DW = 2.0, DTop = 3.15, OPEN = 1.35, y0 = 0.15;
+    // 门里：一间真的小库房（不是画）——旧水泥地、水泥墙、压型钢板顶，里面一台扫描的仓储推车、木箱、周转箱、手推车，一盏暖灯
+    { const RX0 = 4.9, RX1 = 7.9, RZ1 = -3.8, RH = 3.4, cx = (RX0 + RX1) / 2, cz = RZ1 / 2;
+      const fl = new THREE.Mesh(new THREE.PlaneGeometry(RX1 - RX0, -RZ1), pbr('concrete_floor_worn_001', RX1 - RX0, -RZ1, { size: 3, roughness: 0.75, color: 0x9a968c })); fl.rotation.x = -Math.PI / 2; fl.position.set(cx, y0 + 0.001, cz); root.add(fl);
+      const wm = (w, h) => pbr('concrete_wall_008', w, h, { size: 3, roughness: 0.95, color: 0x8a867e });
+      plane(RX1 - RX0, RH, wm(RX1 - RX0, RH), cx, y0 + RH / 2, RZ1, 0, root);
+      for (const [x, ry] of [[RX0, Math.PI / 2], [RX1, -Math.PI / 2]]) plane(-RZ1 + 1, RH, wm(-RZ1, RH), x, y0 + RH / 2, (RZ1 - 1) / 2 + 0.5, ry, root);
+      { const c = new THREE.Mesh(new THREE.PlaneGeometry(RX1 - RX0, -RZ1), pbr('corrugated_iron', RX1 - RX0, -RZ1, { size: 2.4, roughness: 0.7, metalness: 0.4, color: 0x6a6a64 })); c.rotation.x = Math.PI / 2; c.position.set(cx, y0 + RH, cz); root.add(c); }
+      model('industrial_storage_cart', { pos: [5.7, y0, -2.6], rot: 0.35, parent: root });
+      model('wooden_crate_01', { pos: [7.1, y0, -3.1], rot: -0.25, parent: root });
+      for (let i = 0; i < 3; i++) model('plastic_crate_01', { pos: [6.55 + (i % 2) * 0.05, y0 + i * 0.262, -1.7], rot: 0.1 * i, jitter: 0.2, parent: root });
+      model('hand_truck', { pos: [7.45, y0, -1.6], rot: -1.3, tilt: 0.05, parent: root });
+      model('cardboard_box_01', { pos: [5.3, y0, -1.5], rot: 0.6, parent: root });
+      decal('Leaking006', root, { pos: [6.0, y0 + 2.0, RZ1 + 0.01], w: 1.6, h: 2.4, color: 0x3a3428, opacity: 0.6 });
+      const inL = new THREE.PointLight(0xffb870, 6, 5.5, 1.6); inL.position.set(6.4, y0 + 2.7, -1.7); root.add(inL); }   // 库房里的暖灯，光从半开的门底下照到湿地上
+    for (const dx of [-DW / 2 - 0.07, DW / 2 + 0.07]) box(0.14, DTop - y0 + 0.2, 0.2, M.iron, SDX + dx, (DTop + y0) / 2 + 0.1, 0.06, root);   // 门框
+    box(DW + 0.3, 0.42, 0.42, M.iron, SDX, DTop + 0.2, 0.18, root);                                                      // 卷轴箱
+    plane(DW, DTop - y0 - OPEN, pbr('rusty_metal_shutter', DW, DTop - y0 - OPEN, { size: 2.2, roughness: 0.55, metalness: 0.45, color: 0xa8a8a0 }), SDX, y0 + OPEN + (DTop - y0 - OPEN) / 2, 0.08, 0, root);
+    box(DW, 0.07, 0.06, M.steel, SDX, y0 + OPEN + 0.03, 0.09, root);
+    const n02 = paintedText('02', { W: 256, H: 160, size: 140, y: 0.84, color: 'rgba(150,40,30,.88)', mask: 'SurfaceImperfections009' });   // 门上刷的“02”：磨掉的地方用真实扫描的瑕疵图擦
+    plane(0.8, 0.5, new THREE.MeshStandardMaterial({ map: n02, transparent: true, depthWrite: false, roughness: 0.7 }), SDX + 0.3, y0 + OPEN + 0.95, 0.085, 0, root);
+  }
   const sideLamp = new THREE.PointLight(0xffc070, 3.5, 4.5, 1.7);
-  { const wl = new THREE.Group(); wl.position.set(SDX, 2.9, 0.08); root.add(wl); cyl(0.07, 0.12, 0.1, M.iron, 0, 0, 0.12, wl, 14); cyl(0.06, 0.06, 0.02, M.warm, 0, -0.06, 0.12, wl, 14); sideLamp.position.set(0, -0.2, 0.5); wl.add(sideLamp); }
-  model('wooden_crate_01', { pos: [7.5, 0.15, 0.55], rot: 0.1, parent: root }); model('wooden_crate_01', { pos: [7.45, 0.5, 0.5], rot: -0.12, parent: root }); model('wooden_crate_01', { pos: [7.55, 0.85, 0.55], rot: 0.2, tilt: 0.04, parent: root });
+  { const wl = new THREE.Group(); wl.position.set(SDX, 3.75, 0.08); root.add(wl); cyl(0.07, 0.12, 0.1, M.iron, 0, 0, 0.12, wl, 14); cyl(0.06, 0.06, 0.02, M.warm, 0, -0.06, 0.12, wl, 14); sideLamp.position.set(0, -0.2, 0.5); wl.add(sideLamp); }
+  model('wooden_crate_01', { pos: [7.8, 0.15, 0.6], rot: 0.1, parent: root }); model('wooden_crate_01', { pos: [7.75, 0.5, 0.55], rot: -0.12, parent: root }); model('wooden_crate_01', { pos: [7.85, 0.85, 0.6], rot: 0.2, tilt: 0.04, parent: root });
   model('wooden_crate_02', { pos: [7.6, 0.15, 1.5], rot: 1.5, parent: root });
-  model('trashbag', { pos: [5.2, 0.15, 0.6], rot: 0.5, parent: root });
-  box(0.45, 0.45, 0.3, M.steel, SDX, 4.1, 0.12, root);
+  model('trashbag', { pos: [4.95, 0.15, 0.65], rot: 0.5, parent: root });
+  box(0.45, 0.45, 0.3, M.steel, SDX + 0.9, 4.1, 0.12, root);
   const steamTex = canvasTexture(128, 128, (g, W, H) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(220,226,224,.5)'); gr.addColorStop(1, 'rgba(220,226,224,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
   const steam = [];
   for (let i = 0; i < 10; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0.4 })); s.userData.ph = i / 10; root.add(s); steam.push(s); }
@@ -325,10 +344,10 @@ export function createStreet(env) {
   model('exterior_aircon_unit', { pos: [4.65, GH + FH + 0.55, 0.24], parent: root });            // 二楼窗户之间的空调外机
   model('exterior_aircon_unit', { pos: [-4.65, GH + FH * 2 + 0.55, 0.24], parent: root });
   for (const [x, y] of [[4.65, GH + FH + 0.25], [-4.65, GH + FH * 2 + 0.25]]) { decal('Leaking006', root, { pos: [x + 0.6, y - 1.5, 0.014], w: 0.45, h: 2.6, color: 0x2a2a24, opacity: 0.7 }); }   // 空调滴水在墙上冲出的一道
-  model('power_box_01', { pos: [5.35, 1.55, 0.06], parent: root });
+  model('power_box_01', { pos: [7.75, 1.8, 0.06], parent: root });   // 让开 02 号门
   userDecal('poster_residue.webp', root, { pos: [5.65, 2.35, 0.018], w: 0.75, h: 0.5, mode: 'cut', roughness: 0.95 });   // 告示旁边撕掉的一张
   for (const [x, f] of [[3.1, 1], [-6.2, 0], [0, 2]]) userDecal('drips.webp', root, { pos: [x, GH + f * FH + 0.4 - 0.38, 0.016], w: 1.5, h: 0.75, opacity: 0.8 });   // 阳台板底下铁栏杆锈水流下来
-  model('garden_hose_wall_mounted_01', { pos: [5.7, 0.85, 0.01], parent: root });
+  model('garden_hose_wall_mounted_01', { pos: [3.2, 0.85, 0.01], parent: root });
   model('security_camera_01', { pos: [SDX - 0.75, 3.05, 0.12], rot: -0.5, parent: root });
   model('metal_trash_can', { pos: [-6.9, 0.15, 0.55], rot: 0.15, parent: root });
   model('industrial_wall_lamp', { pos: [2.95, 3.4, 0.0], parent: root });
@@ -433,7 +452,7 @@ export function createStreet(env) {
   function tick(t) {
     for (const s of steam) {
       const p = (t * 0.18 + s.userData.ph) % 1;
-      s.position.set(SDX + Math.sin(p * 6 + s.userData.ph * 9) * 0.15, 4.2 + p * 2.4, 0.4 + p * 0.6);
+      s.position.set(SDX + 0.9 + Math.sin(p * 6 + s.userData.ph * 9) * 0.15, 4.2 + p * 2.4, 0.4 + p * 0.6);
       s.scale.setScalar(0.4 + p * 1.6);
       s.material.opacity = 0.4 * (1 - p) * Math.min(1, p * 6);
     }
