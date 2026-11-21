@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { canvasTexture } from './textures.js';
 import { createCartonKit } from './cartons.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { pbr, model, decal, userDecal } from './assets.js';
@@ -113,7 +114,16 @@ export function createWarehouse(env) {
       g.fillStyle = 'rgba(40,90,40,.6)'; g.font = `800 34px ${SANS}`; g.fillText('SOY PROTEIN', 20, 110); g.font = `700 26px ${SANS}`; g.fillText('大豆分离蛋白 25kg', 20, 150);
       for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(90,70,40,${Math.random() * 0.12})`; g.fillRect(Math.random() * W, Math.random() * H, 6 + Math.random() * 20, 2 + Math.random() * 6); } }, { repeat: [1, 1] });
     M.sack = new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }); }
-  const kit = createCartonKit({ normalMap: M.carton.normalMap });                // 纸箱：贴图集 + 合并网格（cartons.js）
+  const kit = createCartonKit({ normalMap: M.carton.normalMap });
+  // ---- 仓库道具包（Blender 做的 8 个 GLB，地面为原点、单位米、正面朝 +z）。贴图事先压到 512（带字的到 1024）并按内容哈希命名，
+  //      这里跨文件共用同一张贴图——同一张旧钢板、旧木头不会重复上传显存（three-best-practices：material-reuse / 显存）
+  const gltf = new GLTFLoader(), texCache = new Map();
+  const shareTex = (mat) => { for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) { const t = mat[k]; if (!t || !t.name) continue;
+    const key = t.name + '|' + t.colorSpace, c = texCache.get(key); if (c) mat[k] = c; else { t.anisotropy = 8; texCache.set(key, t); } } };
+  const placeKit = (file, x, y, z, ry = 0, after) => gltf.load('assets/kit/' + file, (g) => {
+    const o = g.scene; o.traverse((m) => { if (m.isMesh) { shareTex(m.material); m.material.envMapIntensity = 0.9; } });
+    o.position.set(x, y, z); o.rotation.y = ry; o.updateMatrixWorld(true); o.matrixAutoUpdate = false; root.add(o); after?.(o);
+  }, undefined, (e) => console.warn('kit', file, e));                // 纸箱：贴图集 + 合并网格（cartons.js）
   const blobMat = new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false, opacity: 0.6 });
   const blob = (x, z, sx, sz = sx, y = 0.005) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), blobMat); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); root.add(p); return p; };
 
@@ -307,35 +317,7 @@ export function createWarehouse(env) {
   for (const z of [0.9, -8.35, -17.6]) { cyl(0.08, 0.08, 1.0, M.yellow, 1.95, 0.5, z, root, 14); cyl(0.085, 0.085, 0.1, M.rackDark, 1.95, 0.75, z, root, 14); }
 
   // ---------------------------------------------------------------- 叉车（停在两组货架之间的横通道口）和两台手动搬运车
-  // 叉车：参考图里那种橙色平衡重式叉车——圆角车身、黑色配重、护顶架、双节门架（带链条）、货叉；轮胎有轮毂
-  const forklift = (x, z, ry, liftY = 0.25) => {
-    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
-    const RBx = (w, h, d, r, m, px, py, pz, par = g) => { const o = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, r), m); o.position.set(px, py, pz); par.add(o); return o; };
-    const paint = new THREE.MeshPhysicalMaterial({ color: 0xd2541c, roughness: 0.42, metalness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.35, map: grimeMap(60) });   // 橙漆，有一层光
-    const blackM = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.5, metalness: 0.4, map: grimeMap(51) });
-    RBx(1.0, 0.55, 1.5, 0.06, paint, 0, 0.55, 0.05);                              // 车身
-    RBx(1.04, 0.62, 0.5, 0.12, blackM, 0, 0.72, -0.78);                           // 配重（圆滚滚的黑铁块）
-    RBx(0.98, 0.3, 0.7, 0.05, paint, 0, 0.98, -0.32);                             // 发动机盖
-    RBx(0.5, 0.1, 0.48, 0.04, blackM, 0, 1.18, -0.3); RBx(0.5, 0.48, 0.1, 0.04, blackM, 0, 1.42, -0.55);   // 座椅
-    const col = cyl(0.03, 0.03, 0.5, blackM, 0, 1.12, 0.42, g, 10); col.rotation.x = -0.45;
-    const whl = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.018, 8, 24), blackM); whl.position.set(0, 1.36, 0.52); whl.rotation.x = Math.PI / 2 - 0.45; g.add(whl);
-    for (const sx of [-0.45, 0.45]) { box(0.05, 1.45, 0.05, blackM, sx, 1.55, 0.6, g); const r = box(0.05, 1.5, 0.05, blackM, sx, 1.62, -0.62, g); r.rotation.x = -0.08; }   // 护顶架四根柱
-    box(0.96, 0.05, 1.3, blackM, 0, 2.3, 0, g); for (let i = 0; i < 6; i++) box(0.9, 0.025, 0.04, blackM, 0, 2.33, -0.55 + i * 0.22, g);
-    for (const sx of [-0.33, 0.33]) { box(0.1, 2.5, 0.12, blackM, sx, 1.27, 0.88, g); box(0.07, 2.4, 0.09, M.beam, sx * 0.8, 1.3, 0.95, g); }   // 门架：外框 + 内框
-    for (const y of [0.25, 2.45]) box(0.76, 0.08, 0.1, blackM, 0, y, 0.88, g);
-    for (const sx of [-0.12, 0.12]) box(0.02, 2.3, 0.02, M.steel, sx, 1.3, 0.98, g);   // 链条
-    const carr = new THREE.Group(); carr.position.set(0, liftY, 0.98); g.add(carr);
-    box(0.85, 0.5, 0.05, blackM, 0, 0.28, 0.04, carr); for (let i = 0; i < 4; i++) box(0.04, 0.5, 0.03, blackM, -0.3 + i * 0.2, 0.75, 0.04, carr);   // 货叉架 + 挡货架
-    for (const sx of [-0.25, 0.25]) { box(0.1, 0.04, 1.1, M.steel, sx, 0.02, 0.6, carr); box(0.1, 0.4, 0.05, M.steel, sx, 0.2, 0.06, carr); }
-    const hub = new THREE.MeshStandardMaterial({ color: 0xc8c4b8, roughness: 0.45, metalness: 0.6 });
-    for (const [sx, sz, r] of [[-0.46, 0.5, 0.26], [0.46, 0.5, 0.26], [-0.46, -0.6, 0.2], [0.46, -0.6, 0.2]]) { const t = cyl(r, r, 0.22, M.tyre, sx, r, sz, g, 22); t.rotation.z = Math.PI / 2; const h = cyl(r * 0.55, r * 0.55, 0.225, hub, sx, r, sz, g, 16); h.rotation.z = Math.PI / 2; }
-    box(0.18, 0.08, 0.06, M.warn, 0, 2.38, -0.5, g);                              // 顶上的警示灯
-    RBx(0.2, 0.1, 0.06, 0.02, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.5, 1.3) }), 0.3, 1.0, 0.42);   // 前大灯
-    blob(x, z, 1.8, 2.6);
-    return { g, carr };
-  };
-  const fk = forklift(-0.3, -8.4, Math.PI / 2 - 0.25, 0.32);
-  pallet(0, 0, 0.6, fk.carr); kit.stackPallet(fk.carr, 0, 0.15, 'pkg', { z0: 0.6, maxH: 0.8 });
+  placeKit('08_Logistics_Forklift.glb', -0.3, 0, -8.4, Math.PI / 2 - 0.25); blob(-0.3, -8.0, 1.6, 2.8);   // 物流叉车（道具包），货叉放在低位
   const jack = (x, z, ry) => {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
     for (const zz of [-0.2, 0.2]) box(1.2, 0.06, 0.16, M.fork, 0, 0.06, zz, g);
@@ -379,61 +361,19 @@ export function createWarehouse(env) {
     decal(rnd() < 0.5 ? 'SurfaceImperfections013' : 'SurfaceImperfections015', root, { pos: [PX + 0.004, 0.35, z + rnd()], rot: [0, Math.PI / 2, 0], w: 2.6, h: 0.7, color: 0x4a5a30, opacity: 0.7 });   // 墙脚青苔
     decal(rnd() < 0.5 ? 'Leaking005' : 'Leaking006', root, { pos: [PX + 0.005, 0.6, z + 1.2 + rnd()], rot: [0, Math.PI / 2, 0], w: 1.2, h: 1.0, color: 0x2a2a22, opacity: 0.6 }); }   // 往下流的水痕
   // 平台上：空的动物运输笼（干草还是新的）、一垛盖着蓝防水布的货
-  const crate = (x, z, ry) => {
-    const g = new THREE.Group(); g.position.set(x, PH, z); g.rotation.y = ry; root.add(g);
-    const W = 1.6, H = 1.2, D = 0.9;
-    box(W, 0.06, D, M.galv, 0, 0.08, 0, g);
-    for (const xx of [-W / 2, W / 2]) for (const zz of [-D / 2, D / 2]) box(0.06, H, 0.06, M.galv, xx, H / 2 + 0.05, zz, g);
-    for (let i = 0; i <= 10; i++) for (const zz of [-D / 2, D / 2]) cyl(0.011, 0.011, H, M.galv, -W / 2 + i * W / 10, H / 2 + 0.05, zz, g, 4);
-    for (let i = 0; i <= 6; i++) cyl(0.011, 0.011, H, M.galv, W / 2, H / 2 + 0.05, -D / 2 + i * D / 6, g, 4);
-    box(W, 0.04, D, M.galv, 0, H + 0.05, 0, g);
-    for (let i = 0; i < 40; i++) { const s = box(0.25, 0.01, 0.01, M.straw, (rnd() - 0.5) * W * 0.9, 0.12 + rnd() * 0.04, (rnd() - 0.5) * D * 0.9, g); s.rotation.y = rnd() * 3; }
-    const tag = canvasTexture(200, 120, (gg, Wt, Ht) => { gg.fillStyle = '#e4dcc8'; gg.fillRect(0, 0, Wt, Ht); gg.fillStyle = '#222'; gg.font = `700 30px ${SANS}`; gg.fillText('活体 · 已消毒', 14, 46); gg.font = `400 20px ${SANS}`; gg.fillText('回收 → 牧场 7 号', 14, 86); ageCanvas(gg, Wt, Ht, { amount: 1, seed: 17, drips: false }); });
-    plane(0.3, 0.18, lit(tag), 0, 0.7, D / 2 + 0.01, 0, g);
-    blob(x, z, 1.9, 1.2, PH + 0.005);
-    return g;
-  };
   { const l = new THREE.PointLight(0xe8d8b8, 7, 6, 1.6); l.position.set(-9.4, PH + 3.2, -16.2); root.add(l); }
-  crate(-10.0, -15.6, Math.PI / 2 - 0.08); crate(-10.2, -17.4, Math.PI / 2 + 0.1);
-  { const c = crate(-9.9, -16.5, Math.PI / 2); c.position.y = PH + 1.27; c.rotation.y = Math.PI / 2 + 0.04; }
+  for (const [x, z, r] of [[-9.75, -15.15, Math.PI / 2 - 0.06], [-9.8, -16.55, Math.PI / 2 + 0.08], [-11.15, -15.9, Math.PI / 2 + 0.35]]) { placeKit('07_Optional_Empty_Transit_Cage.glb', x, PH, z, r); blob(x, z, 1.0, 1.4, PH + 0.005); }   // 空运输笼 ×3
+  placeKit('06_Farm_Sample_Return.glb', -11.2, PH, -19.6, Math.PI / 2); blob(-11.2, -19.6, 1.0, 1.4, PH + 0.005);   // 牧场送样与返箱区（道具包）
   for (const [z, w] of [[-21, 1.2], [-23, 1.0]]) { box(w, 0.9, 1.0, M.crateGrey, -10.4, PH + 0.45, z, root); drape(w + 0.05, 0.94, 1.05, M.tarpBlue, -10.4, PH, z, 0.1, root); }
   { let yy = PH; for (let i = 0; i < 3; i++) { const b = carton(-10.6 + (i % 2) * 0.06, yy, -5.6, 0, 0, 0, i === 1 ? 'supply' : 'reuse', (rnd() - 0.5) * 0.3, root, { open: i === 2 }); yy += b.h; } }
 
-  // ---------------------------------------------------------------- 左前：−20 ℃ 冷柜（贴着平台墙面）和刚到的胎牛血清
-  for (let i = 0; i < 3; i++) {
-    const fz = new THREE.Group(); fz.position.set(PX + 0.42, 0, -0.1 - i * 1.0); fz.rotation.y = Math.PI / 2; root.add(fz);
-    box(0.9, 0.9, 0.7, new THREE.MeshStandardMaterial({ color: 0xc8c8be, roughness: 0.5, map: grimeMap(68 + i) }), 0, 0.45, 0, fz);
-    box(0.92, 0.04, 0.72, M.rackDark, 0, 0.92, 0, fz);
-    box(0.06, 0.04, 0.4, M.rackDark, 0, 0.6, 0.37, fz).rotation.y = Math.PI / 2;
-    const dl = canvasTexture(160, 60, (g, W, H) => { g.fillStyle = '#111'; g.fillRect(0, 0, W, H); g.fillStyle = '#e04030'; g.font = `700 40px monospace`; g.fillText(['-20.4', '-19.8', '-20.1'][i], 14, 44); });
-    plane(0.16, 0.06, new THREE.MeshBasicMaterial({ map: dl }), 0.3, 0.75, 0.352, 0, fz);
-    blob(PX + 0.42, -0.1 - i * 1.0, 1.0, 1.1);
-  }
-  plane(0.9, 0.3, lit(textTex([['−20 ℃ · 血清 / 生长因子', 34, '#1a1a18', 0.65, 700]], 600, 200, { bg: '#d8d4c4', age: 1 })), PX + 0.006, 0.9 + 0.3, -1.1, Math.PI / 2, root).position.y = PH - 0.35;
-  const opened = new THREE.Group(); opened.position.set(-6.0, 0, -1.2); opened.rotation.y = 0.35; root.add(opened);   // 刚拆开的干冰运输箱
-  pallet(0, 0, 0, opened);
-  carton(0.3, 0.15, 0.1, 0, 0, 0, 'fbs', 0.05, opened, { design: 'dryice', open: true });
-  const eps = new THREE.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.95 });
-  box(0.55, 0.36, 0.8, eps, -0.3, 0.33, 0, opened);
-  const flap = box(0.55, 0.03, 0.35, eps, -0.3, 0.55, 0.52, opened); flap.rotation.x = -1.1;
-  const fbsMat = new THREE.MeshPhysicalMaterial({ color: 0xc8962a, roughness: 0.2, transmission: 0.3, transparent: true, opacity: 0.9 });
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { cyl(0.04, 0.04, 0.16, fbsMat, -0.42 + i * 0.12, 0.6, -0.12 + j * 0.14, opened, 12); cyl(0.025, 0.025, 0.03, M.crateBlue, -0.42 + i * 0.12, 0.695, -0.12 + j * 0.14, opened, 10); }
-  for (let i = 0; i < 2; i++) { const b = cyl(0.04, 0.04, 0.16, fbsMat, 0.2 + i * 0.1, 0.235, 0.6, opened, 12); b.rotation.z = Math.PI / 2; }   // 地上放着两瓶，还没收进冷柜
-  blob(-6.0, -1.2, 1.6);
+  // ---------------------------------------------------------------- 左前：冷链收货区（道具包）——卧式冷柜、木托盘、一只拆开的泡沫箱（六瓶带批次标签的试制血清）、一只封条完好的
+  placeKit('03_Cold_Chain_Intake.glb', PX + 0.63, 0, -1.2, Math.PI / 2); blob(PX + 0.75, -1.2, 1.7, 1.7);
+  plane(0.9, 0.3, lit(textTex([['−20 ℃ · 血清 / 生长因子', 34, '#1a1a18', 0.65, 700]], 600, 200, { bg: '#d8d4c4', age: 1 })), PX + 0.006, PH - 0.35, -1.2, Math.PI / 2, root);
 
-  // ---------------------------------------------------------------- 值班桌（平台下面，靠台阶）：台灯、出入库登记本、椅子
-  const desk = new THREE.Group(); desk.position.set(PX + 0.75, 0, -11.6); desk.rotation.y = Math.PI / 2; root.add(desk);
-  box(1.4, 0.04, 0.7, M.rackDark, 0, 0.75, 0, desk);
-  for (const [x, z] of [[-0.66, -0.3], [0.66, -0.3], [-0.66, 0.3], [0.66, 0.3]]) box(0.04, 0.75, 0.04, M.rackDark, x, 0.375, z, desk);
-  const ledger = canvasTexture(256, 180, (g, W, H) => { g.fillStyle = '#e4dcc8'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 18px ${SANS}`; g.fillText('出入库登记', 12, 24); g.font = `400 13px ${SANS}`; ['11/12 入 FBS ×30（干冰）', '11/12 出 B-0417 采样 ×1', '11/13 入 培养袋 ×12', '11/13 入 活体 ×2（牧场7号）', '11/14 出 成品 86.4kg'].forEach((l, i) => g.fillText(l, 12, 52 + i * 24)); ageCanvas(g, W, H, { amount: 0.9, seed: 19, drips: false }); });
-  const lg = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.3), lit(ledger)); lg.rotation.x = -Math.PI / 2; lg.position.set(0.1, 0.772, 0.05); desk.add(lg);
-  const dkl = new THREE.SpotLight(0xffcf8a, 5, 3, 0.8, 0.6, 1.4); dkl.position.set(-0.4, 1.3, -0.1); dkl.target.position.set(0, 0.75, 0); desk.add(dkl, dkl.target);
-  cyl(0.06, 0.1, 0.12, M.rackDark, -0.4, 1.22, -0.1, desk, 14);
-  cyl(0.008, 0.008, 0.45, M.rackDark, -0.45, 0.98, -0.1, desk, 6);
-  cyl(0.04, 0.035, 0.1, M.panel, 0.5, 0.82, -0.15, desk, 12);
-  const chair = new THREE.Group(); chair.position.set(0.1, 0, 0.6); desk.add(chair);
-  cyl(0.22, 0.22, 0.06, M.rackDark, 0, 0.48, 0, chair, 16); cyl(0.025, 0.025, 0.45, M.steel, 0, 0.24, 0, chair, 8); box(0.4, 0.4, 0.04, M.rackDark, 0, 0.75, 0.2, chair);
-  blob(PX + 0.75, -11.6, 1.2, 1.8);
+  // ---------------------------------------------------------------- 值班点验台（道具包）：沿用旧台灯，夹板、圆珠笔、露出粉色底联的三联收货单——这里核对“到了几箱”
+  placeKit('05_Dock_Check_In.glb', PX + 0.6, 0, -11.6, Math.PI / 2); blob(PX + 0.65, -11.6, 0.9, 1.4);
+  { const dkl = new THREE.SpotLight(0xffcf8a, 5, 3, 0.8, 0.6, 1.4); dkl.position.set(PX + 0.48, 1.3, -11.25); dkl.target.position.set(PX + 0.6, 0.8, -11.6); root.add(dkl, dkl.target); }   // 台灯的光
 
   // ---------------------------------------------------------------- 最里面：冷库（细胞库）。保温板墙、PVC 门帘、红色警示灯；屋顶上两台冷凝机组
   const cold = new THREE.Group(); cold.position.set(-1.5, 0, -27.0); root.add(cold);
@@ -441,10 +381,7 @@ export function createWarehouse(env) {
   box(CWd, CHt, CDp, M.panel, 0, CHt / 2, 0, cold);
   for (let x = -CWd / 2 + 1.1; x < CWd / 2; x += 1.1) box(0.02, CHt, 0.02, M.rackDark, x, CHt / 2, CDp / 2 + 0.005, cold);
   box(CWd + 0.1, 0.12, CDp + 0.1, M.steel, 0, CHt + 0.06, 0, cold);
-  box(2.0, 2.6, 0.05, new THREE.MeshStandardMaterial({ color: 0x0a0c0c, roughness: 1 }), 0, 1.3, CDp / 2 + 0.01, cold);
-  box(2.3, 0.15, 0.12, M.steel, 0, 2.68, CDp / 2 + 0.05, cold);
-  for (const dx of [-1.1, 1.1]) box(0.12, 2.7, 0.12, M.steel, dx, 1.35, CDp / 2 + 0.05, cold);
-  for (let i = 0; i < 9; i++) plane(0.23, 2.55, M.strip, -0.92 + i * 0.23, 1.29, CDp / 2 + 0.08, (rnd() - 0.5) * 0.15, cold);
+  placeKit('04_Cell_Bank_Handover.glb', -1.5, 0, -27.0 + CDp / 2 + 0.36, 0); blob(-1.5, -23.3, 1.6, 1.0);   // 细胞库交接处（道具包）：门、软门帘、库位牌、推车上的液氮罐
   const coldSign = canvasTexture(512, 160, (g, W, H) => { g.fillStyle = '#d8d4c4'; g.fillRect(0, 0, W, H); g.fillStyle = '#1a3a6a'; g.font = `700 60px ${SANS}`; g.textAlign = 'center'; g.fillText('冷库 · 闲人免进', W / 2, 78); g.font = `400 28px ${SANS}`; g.fillStyle = '#9a2422'; g.fillText('细胞库 MCB-07 · 液氮 −196℃ · 缺氧危险', W / 2, 126); ageCanvas(g, W, H, { amount: 1.2, seed: 13, drips: false }); });
   plane(2.2, 0.68, lit(coldSign), 0, 3.3, CDp / 2 + 0.02, 0, cold);
   box(0.3, 0.06, 0.2, M.warn, 1.5, 2.85, CDp / 2 + 0.08, cold);
@@ -470,12 +407,10 @@ export function createWarehouse(env) {
     blob(x, z, 0.9 * s);
     return g;
   };
-  dewar(-4.4, -23.3); dewar(-3.6, -23.7, 0.85, 'G-0221'); dewar(2.0, -23.4, 1.1, 'P-1077 · 建系中');
+  dewar(-4.4, -23.3); dewar(-3.6, -23.7, 0.85, 'G-0221'); dewar(1.6, -23.6, 1.0, 'P-1077 · 建系中');
   const fogTex = canvasTexture(128, 128, (g, W, H) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(210,225,230,.5)'); gr.addColorStop(1, 'rgba(210,225,230,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
   const mist = [];
   for (let i = 0; i < 10; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: fogTex, transparent: true, depthWrite: false, opacity: 0.3 })); s.userData.ph = i / 10; root.add(s); mist.push(s); }
-  // 冷库门口：一台液氮补给推车
-  { const g = new THREE.Group(); g.position.set(0.9, 0, -22.6); g.rotation.y = -0.4; root.add(g); box(0.7, 0.04, 0.5, M.steel, 0, 0.2, 0, g); for (const [x, z] of [[-0.3, -0.2], [0.3, -0.2], [-0.3, 0.2], [0.3, 0.2]]) { const w = cyl(0.06, 0.06, 0.04, M.tyre, x, 0.06, z, g, 12); w.rotation.x = Math.PI / 2; } box(0.03, 0.9, 0.03, M.steel, -0.34, 0.65, 0, g); }
 
   // ---------------------------------------------------------------- 右后角：CO₂ 气瓶笼；地上几垛培养袋
   const cage = new THREE.Group(); cage.position.set(9.6, 0, -25.8); root.add(cage);
@@ -529,7 +464,7 @@ export function createWarehouse(env) {
   model('industrial_pastic_container', { pos: [-5.0, 0, -22.3], rot: 0.3, parent: root }); model('industrial_pastic_container', { pos: [-5.6, 0, -21.8], rot: 1.2, parent: root });
   { const b = model('plastic_broom', { pos: [-7.95, 0, -8.6], rot: Math.PI / 2, parent: root }); b.rotation.z = 0.25; }
   model('old_tyre', { pos: [-9.5, PH + 0.3, -20.0], rot: 0.4, parent: root });
-  for (const [x, z, r] of [[-2.2, -15.2, 0.4], [-2.6, -15.6, 1.2], [0.8, -2.6, 2.0], [-11.0, -6.0, 0.3]]) model('cardboard_box_01', { pos: [x, x < -9 ? PH : 0, z], rot: r, jitter: 0.2, parent: root });
+  for (const [x, z, r, k] of [[-2.2, -15.2, 0.4, 'supply'], [-2.6, -15.7, 1.2, 'reuse'], [0.8, -2.6, 2.0, 'pkg'], [-11.0, -6.0, 0.3, 'reuse']]) carton(x, x < -9 ? PH : 0, z, 0, 0, 0, k, r, root, { crush: k === 'reuse' ? 0.03 : 0 });   // 原来四个一模一样的纸箱模型
   model('wooden_crate_02', { pos: [-10.7, PH, -3.2], rot: 0.1, parent: root });
   model('WetFloorSign_01', { pos: [-0.8, 0, -16.6], rot: 0.7, scale: 1.25, parent: root });
   for (const [x, z] of [[-1.5, -21.5], [-6.5, -9], [-6.5, -18]]) model('caged_hanging_light', { pos: [x, HT - 1.3, z], parent: root });
@@ -541,7 +476,10 @@ export function createWarehouse(env) {
   model('worn_metal_rack', { pos: [8.6, 0, 3.6], rot: Math.PI, parent: root });
   for (let i = 0; i < 3; i++) model('can_rusted', { pos: [7.9 + i * 0.15, 0, 3.0 + (i % 2) * 0.1], rot: i, parent: root });
   model('spray_paint_bottles', { pos: [4.85, 0.96, -1.25], rot: -0.5, parent: root });
-  for (let i = 0; i < 4; i++) model('cement_bag', { pos: [1.0 + (i % 2) * 0.05, i * 0.17, 3.2 + (i % 2) * 0.03], rot: Math.PI / 2 + (i % 2 ? 0.08 : -0.05), parent: root });
+  // 前墙：包装耗材架 + 订单配货台（道具包）。大厅展示顾客怎么选肉，这里是员工把那份选择封进袋子
+  placeKit('02_Order_Packing_Bench.glb', 1.95, 0, 3.58, Math.PI); blob(1.95, 3.55, 1.9, 0.9);
+  placeKit('01_Packaging_Pick_Rack.glb', 4.7, 0, 3.6, Math.PI); blob(4.7, 3.6, 2.0, 0.9);
+  { const pl = new THREE.PointLight(0xffe0b0, 5, 5, 1.6); pl.position.set(3.3, 2.6, 2.6); root.add(pl); }   // 配货台上方一盏暖灯
   model('propane_tank', { pos: [5.7, 0, -25.1], rot: 0.3, parent: root }); model('propane_tank', { pos: [6.1, 0, -25.25], rot: 1.7, parent: root });
   model('metal_jerrycan_green', { pos: [7.4, 0, -24.9], rot: 0.2, parent: root }); model('plastic_jerrycan', { pos: [4.5, 0, -24.9], rot: 2.2, parent: root });
   model('security_camera_01', { pos: [X0 + 0.15, PH + 5.0, -12.5], rot: Math.PI / 2, parent: root });
