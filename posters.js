@@ -131,7 +131,7 @@ function compose(species, img) {
 // 用主渲染器离屏拍照（启动时、加载画面后面完成），返回海报和“供体照片”
 export function renderPosters(renderer, env) {
   const out = { posters: {}, photos: {} };
-  const pr = renderer.getPixelRatio();
+  const pr = renderer.getPixelRatio(), size = renderer.getSize(new THREE.Vector2());
   const tm = renderer.toneMapping, te = renderer.toneMappingExposure;
   renderer.setPixelRatio(1);
   renderer.setSize(600, 800, false);
@@ -149,6 +149,7 @@ export function renderPosters(renderer, env) {
     scene.traverse((o) => { if (o.isMesh && o.geometry && !o.geometry.attributes.aSpot) o.geometry.dispose(); });
   }
   renderer.setPixelRatio(pr);
+  renderer.setSize(size.x, size.y, false);                                    // 画布要还回屏幕尺寸，否则整间店都按这张小海报的分辨率画
   renderer.toneMapping = tm; renderer.toneMappingExposure = te;
   return out;
 }

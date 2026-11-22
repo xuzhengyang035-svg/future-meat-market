@@ -13,7 +13,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 const FilmShader = {
   uniforms: {
-    tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.55 }, uGrain: { value: 0.05 },
+    tDiffuse: { value: null }, uTime: { value: 0 }, uVignette: { value: 0.55 }, uGrain: { value: 0.022 },
     uSat: { value: 0.62 }, uShadow: { value: new THREE.Vector3(-0.012, 0.018, 0.012) }, uHigh: { value: new THREE.Vector3(0.02, 0.015, -0.035) },
     uContrast: { value: 1.12 }, uLift: { value: 0.012 },
   },
@@ -31,22 +31,27 @@ const FilmShader = {
       c.rgb = max(c.rgb, vec3(0.0)) * (1.0 - uLift) + uLift * vec3(0.55, 0.62, 0.6);
       vec2 d = (vUv - 0.5) * vec2(1.15, 1.0);
       c.rgb *= 1.0 - uVignette * smoothstep(0.25, 0.95, length(d));
-      c.rgb += (hash(vUv * 1000.0 + fract(uTime * 7.0) * 100.0) - 0.5) * uGrain;
+      c.rgb += (hash(mod(gl_FragCoord.xy, 997.0) * 0.731 + fract(uTime * 7.0) * 100.0) - 0.5) * uGrain;   // 颗粒一个像素一粒，不糊成方块
       gl_FragColor = c;
     }`,
 };
 
 // 五个场景共用一套缓冲（以前每个场景各有一套 4× MSAA + AO + 辉光，走一圈就是一两个 GB 显存）；切场景只换 scene 和调色
+//   清晰度：按屏幕的真实像素画（2880 × 1800 就画 2880 × 1800）；普通 1080p 屏画到 1.4 倍再缩回来，边缘就是顺的。
+//   不再用多重采样：它让每一道全屏后期都多写一遍，一帧 51 ms，去掉以后 23 ms（Intel Arc 实测），省下来的正好换成像素。
 let core = null;
 export const quality = { scale: 1 };
+const MAX_PIXELS = 5.3e6;                                                     // 2880 × 1800 是 5.2 百万；4K 屏收到这个数
 export function pixelRatio() {
-  const fit = Math.sqrt(1.5e6 / (innerWidth * innerHeight));                  // 最多约 1600 × 940 那么多像素
-  return Math.min(devicePixelRatio, 1.5, fit) * quality.scale;
+  const fit = Math.sqrt(MAX_PIXELS / (innerWidth * innerHeight));
+  return Math.min(Math.max(devicePixelRatio, 1.4), 2, fit) * quality.scale;
 }
+// 遮蔽、辉光本来就是糊的：像素再多也只按这么大算
+const capped = (w, h, share, max) => { const k = Math.min(share, Math.sqrt(max / (w * h))); return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))]; };
 
 function createCore(renderer, scene, camera) {
   const pr = pixelRatio();
-  const rt = new THREE.WebGLRenderTarget(innerWidth * pr, innerHeight * pr, { type: THREE.HalfFloatType, samples: 2 });
+  const rt = new THREE.WebGLRenderTarget(innerWidth * pr, innerHeight * pr, { type: THREE.HalfFloatType, format: THREE.RGBFormat, internalFormat: 'R11F_G11F_B10F' });   // 同样能存过曝的亮度，读写和显存都只要一半
   const composer = new EffectComposer(renderer, rt);
   composer.setPixelRatio(pr);
   composer.setSize(innerWidth, innerHeight);
@@ -55,7 +60,7 @@ function createCore(renderer, scene, camera) {
 
   const ao = new GTAOPass(scene, camera, innerWidth, innerHeight);
   const aoSize = ao.setSize.bind(ao);
-  ao.setSize = (w, h) => aoSize(Math.round(w * 0.6), Math.round(h * 0.6));     // 遮蔽是模糊的，0.6 倍算足够
+  ao.setSize = (w, h) => aoSize(...capped(w, h, 0.6, 0.9e6));
   ao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.4, thickness: 1.2, scale: 1.2, samples: 8 });
   ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 8 });
   ao.blendIntensity = 1.0;
@@ -67,10 +72,20 @@ function createCore(renderer, scene, camera) {
       if (o.isPoints || o.isLine || (o.material && o.material.transparent)) o.visible = false;
     });
   };
+  // 遮蔽直接乘在画面上，不必先把整张画面抄一遍
+  ao.output = GTAOPass.OUTPUT.Off;
+  ao.needsSwap = false;
+  const aoRender = ao.render.bind(ao);
+  ao.render = (r, writeBuffer, readBuffer) => {
+    aoRender(r, writeBuffer, readBuffer);
+    ao.blendMaterial.uniforms.intensity.value = ao.blendIntensity;
+    ao.blendMaterial.uniforms.tDiffuse.value = ao.pdRenderTarget.texture;
+    ao.renderPass(r, ao.blendMaterial, readBuffer);
+  };
   composer.addPass(ao);
   const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 1.1);
   const bloomSize = bloom.setSize.bind(bloom);
-  bloom.setSize = (w, h) => bloomSize(Math.round(w / 2), Math.round(h / 2));
+  bloom.setSize = (w, h) => bloomSize(...capped(w, h, 0.5, 0.6e6));
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   const film = new ShaderPass(FilmShader);

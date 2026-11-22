@@ -8,6 +8,7 @@ import { batchStatic } from './batch.js';
 import { focusLight } from './atmosphere.js';
 import { createStreet } from './street.js';
 import { createWarehouse } from './warehouse.js';
+import './lightcull.js';
 import { createPost, resizePost, postTarget, pixelRatio, quality } from './post.js';
 import { initAssets, createPreparer, breathe } from './gfx.js';
 import { preloadModels, SCENE_MODELS, envFrom, loadManifest } from './assets.js';
@@ -25,7 +26,7 @@ const canvas = document.getElementById('c');
 const FX = new URLSearchParams(location.search).get('fx') !== '0';          // ?fx=0 关掉后期，用来对比或在低配电脑上提速
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !FX, powerPreference: 'high-performance' });   // 抗锯齿在后期的缓冲里做，画布自己不用再来一份
 const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* 隐私模式 */ } } };
-if (store.get('lowgfx')) quality.scale = 0.7;
+if (store.get('lowgfx')) quality.scale = 0.6;
 renderer.setPixelRatio(pixelRatio());
 // 显存不够时浏览器会直接收回 WebGL（画面一片白）：盖上加载画面，用省内存的档位重开一次
 canvas.addEventListener('webglcontextlost', (e) => {
@@ -100,7 +101,7 @@ const PLACES = {
     lab = createLab(env);
     lab.setBatch(state.batch, state.order?.opts);
     mountLabTags();
-    post = grade(lab.scene, { uSat: 1.05, uShadow: [-0.017, 0.014, 0.024], uHigh: [0.03, 0.022, -0.025], uContrast: 1.07, uVignette: 0.62, uLift: 0.02, uGrain: 0.035 });   // 观察室：暗部沉进青色，台灯是暖的，罐子是绿的
+    post = grade(lab.scene, { uSat: 1.05, uShadow: [-0.017, 0.014, 0.024], uHigh: [0.03, 0.022, -0.025], uContrast: 1.07, uVignette: 0.62, uLift: 0.02, uGrain: 0.02 });   // 观察室：暗部沉进青色，台灯是暖的，罐子是绿的
   },
   async street() {
     street = createStreet(env);
@@ -1360,16 +1361,26 @@ async function prepareView(view, onProgress) {
     settledAt = performance.now();
   }
 }
-// 帧率一直很低时自动把分辨率降一档（最多两档），比卡着好
-let fpsFrames = 0, fpsFrom = 0;
+// 分辨率跟着这台电脑的本事走：先按屏幕原生像素画，卡了才一档一档降，有余力就升回来。
+//   降一档也没变快（卡在别处，或者浏览器自己锁了帧率）就马上升回去，不白白变糊；窗口不在前面时不算数。
+const LEVELS = [1, 0.87, 0.76, 0.66, 0.56];
+const FPS = { frames: 0, from: 0, level: 0, before: 0, locked: !FX || !!store.get('lowgfx'), climbs: 0, slow: 0 };
+function setLevel(n, now) { FPS.level = n; quality.scale = LEVELS[n]; resize(); settledAt = now; }
 function watchFps() {
   const now = performance.now();
-  if (document.hidden || preparing || now - settledAt < 4000 || now - fpsFrom > 8000) { fpsFrames = 0; fpsFrom = now; return; }
-  fpsFrames++;
-  if (now - fpsFrom < 4000) return;
-  const fps = (fpsFrames * 1000) / (now - fpsFrom);
-  fpsFrames = 0; fpsFrom = now;
-  if (FX && fps < 24 && quality.scale > 0.75) { quality.scale *= 0.84; resize(); settledAt = now; }
+  if (document.hidden || !document.hasFocus() || preparing || now - settledAt < 2500 || now - FPS.from > 6000) { FPS.frames = 0; FPS.from = now; return; }
+  FPS.frames++;
+  if (now - FPS.from < 2500 || FPS.locked) return;
+  const fps = (FPS.frames * 1000) / (now - FPS.from);
+  FPS.frames = 0; FPS.from = now;
+  if (FPS.before) {                                                           // 刚降过一档：看值不值
+    const gained = fps >= FPS.before * 1.06;
+    FPS.before = 0;
+    if (!gained) { FPS.locked = true; return setLevel(FPS.level - 1, now); }
+  }
+  FPS.slow = fps < 30 ? FPS.slow + 1 : 0;
+  if (FPS.slow >= 2 && FPS.level < LEVELS.length - 1) { FPS.slow = 0; FPS.before = fps; setLevel(FPS.level + 1, now); }
+  else if (fps >= 52 && FPS.level > 0 && FPS.climbs < 3) { FPS.climbs++; setLevel(FPS.level - 1, now); }
 }
 function fade(fn, label, view) {
   const f = $('#fade');

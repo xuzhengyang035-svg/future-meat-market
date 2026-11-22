@@ -2,10 +2,10 @@
 
     python -I tools/build_lite.py
 
-规则（按离镜头多近、这张图起什么作用）：
-  tex    墙 / 地 / 材质：颜色 768，法线、粗糙度、金属度、AO 384
-  decal  贴花：384
-  models 小道具：颜色 512，其余 256
+规则（按看不看得出来）：
+  tex    墙 / 地 / 材质：颜色和透明度用原图（1K），法线 512，其余 384
+  decal  贴花：颜色和透明度 512（轮廓靠它），其余 384
+  models 小道具：颜色 768，法线 384，其余 256
 网页里加 ?hq=1 用原图。
 """
 import json
@@ -22,12 +22,17 @@ OUT = ROOT / 'assets' / 'lite'
 def limit(rel):
     kind, name = rel.parts[0], rel.stem.lower()
     colour = any(k in name for k in ('diff', 'col', 'albedo'))
+    normal = 'nor' in name
     if kind == 'tex':
-        return 768 if colour else 384
+        if colour or 'opacity' in name:
+            return None
+        return 512 if normal else 384
     if kind == 'decal':
-        return 384
+        return 512 if colour or 'opacity' in name else 384
     if kind == 'models':
-        return 512 if colour else 256
+        if colour:
+            return 768
+        return 384 if normal else 256
     return None
 
 
