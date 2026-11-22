@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Future Meat Market</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&family=Caveat:wght@600&family=Long+Cang&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&family=Caveat:wght@600&family=Caveat+Brush&family=Nanum+Pen+Script&family=Long+Cang&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
     { "imports": {
@@ -78,23 +78,36 @@
   <div id="toast"></div>
   <div id="marquee"><div class="track"></div></div>
   <!-- 转场：一块 T 骨牛排的线稿先画出来、再填上颜色，一刀切过去，画面揭开；外面一圈慢慢转的店名 -->
-  <div id="fade"><div class="grain"></div><div class="stage"><svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringF" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
-        <text><textPath href="#ringF" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg><div class="mt"><svg class="steak" viewBox="0 0 120 100" aria-hidden="true">
+  <div id="fade"><div class="grain"></div><div class="stage"><div class="ring"><svg viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringF" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
+        <text><textPath href="#ringF" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg></div>
+      <div class="orbit"></div><div class="orbit inner"></div>
+      <div class="mt"><svg class="steak line" viewBox="0 0 120 100" aria-hidden="true">
       <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
       <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
       <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
       <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
-    </svg><i class="slash"></i></div></div><div class="tl"></div></div>
-  <!-- 开场加载：同一块牛排 + 环形店名 + 一圈真实进度 -->
-  <div id="loading"><div class="grain"></div><div class="stage"><svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringL" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
-        <text><textPath href="#ringL" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg>
+    </svg><div class="cooked"><svg class="steak solid" viewBox="0 0 120 100" aria-hidden="true">
+      <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
+      <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
+      <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
+      <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
+    </svg></div><div class="cut"><i></i></div><i class="slash"></i></div></div><div class="tl"></div></div>
+  <!-- 开场加载：会动的都是 HTML 盒子上的 transform / opacity，主线程忙、数字不动的时候图案也照样在转 -->
+  <div id="loading"><div class="grain"></div><div class="stage"><div class="ring"><svg viewBox="0 0 220 220" aria-hidden="true"><defs><path id="ringL" d="M110,110 m-96,0 a96,96 0 1,1 192,0 a96,96 0 1,1 -192,0"/></defs>
+        <text><textPath href="#ringL" textLength="590">FUTURE MEAT MARKET · 未来肉类 · CULTIVATED · NO SLAUGHTER · </textPath></text></svg></div>
       <svg class="progress" viewBox="0 0 220 220" aria-hidden="true"><circle class="track" cx="110" cy="110" r="80"/><circle class="prog" cx="110" cy="110" r="80" pathLength="1"/></svg>
-      <div class="mt"><svg class="steak" viewBox="0 0 120 100" aria-hidden="true">
+      <div class="orbit"></div><div class="orbit inner"></div>
+      <div class="mt"><svg class="steak line" viewBox="0 0 120 100" aria-hidden="true">
       <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
       <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
       <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
       <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
-    </svg></div></div><div class="lt">准备招牌 · 0%</div></div>
+    </svg><div class="cooked"><svg class="steak solid" viewBox="0 0 120 100" aria-hidden="true">
+      <path class="fat" pathLength="1" d="M22,30 C20,14 44,6 64,10 C86,14 104,22 106,42 C108,62 96,82 72,88 C50,94 26,86 18,68 C12,54 24,44 22,30 Z"/>
+      <path class="lean" pathLength="1" d="M30,34 C30,23 47,17 63,19.5 C81,22.5 95,30 96.5,44 C98,60 88,74.5 70,79.5 C52,84 34,78 28.5,64.5 C25,55 31,46 30,34 Z"/>
+      <path class="marb" pathLength="1" d="M62,30 C68,34 74,31 81,38 M71,58 C77,61 82,56 87,62 M37,60 C42,56 46,61 44,67 M76,44 C80,46 84,44 88,48"/>
+      <path class="bone" pathLength="1" d="M47,27 L57,52 L52,78 M43,51 L73,46"/>
+    </svg></div><div class="cut"><i></i></div><i class="slash"></i></div></div><div class="lt">准备招牌 · 0%</div></div>
 
   <script type="module" src="main.js"></script>
 </body>

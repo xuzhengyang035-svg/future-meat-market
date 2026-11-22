@@ -7,6 +7,7 @@
 //   右墙      加工间入口（PVC 门帘）、灯箱海报、仓库门
 //   入口      糊着报纸的玻璃门面、杂货架、菜筐、冰柜、立牌
 import * as THREE from 'three';
+import { lightCone, glowColumn, hazeLayer } from './atmosphere.js';
 import { buildSmartFridge } from './fridge.js';
 import { canvasTexture, streetTexture, drawAd } from './textures.js';
 import { blobShadow, grimeWallMaps, grimeFloorMaps, stainedCeilingMaps, ageCanvas, grimeMap, tapeLabel, gaugeMap, puddleDecal, bloodSplatter, grimeLayer, brushedSteelMaps, dripStreak } from './materials.js';
@@ -879,7 +880,8 @@ export function createRoom(env) {
     blob(x, z, 2.4, 2.0);
     model('hanging_industrial_lamp', { pos: [0.15, 3.75, 0.05], parent: g });                    // 工业吊灯
     cyl(0.004, 0.004, HT - 3.75, M.ink, 0.15, (HT + 3.75) / 2, 0.05, g, 4);
-    const l = new THREE.PointLight(0xffb468, 8, 6, 1.7); l.position.set(0.15, 2.2, 0.05); g.add(l);
+    const l = new THREE.PointLight(0xffa657, 10, 5.5, 1.7); l.position.set(0.15, 2.2, 0.05); g.add(l);
+    lightCone(g, [0.15, 3.1, 0.05], [0, -1, 0], { length: 2.2, radius: 1.15, top: 0.22, color: 0xffa657, strength: 0.1 });
   };
   // 调料架：不锈钢架子里一瓶辣酱、一瓶芥末，旁边盐和胡椒
   const condiments = (g, x, y, z) => ITEM.condiments(g, x, y, z, { ry: x * 3 });   // 调料架：番茄酱、芥末、酱油、盐、胡椒、纸巾盒
@@ -900,7 +902,7 @@ export function createRoom(env) {
     ITEM.napkin(g, -0.05, 0.754, -0.2, { seed: 77 });
     model('cigarette_pack', { pos: [0.2, 0.754, 0.14], rot: 1.1, parent: g }); model('vintage_lighter', { pos: [0.27, 0.754, 0.05], rot: 0.3, sit: true, parent: g });
     blob(-4.3, 3.05, 1.2);
-    model('plastic_monobloc_chair_01', { pos: [-4.25, 0, 3.95], rot: Math.PI + 0.3, parent: room });   // 座位前沿离垂下的桌布还有 20 cm
+    model('plastic_monobloc_chair_01', { pos: [-4.25, 0, 4.23], rot: Math.PI + 0.3, parent: room });   // 座位前沿离垂下的桌布还有 20 cm
     model('plastic_monobloc_chair_01', { pos: [-3.4, 0, 2.75], rot: -1.2, parent: room }); }
   model('ceiling_fan', { pos: [-4.6, HT, 2.4], rot: 0.3, parent: room });                    // 用餐区上面的吊扇
   model('ceiling_fan', { pos: [-1.5, HT, 1.6], rot: 0.9, parent: room });                    // 第二台：第三张桌子和门口之间（避开管子、灯管和吊灯）
@@ -1388,15 +1390,15 @@ export function createRoom(env) {
   decal('Fingerprints003', doorG, { pos: [1.02, 1.12, -0.004], rot: [0, Math.PI, 0], w: 0.35, h: 0.45, color: 0xd8d8d0, opacity: 0.4, roughness: 0.6 });
 
   // ================================================================ 灯光：暖黄的灯泡为主，几支日光灯（一盏坏、一盏闪），红色霓虹
-  scene.add(new THREE.HemisphereLight(0xc8b496, 0x241c14, 0.2));
+  scene.add(new THREE.HemisphereLight(0x5fa8a0, 0x16120d, 0.26));
   const tubeLights = [];
   for (const [x, z] of [[0.6, 1.4], [2.6, 3.6]]) {
-    const l = new THREE.PointLight(0xeee0c4, 4.5, 10, 1.6);
+    const l = new THREE.PointLight(0x9fd8cc, 4.2, 10, 1.6);
     l.position.set(x, HT - 1.0, z);
     scene.add(l); tubeLights.push(l);
   }
   const flickerLight = tubeLights[0];
-  const counterFill = new THREE.PointLight(0xffd29a, 4, 5, 1.8); counterFill.position.set(1.2, 2.4, -1.2); scene.add(counterFill);
+  const counterFill = new THREE.PointLight(0xffb56a, 5.5, 5, 1.8); counterFill.position.set(1.2, 2.4, -1.2); scene.add(counterFill);
   for (const [x, y, z, tx, ty, tz, i] of [[-5.6, HT - 0.4, -1.2, LX, 1.7, -2.3, 6], [-2.5, HT - 0.4, -2.2, -2.5, 1.4, -3.8, 5], [4.2, HT - 0.4, -2.5, 4.2, 1.4, -3.9, 4], [-5.4, HT - 0.4, 2.0, LX, 2.2, 1.3, 5]]) {
     const s = new THREE.SpotLight(0xffdcae, i, 6, 0.7, 0.6, 1.3);
     s.position.set(x, y, z); s.target.position.set(tx, ty, tz);
@@ -1451,5 +1453,7 @@ export function createRoom(env) {
     donor: { eye: [NBX - 0.1, 1.5, -2.95], at: [NBX - 0.1, 1.45, -3.97], fov: 38, surface: { mesh: flyer, w: 420, h: 560, size: 0.42 } },
   };
 
-  return { scene, tick, smart, spots, figurines: [], slot, setPosters };
+  // 会动、会换贴图、要往上贴网页的这几件不参与合并（batch.js）
+  for (const o of [steak, lightbox, slot, tv, tabScreen, ks, flyer, ...Object.values(spots).map((p) => p.surface?.mesh)]) o?.traverse((c) => { c.userData.keep = true; });
+  return { scene, tick, smart, spots, figurines: [], slot, setPosters, ledger: office.ledger };
 }

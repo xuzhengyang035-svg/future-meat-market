@@ -8,6 +8,8 @@ import * as THREE from 'three';
 import { canvasTexture } from './textures.js';
 import { createCartonKit } from './cartons.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { deferImages } from './gfx.js';
+import { lightCone, glowColumn, hazeLayer } from './atmosphere.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { pbr, model, decal, userDecal, paintedText } from './assets.js';
@@ -110,7 +112,7 @@ const hazardTex = (rep = 4) => { const t = canvasTexture(256, 64, (g, W, H) => {
 export function createWarehouse(env) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x14120f);
-  scene.fog = new THREE.FogExp2(0x2c2822, 0.03);                         // 灰蒙蒙、偏暖的尘雾，让纵深出来
+  scene.fog = new THREE.FogExp2(0x14302e, 0.026);                         // 冷青的尘雾：远处沉下去，暖灯才跳出来
   scene.environment = env;
   scene.environmentIntensity = 0.3;
   const root = new THREE.Group(); scene.add(root);
@@ -185,7 +187,13 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const kit = createCartonKit({ normalMap: M.carton.normalMap });
   // ---- 仓库道具包（Blender 做的 8 个 GLB，地面为原点、单位米、正面朝 +z）。贴图事先压到 512（带字的到 1024）并按内容哈希命名，
   //      这里跨文件共用同一张贴图——同一张旧钢板、旧木头不会重复上传显存（three-best-practices：material-reuse / 显存）
-  const gltf = new GLTFLoader(), texCache = new Map();
+  const loader = deferImages(new GLTFLoader()), texCache = new Map();
+  const waiting = [];                                                      // 第一次走进仓库才下载这些模型
+  const gltf = { load: (url, ok, progress, fail) => waiting.push(() => new Promise((res) => {
+    loader.load(url, (g) => { try { ok(g); } finally { res(); } }, progress, (e) => { fail?.(e); res(); });
+  })) };
+  let pending = null;
+  const load = () => pending ??= Promise.all(waiting.map((f) => f()));
   const shareTex = (mat) => { for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) { const t = mat[k]; if (!t || !t.name) continue;
     const key = t.name + '|' + t.colorSpace, c = texCache.get(key); if (c) mat[k] = c; else { t.anisotropy = 8; texCache.set(key, t); } } };
   const placeKit = (file, x, y, z, ry = 0, after, sc = 1) => gltf.load('assets/kit/' + file, (g) => {
@@ -283,7 +291,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     box(1.4, 0.03, 0.06, dead ? M.deadTube : M.tube, x, HT - 1.06, z, root);
     for (const dx of [-0.6, 0.6]) cyl(0.004, 0.004, 0.12, M.rackDark, x + dx, HT - 0.94, z, root, 4);
   }
-  for (const [x, z, i] of [[-10, -6, 14], [-10, -18, 14], [-6, -2, 26], [3, -2, 26], [-6, -11, 22], [3, -11, 26], [9, -11, 18], [-3, -20, 24], [6, -20, 20]]) { const l = new THREE.PointLight(0xe8dcc0, i, 16, 1.5); l.position.set(x, HT - 1.3, z); root.add(l); }
+  for (const [x, z, i] of [[-10, -6, 14], [-10, -18, 14], [-6, -2, 26], [3, -2, 26], [-6, -11, 22], [3, -11, 26], [9, -11, 18], [-3, -20, 24], [6, -20, 20]]) { const l = new THREE.PointLight(0x9fd0c6, i * 0.72, 16, 1.5); l.position.set(x, HT - 1.3, z); root.add(l); }
 
   // ---------------------------------------------------------------- 地面标线：主通道两条黄线、中间绿色虚线、出入库字样、斑马线
   line(-4.2, -9.5, 0.12, 26); line(1.6, -9.5, 0.12, 26);                    // 主通道 x −4.2 … 1.6
@@ -332,7 +340,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const stainOn = (g, im, rgb, amt, x, y, w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); const cg = c.getContext('2d'); cg.drawImage(im, 0, 0, c.width, c.height);
     const d = cg.getImageData(0, 0, c.width, c.height), p = d.data; for (let i = 0; i < p.length; i += 4) { p[i + 3] = p[i] * amt; p[i] = rgb[0]; p[i + 1] = rgb[1]; p[i + 2] = rgb[2]; } cg.putImageData(d, 0, 0); g.drawImage(c, x, y); };
   const printed = (base, W, H, draw, dirt = []) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-    Promise.all([loadImg(base.includes('/') ? base : `assets/ph/tex/${base}/diff.jpg`), ...dirt.map((d) => loadImg(d[0].includes('/') ? d[0] : `assets/ph/decal/${d[0]}/opacity.jpg`))]).then(([bg, ...ds]) => { const g = c.getContext('2d'); if (bg) g.drawImage(bg, 0, 0, W, H);
+    Promise.all([loadImg(base.includes('/') ? base : `assets/ph/tex/${base}/diff.jpg`), ...dirt.map((d) => loadImg(d[0].includes('/') ? d[0] : `assets/ph/decal/${d[0]}/opacity.${/^decal_/.test(d[0]) ? 'png' : 'jpg'}`))]).then(([bg, ...ds]) => { const g = c.getContext('2d'); if (bg) g.drawImage(bg, 0, 0, W, H);
       g.globalCompositeOperation = 'multiply'; draw(g, W, H); g.globalCompositeOperation = 'source-over';
       ds.forEach((im, i) => { if (im) { const [, rgb, amt, rx, ry, rw, rh] = dirt[i]; stainOn(g, im, rgb, amt, rx * W, ry * H, Math.round(rw * W), Math.round(rh * H)); } }); t.needsUpdate = true; });
     return t; };
@@ -565,34 +573,78 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   jack(-3.5, -5.2, 0.5); jack(-10.2, -12.6, 1.6, 1.1);   // 第二台停在月台上（以前放在地面上，等于埋在月台里，把手从月台面上露出一个黑圈）
 
   // ---------------------------------------------------------------- 左边：卸货平台（1.1 m 高）、栏杆、台阶、两扇卷帘门
-  const PX = -8.5, PH = 1.1, PZ0 = 2, PZ1 = -26;
+  const PX = -8.5, PH = 1.1, PZ0 = Z0, PZ1 = -26;                          // 高台一直做到墙根（原来只到 z = 2，离墙空着两米）
   box(PX - X0, PH, PZ0 - PZ1, M.concrete, (X0 + PX) / 2, PH / 2, (PZ0 + PZ1) / 2, root);
   { const pt = new THREE.Mesh(new THREE.PlaneGeometry(PX - X0, PZ0 - PZ1), pbr('garage_floor', PX - X0, PZ0 - PZ1, { size: 3.0, roughness: 0.7, color: 0xa8a49c })); pt.rotation.x = -Math.PI / 2; pt.position.set((X0 + PX) / 2, PH + 0.002, (PZ0 + PZ1) / 2); pt.userData.walk = true; root.add(pt); }   // 平台面：带油渍的旧水泥
   box(0.012, 0.22, PZ0 - PZ1, M.yellow, PX + 0.006, PH - 0.11, (PZ0 + PZ1) / 2, root);   // 月台边沿的黄黑斜纹（真实扫描的旧斜纹钢板）
-  box(0.06, 0.06, PZ0 - PZ1, M.steel, PX + 0.03, PH, (PZ0 + PZ1) / 2, root);   // 平台角钢
+  box(0.045, 0.008, PZ0 - PZ1, M.steel, PX - 0.0225, PH + 0.001, (PZ0 + PZ1) / 2, root).userData.walk = true;   // 护边角钢：一肢平贴在台面上，一肢贴着台边（不再凸出来一条）
+  box(0.008, 0.06, PZ0 - PZ1, M.steel, PX + 0.016, PH - 0.025, (PZ0 + PZ1) / 2, root);
   const STZ = -4.2;                                                       // 台阶位置
-  // 钢楼梯：两根氧化红斜梁、花纹钢板踏步（前沿刷黄漆）、两侧扶手一直接到月台栏杆上，拐角是弯头
-  { const XB = PX + 1.68, rise = PH / 6, run = 0.28, SW = 1.1;
-    const tread = pbr('DiamondPlate008A', 0.3, SW, { size: 0.5, metalness: 0.8, roughness: 0.5, color: 0x8a8a84 });
-    for (let i = 1; i <= 6; i++) { const x = XB - run * (i - 0.5); box(run + 0.02, 0.035, SW, tread, x, rise * i - 0.0175, STZ, root).userData.walk = true; box(0.04, 0.04, SW, M.railY, x + run / 2 - 0.01, rise * i - 0.02, STZ, root).userData.walk = true;   // 踏步 + 黄色防滑前沿
-      box(0.012, rise, SW, M.oxide, x + run / 2 + 0.005, rise * (i - 0.5), STZ, root); }                                        // 踢板
-    const L = Math.hypot(XB - PX, PH), ang = Math.atan2(PH, XB - PX);
-    for (const dz of [-SW / 2 - 0.03, SW / 2 + 0.03]) { const st = box(L + 0.1, 0.22, 0.06, M.oxide, (XB + PX) / 2, PH / 2 - 0.06, STZ + dz, root); st.rotation.z = -ang; box(0.25, 0.012, 0.12, M.steel, XB + 0.05, 0.006, STZ + dz, root); }   // 斜梁 + 底板
-    decal('Rust001', root, { pos: [XB - 0.6, 0.4, STZ + SW / 2 + 0.065], w: 0.8, h: 0.5, opacity: 0.8 }); }
-  // 栏杆（按规范：上横杆 1.07 m、中横杆 0.53 m；Ø 42.4 钢管，立柱 Ø 48.3 带底板和膨胀螺栓），管与管之间是球形接头；全部合并成一个网格
+  // 钢楼梯：两根铁红斜梁（按踏步的斜度切好，上端平着搭进台边、下端平着落地）、花纹钢板踏步、黄色防滑前沿（比踏面高 3 mm，不再和钢板同面闪烁）
+  const XB = PX + 1.68, rise = PH / 6, run = 0.28, SW = 1.1, SLOPE = rise / run;
+  const RX = PX - 0.125;                                                   // 立柱中心退到台面里：底板全落在混凝土上，螺栓离边 8 cm
+  const nose = (x) => Math.min(PH, rise + (XB - x) * SLOPE);               // 踏步前沿连成的斜线
+  { const tread = pbr('DiamondPlate008A', 0.3, SW, { size: 0.5, metalness: 0.3, roughness: 0.68, color: 0xb4b2a8, normalScale: 0.6, envMapIntensity: 1.3 });
+    for (let i = 1; i <= 6; i++) {
+      const front = XB - run * (i - 1), y = rise * i;
+      box(run - 0.05, 0.03, SW, tread, front - 0.05 - (run - 0.05) / 2, y - 0.015, STZ, root).userData.walk = true;
+      box(0.05, 0.036, SW, M.railY, front - 0.025, y - 0.015, STZ, root).userData.walk = true;
+      box(0.012, rise - 0.036, SW, M.oxide, front - 0.012, y - 0.036 - (rise - 0.036) / 2, STZ, root);          // 踢板
+    }
+    const side = new THREE.Shape([[XB + 0.07, 0], [XB + 0.07, 0.1], [XB, rise + 0.02], [XB - run * 5, PH], [PX, PH], [PX, PH - 0.27], [XB - 0.3, 0]].map(([x, y]) => new THREE.Vector2(x, y)));
+    for (const s of [-1, 1]) {
+      const geo = new THREE.ExtrudeGeometry(side, { depth: 0.06, bevelEnabled: false }), uv = geo.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / M.oxide.userData.meters, uv.getY(i) / M.oxide.userData.meters);
+      const st = new THREE.Mesh(geo, M.oxide);
+      st.position.z = STZ + s * (SW / 2 + 0.03) - 0.03;
+      root.add(st);
+    }
+    decal('Rust001', root, { pos: [XB - 0.45, 0.3, STZ + SW / 2 + 0.064], w: 0.5, h: 0.3, opacity: 0.8 }); }
+  // 栏杆（OSHA 1910.29：上横杆 1.07 m、中横杆 0.53 m、踢脚板 ≥ 90 mm、所有临空的边都要围上）；Ø 42.4 横杆、Ø 48.3 立柱
+  //   台面上：150 × 150 × 12 底板、四颗膨胀螺栓。楼梯上：立柱用侧装板栓在斜梁外侧，最下面一根落在地上
   const rg = new THREE.Group(); root.add(rg);
   const rail = (a, b, r = 0.0212) => { const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), d = vb.clone().sub(va), L = d.length(); const m = new THREE.Mesh(uvTube(new THREE.CylinderGeometry(r, r, L, 12), r, L, M.railY.userData.meters), M.railY); m.position.copy(va).add(vb).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); rg.add(m); return m; };
-  const elbow = (p, r = 0.03) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), M.railY); m.position.set(...p); rg.add(m); };
-  const post = (x, y, z, h = 1.07) => { rail([x, y, z], [x, y + h, z], 0.0242); box(0.12, 0.01, 0.12, M.railY, x, y + 0.005, z, rg); for (const [dx, dz] of [[-0.04, -0.04], [0.04, 0.04]]) cyl(0.008, 0.008, 0.016, M.steel, x + dx, y + 0.015, z + dz, rg, 6); };
-  { const RX = PX + 0.15, XB = PX + 1.68, zN = STZ + 0.62, zS = STZ - 0.62, zEnd = PZ1 + 0.2;
-    for (const y of [1.07, 0.53]) {
-      rail([RX, PH + y, PZ0 - 0.3], [RX, PH + y, zN]); rail([RX, PH + y, zN], [XB, y, zN]); elbow([RX, PH + y, zN]);          // 北段 → 楼梯北侧扶手
-      rail([XB, y, zS], [RX, PH + y, zS]); rail([RX, PH + y, zS], [RX, PH + y, zEnd]); elbow([RX, PH + y, zS]);             // 楼梯南侧扶手 → 南段
-      rail([RX, PH + y, zEnd], [X0 + 0.2, PH + y, zEnd]); elbow([RX, PH + y, zEnd]); elbow([RX, PH + y, PZ0 - 0.3]); elbow([XB, y, zN]); elbow([XB, y, zS]); }   // 拐过月台尽头
-    for (let z = PZ0 - 0.3; z > zN + 0.2; z -= 1.5) post(RX, PH, z);
-    for (let z = zS; z > zEnd; z -= 1.5) post(RX, PH, z);
-    post(RX, PH, zN); post(RX, PH, zEnd); post(XB, 0, zN); post(XB, 0, zS); for (let x = RX - 1.2; x > X0 + 0.3; x -= 1.2) post(x, PH, zEnd);
-    for (const dz of [zN, zS]) post((RX + XB) / 2, PH / 2, dz); }
+  const elbow = (p, r = 0.027) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), M.railY); m.position.set(...p); rg.add(m); };
+  const post = (x, y, z, h = 1.07) => {                                    // 落地的立柱
+    const top = y + 0.012;
+    box(0.15, 0.012, 0.15, M.railY, x, y + 0.006, z, rg);
+    rail([x, top, z], [x, y + h, z], 0.0242);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      cyl(0.015, 0.015, 0.003, M.steel, x + sx * 0.052, top + 0.0015, z + sz * 0.052, rg, 10);                  // 垫圈
+      cyl(0.0105, 0.0105, 0.011, M.steel, x + sx * 0.052, top + 0.0085, z + sz * 0.052, rg, 6);                 // 螺母
+    }
+  };
+  const sidePost = (x, z, s, top) => {                                     // 栓在斜梁外侧的立柱
+    const y = nose(x), face = z - s * 0.0242;
+    rail([x, y - 0.2, z], [x, top, z], 0.0242);
+    box(0.11, 0.17, 0.012, M.railY, x, y - 0.11, face - s * 0.004, rg);
+    for (const dx of [-0.036, 0.036]) for (const dy of [-0.05, 0.05]) cyl(0.011, 0.011, 0.014, M.steel, x + dx, y - 0.11 + dy, face + s * 0.006, rg, 6).rotation.x = Math.PI / 2;
+  };
+  const span = (a, b, max = 1.5) => { const n = Math.max(1, Math.ceil(Math.abs(b - a) / max)); return Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n); };
+  { const F = PH + 0.002, zN = STZ + 0.645, zS = STZ - 0.645, zEnd = PZ1 + 0.125, xW = X0 + 0.16, zW = PZ0 - 0.03;
+    for (const h of [1.07, 0.53]) {
+      const y = F + h, nx = XB - run * 5, low = rise + h, fx = XB + 0.15;
+      rail([RX, y, zW], [RX, y, zN]);                                        // 北段：一直顶到墙
+      rail([RX, y, zS], [RX, y, zEnd]);                                      // 南段
+      rail([RX, y, zEnd], [xW, y, zEnd]);                                    // 南头横着封到墙
+      elbow([RX, y, zEnd]);
+      cyl(0.05, 0.05, 0.008, M.railY, RX, y, PZ0 - 0.012, rg, 14).rotation.x = Math.PI / 2;                    // 两头的墙上法兰
+      cyl(0.05, 0.05, 0.008, M.railY, xW, y, zEnd, rg, 14).rotation.z = Math.PI / 2;
+      for (const z of [zN, zS]) {
+        rail([RX, y, z], [nx, y, z]); rail([nx, y, z], [XB, low, z]); rail([XB, low, z], [fx, low, z]);
+        for (const p of [[RX, y, z], [nx, y, z], [XB, low, z], [fx, low, z]]) elbow(p);
+      }
+    }
+    for (const z of span(PZ0 - 0.16, zN)) post(RX, F, z);
+    for (const z of span(zS, zEnd)) post(RX, F, z);
+    for (const x of span(RX, xW + 0.16, 1.3).slice(1)) post(x, F, zEnd);
+    for (const [z, s] of [[zN, 1], [zS, -1]]) {
+      post(XB + 0.15, 0, z, rise + 1.07);
+      for (const x of [XB - run * 1.5, XB - run * 4.2]) sidePost(x, z, s, nose(x) + 1.07);
+    }
+    for (const [a, b] of [[zN, zW], [zEnd, zS]]) box(0.008, 0.1, Math.abs(b - a), M.railY, RX + 0.035, F + 0.056, (a + b) / 2, rg);          // 踢脚板：只在楼梯口断开
+    box(RX - xW, 0.1, 0.008, M.railY, (RX + xW) / 2, F + 0.056, zEnd - 0.035, rg);
+  }
   mergeGroup(rg);
   // 卷帘门
   for (const [z, n] of [[-8, 1]]) {
@@ -602,10 +654,11 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     box(0.5, 0.5, 4.2, M.rackDark, X0 + 0.25, PH + 3.9, z, root);           // 卷轴箱
     box(0.04, 0.12, 3.5, M.yellow, X0 + 0.06, PH + 0.06, z, root);
     plane(1.2, 0.36, lit(textTex([[`DOCK 0${n}`, 50, '#fff', 0.5, 700], ['MAX HEIGHT 3.4 m', 24, 'rgba(255,255,255,.75)', 0.86, 500]], 400, 120, { bg: '#7a2420', age: 0.8 })), X0 + 0.04, PH + 4.5, z, Math.PI / 2, root);
-    const dl = new THREE.SpotLight(0xffd8a0, 9, 7, 0.7, 0.6, 1.4); dl.position.set(X0 + 0.6, PH + 4.3, z); dl.target.position.set(X0 + 2.5, PH, z); root.add(dl, dl.target);
+    const dl = new THREE.SpotLight(0xffa855, 17, 7, 0.7, 0.6, 1.4); dl.position.set(X0 + 0.6, PH + 4.3, z); dl.target.position.set(X0 + 2.5, PH, z); root.add(dl, dl.target);
+    lightCone(root, [X0 + 0.65, PH + 4.2, z], [1.9, -4.2, 0], { length: 3.6, radius: 1.5, color: 0xffa855, strength: 0.13 });
     cyl(0.12, 0.18, 0.2, M.rackDark, X0 + 0.5, PH + 4.3, z, root, 14).rotation.z = Math.PI / 2;
   }
-  for (let z = PZ0 - 1.5; z > PZ1 + 1; z -= 3.2) {
+  for (let z = 2 - 1.5; z > PZ1 + 1; z -= 3.2) {
     decal(rnd() < 0.5 ? 'SurfaceImperfections013' : 'SurfaceImperfections015', root, { pos: [PX + 0.004, 0.35, z + rnd()], rot: [0, Math.PI / 2, 0], w: 2.6, h: 0.7, color: 0x4a5a30, opacity: 0.7 });   // 墙脚青苔
     decal(rnd() < 0.5 ? 'Leaking005' : 'Leaking006', root, { pos: [PX + 0.005, 0.6, z + 1.2 + rnd()], rot: [0, Math.PI / 2, 0], w: 1.2, h: 1.0, color: 0x2a2a22, opacity: 0.6 }); }   // 往下流的水痕
   // 平台上：空的动物运输笼（干草还是新的）、一垛盖着蓝防水布的货
@@ -698,7 +751,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const cagedLamp = (x, y, z, ry) => { const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; root.add(g);
     box(0.14, 0.14, 0.05, M.rackDark, 0, 0, 0, g); cyl(0.07, 0.07, 0.2, new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.2, 1.2) }), 0, 0, 0.13, g, 14).rotation.x = Math.PI / 2;
     for (let k = 0; k < 6; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.004, 4, 16), M.rackDark); r.position.set(0, 0, 0.05 + k * 0.04); g.add(r); }
-    const l = new THREE.PointLight(0xffb468, 5, 6, 1.6); l.position.set(0, -0.1, 0.4); g.add(l); };
+    const l = new THREE.PointLight(0xff9c48, 7.5, 6, 1.6); l.position.set(0, -0.1, 0.4); g.add(l); };
   cagedLamp(X0 + 0.05, PH + 3.0, -9.9, Math.PI / 2); cagedLamp(X0 + 0.05, PH + 3.0, -18.9, Math.PI / 2); cagedLamp(PX + 0.06, PH - 0.3, -1.6, Math.PI / 2);
   for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.position.set(PX + 0.32 + i * 0.16, 0.6, -6.4 + i * 0.03); g.rotation.set(0, 0, Math.PI / 2 + 0.25); root.add(g); pallet(0, -0.07, 0, g); }   // 靠在平台边上的一摞木托盘
   { const bk = cyl(0.17, 0.14, 0.32, M.steel, -11.2, PH + 0.16, -14.6, root, 18); cyl(0.17, 0.17, 0.01, new THREE.MeshStandardMaterial({ color: 0x2a2620, roughness: 0.1 }), -11.2, PH + 0.28, -14.6, root, 18); }
@@ -1014,7 +1067,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   //   真空袋贴着肉、四周是压扁的封边，袋上贴着标签。肉是门店给的肉的照片，压暗发紫（真空没氧气，冻肉就是这个颜色）+ 真实扫描的霜斑和冻伤发白的斑。
   //   码放用“高度图”：每一袋落在它下面最高的那一点上，所以袋子之间、袋子和柜壁之间都不会穿模。
   { const frost = real('Snow006', 0.45, { roughness: 1, color: 0xeef3f7 });                                              // 厚霜（真实扫描的细雪）
-    const frostMask = new THREE.TextureLoader().load('assets/ph/decal/decal_17/opacity.jpg'); frostMask.colorSpace = THREE.NoColorSpace; frostMask.wrapS = frostMask.wrapT = THREE.RepeatWrapping;
+    const frostMask = new THREE.TextureLoader().load('assets/ph/decal/decal_17/opacity.png'); frostMask.colorSpace = THREE.NoColorSpace; frostMask.wrapS = frostMask.wrapT = THREE.RepeatWrapping;
     const frostDecal = new THREE.MeshStandardMaterial({ color: 0xf2f6fa, alphaMap: frostMask, transparent: true, opacity: 0.8, roughness: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
     const plinthM = real('Plastic006', 0.4, { roughness: 1, color: 0x8a8c8a });
     const linerM = real('Plastic010', 0.5, { roughness: 1, color: 0xecebe6 });
@@ -1129,9 +1182,11 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
       plane(0.21, 0.28, lit(printed('Paper006', 210, 280, (g, W, H2) => { g.fillStyle = '#1a1a1a'; g.font = `700 15px ${SANS}`; g.fillText('FREEZER TEMP LOG', 10, 22); g.strokeStyle = 'rgba(60,80,120,.5)'; for (let y = 36; y < H2; y += 20) { g.beginPath(); g.moveTo(6, y); g.lineTo(W - 6, y); g.stroke(); }
         g.fillStyle = 'rgba(20,30,80,.85)'; g.font = '15px "Segoe Print", "Ink Free", cursive'; ['18.11  1:-25 2:-24 3:-20', '19.11  1:-26 2:-24 3:-19!', '19.11  4:-25 5:-23', '20.11  3:-19 call tech', '20.11  1:-25 2:-25', '21.11  3:-18 !!'].forEach((t, k) => g.fillText(t, 10, 54 + k * 20)); }), { roughness: 0.95 }), 0, -0.01, 0.0045, 0, cb); }
   }
-  scene.add(new THREE.HemisphereLight(0xb8b0a0, 0x2a2620, 0.8));                  // 参考图整体更亮：天光补一点（不花显卡）
+  scene.add(new THREE.HemisphereLight(0x74a8a2, 0x141d1a, 0.66));                  // 参考图整体更亮：天光补一点（不花显卡）
   // 主通道上方两盏暖一点的投光灯
-  for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffe4b8, 30, 14, 0.6, 0.7, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target); }
+  for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffb668, 62, 14, 0.5, 0.65, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target);
+    lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 2.9, color: 0xffb668, strength: 0.1 }); }
+  hazeLayer(root, [0, 3.2, -23.2], { width: 24, height: 7, color: 0x1c6a6e, strength: 0.07 });
 
   kit.flush();                                                                     // 所有纸箱按父节点合并成一个个网格
   function tick(t) {
@@ -1144,5 +1199,5 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     warnL.intensity = 2 * (0.5 + 0.5 * Math.sign(Math.sin(t * 3)));        // 警示灯一闪一闪
     if (rainTex) rainTex.offset.y = (t * 1.6) % 1;                            // 02 号门外的雨
   }
-  return { scene, tick };
+  return { scene, tick, load };
 }

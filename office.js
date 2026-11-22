@@ -3,6 +3,7 @@
 // 坐标：大厅左墙在 x = −7.0（墙厚 0.1，办公室这一面在 −7.1）。办公室内部 x −10.6…−7.1，z 1.2…5.0，吊顶 2.9 m。
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { makeLedger, makeWhiteboard } from './office-paper.js';
 
 export const OFFICE = { X0: -10.6, X1: -7.1, Z0: 1.2, Z1: 5.0, H: 2.9, DZ0: 3.5, DZ1: 4.4, DH: 2.1 };
 
@@ -60,13 +61,13 @@ export function buildOffice(ctx) {
     box(1.2, 0.04, 0.6, new THREE.MeshStandardMaterial({ color: 0xd8d8d2, roughness: 0.5, metalness: 0.3 }), 0, 0, 0, t);
     for (const dz of [-0.15, 0.15]) box(1.12, 0.012, 0.03, tubeM, 0, -0.022, dz, t);
     for (let i = 0; i < 9; i++) box(0.006, 0.03, 0.58, M.steel, -0.56 + i * 0.14, -0.03, 0, t); }   // 格栅
-  const l1 = new THREE.PointLight(0xe4ecff, 5.5, 5.5, 1.5); l1.position.set(-8.9, 2.6, 3.1); g.add(l1);
+  const l1 = new THREE.PointLight(0xb4dcd8, 4.8, 5.5, 1.5); l1.position.set(-8.9, 2.6, 3.1); g.add(l1);
 
   // ---------------------------------------------------------------- 大厅这一侧：门框、门牌；门开着，往办公室里推开约 100°
   const frameM = new THREE.MeshStandardMaterial({ color: 0x3a3226, roughness: 0.55 });
   for (const z of [DZ0 - 0.035, DZ1 + 0.035]) box(0.14, DH + 0.07, 0.07, frameM, X1 + 0.05, (DH + 0.07) / 2, z, g);
   box(0.14, 0.07, DZ1 - DZ0 + 0.14, frameM, X1 + 0.05, DH + 0.035, (DZ0 + DZ1) / 2, g);
-  const plate = canvasTexture(360, 110, (c, W, Hh) => { c.fillStyle = '#e8e4d8'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1e1e1c'; c.font = `700 44px ${SANS}`; c.textBaseline = 'middle'; c.fillText('OFFICE', 22, 40); c.font = `500 22px ${SANS}`; c.fillStyle = '#9a2422'; c.fillText('STAFF ONLY · 办公室', 24, 84); });
+  const plate = canvasTexture(360, 110, (c, W, Hh) => { c.fillStyle = '#e8e4d8'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1e1e1c'; c.font = `700 44px ${SANS}`; c.textBaseline = 'middle'; c.fillText('OFFICE', 22, 40); c.font = `500 22px ${SANS}`; c.fillStyle = '#9a2422'; c.fillText('STAFF ONLY', 24, 84); });
   plane(0.3, 0.092, new THREE.MeshPhysicalMaterial({ map: plate, roughness: 0.3, clearcoat: 0.6 }), X1 + 0.125, 2.35, (DZ0 + DZ1) / 2, Math.PI / 2, g);   // 门上方的门牌（大厅这一面）
   { const hinge = new THREE.Group(); hinge.position.set(X1 + 0.02, 0, DZ1); hinge.rotation.y = Math.PI * 100 / 180; g.add(hinge);   // 门轴在靠门面那一侧
     const leafM = pbr('wood_table_worn', 0.88, 2.05, { size: 0.9, color: 0x9a8268, roughness: 0.6 });
@@ -124,32 +125,32 @@ export function buildOffice(ctx) {
       for (let y = 0; y < Hh; y += 3) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y, W, 1); } });
     plane(0.31, 0.24, new THREE.MeshPhysicalMaterial({ color: 0x050505, emissive: 0xffffff, emissiveMap: scr, emissiveIntensity: 0.55, roughness: 0.1, clearcoat: 1 }), 0, 0.25, 0.171, 0, mon);
     // 键盘：米色，按键是一张贴图
-    const kbT = canvasTexture(256, 96, (c, W, Hh) => { c.fillStyle = '#c8c0aa'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#e4dccb'; for (let r = 0; r < 5; r++) for (let k = 0; k < 15; k++) c.fillRect(6 + k * 16.4, 6 + r * 17, 14, 14); c.fillRect(60, 6 + 4 * 17, 120, 14); });
     const kb = new THREE.Group(); kb.position.set(DX - 0.2, T, DZc + 0.05); kb.rotation.y = -Math.PI / 2; g.add(kb);
-    RB(0.44, 0.022, 0.15, 0.006, new THREE.MeshStandardMaterial({ color: 0xc8c0aa, roughness: 0.6 }), 0, 0.011, 0, kb);
-    plane(0.42, 0.13, new THREE.MeshStandardMaterial({ map: kbT, roughness: 0.6 }), 0, 0.0225, 0, 0, kb).rotation.x = -Math.PI / 2;
+    RB(0.44, 0.022, 0.15, 0.006, pbr('Plastic013B', 0.44, 0.15, { size: 0.25, color: 0xc8c0aa, roughness: 0.6 }), 0, 0.011, 0, kb);
+    const keyA = pbr('Plastic010', 0.017, 0.016, { size: 0.06, color: 0xd8d2c2, roughness: 0.65 }), keyB = pbr('Plastic010', 0.017, 0.016, { size: 0.06, color: 0x9c978a, roughness: 0.65 });
+    const rows = ['ESC F1 F2 F3 F4 F5 F6 F7 F8 F9 F10 F11 F12', '` 1 2 3 4 5 6 7 8 9 0 - = ←:2', 'TAB:1.5 Q W E R T Y U I O P [ ] \\:1.5', "CAPS:1.75 A S D F G H J K L ; ' ENTER:2.25", 'SHIFT:2.25 Z X C V B N M , . / SHIFT:2.75', 'CTRL:1.5 ALT:1.5 _:9 ALT:1.5 CTRL:1.5'];   // 键距 19 mm
+    const caps = [];
+    rows.forEach((row, r) => { let u = 0; for (const k of row.split(' ')) { const [label, n] = k.split(':'), w = +(n || (r ? 1 : 15 / 13));
+      const x = (u + w / 2 - 7.5) * 0.019, z = (r - 2.5) * 0.021;
+      RB(w * 0.019 - 0.0025, 0.007, 0.0175, 0.0022, (r === 0 || (n && label !== '_')) ? keyB : keyA, x, 0.024, z, kb, 2);
+      if (label !== '_') caps.push([label, x, z]);
+      u += w; } });
+    const legend = canvasTexture(870, 384, (c, W, Hh) => { c.clearRect(0, 0, W, Hh); c.fillStyle = '#2b2b28'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      for (const [t, x, z] of caps) { c.font = `600 ${t.length > 2 ? 12 : 22}px Inter, sans-serif`; c.fillText(t, (x / 0.29 + 0.5) * W, (z / 0.128 + 0.5) * Hh); } });
+    plane(0.29, 0.128, new THREE.MeshStandardMaterial({ map: legend, transparent: true, depthWrite: false, roughness: 0.7 }), 0, 0.0278, 0, 0, kb).rotation.x = -Math.PI / 2;
     const cable = new THREE.CatmullRomCurve3([new THREE.Vector3(DX - 0.2, T + 0.005, DZc - 0.18), new THREE.Vector3(DX - 0.25, T + 0.003, DZc - 0.3), new THREE.Vector3(DX - 0.18, T + 0.003, DZc - 0.4)]);
     g.add(new THREE.Mesh(new THREE.TubeGeometry(cable, 16, 0.003, 5), M.ink)); }
   // 登记簿：一本摊开的硬皮大账本，转过来朝着桌前的人（点进去看内容）
-  const ledgerG = new THREE.Group(); ledgerG.position.set(DX + 0.12, T, DZc + 0.12); ledgerG.rotation.y = Math.PI / 2 - 0.08; g.add(ledgerG);
-  const coverM = new THREE.MeshStandardMaterial({ color: 0x5a1e1a, roughness: 0.6, bumpMap: grain, bumpScale: 0.3 });
-  RB(0.44, 0.012, 0.31, 0.004, coverM, 0, 0.006, 0, ledgerG);
-  const pageT = canvasTexture(560, 400, (c, W, Hh) => { c.fillStyle = '#ece4cc'; c.fillRect(0, 0, W, Hh); c.strokeStyle = 'rgba(80,110,150,.35)'; for (let y = 50; y < Hh; y += 22) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
-    c.strokeStyle = 'rgba(170,60,60,.4)'; c.beginPath(); c.moveTo(W / 2, 0); c.lineTo(W / 2, Hh); c.stroke(); c.fillStyle = 'rgba(30,30,60,.75)'; c.font = HAND(17);
-    const rows = ['B-0417  Holstein  #1 farm  7x', 'P-0932  Duroc  #3  5x', 'G-0221  broiler  #5  sent to market', 'F-1180  croaker  cage  ?'];
-    rows.forEach((t, i) => c.fillText(t, 300, 70 + i * 44)); for (let i = 0; i < 9; i++) c.fillText('— ' + ['11/02', '11/05', '11/09', '11/11', '11/14', '11/16', '11/17', '11/18', '11/20'][i] + '  batch ok', 20, 70 + i * 36);
-    const sh = c.createLinearGradient(W / 2 - 30, 0, W / 2 + 30, 0); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(0.5, 'rgba(0,0,0,.18)'); sh.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = sh; c.fillRect(W / 2 - 30, 0, 60, Hh); });
-  const pg = new THREE.PlaneGeometry(0.42, 0.3, 16, 1); { const P = pg.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i); P.setZ(i, 0.012 * Math.sin(Math.abs(x) / 0.21 * Math.PI) * (1 - Math.abs(x) / 0.21 * 0.3)); } pg.computeVertexNormals(); }
-  const pages = new THREE.Mesh(pg, new THREE.MeshStandardMaterial({ map: pageT, roughness: 0.9 })); pages.rotation.x = -Math.PI / 2; pages.position.y = 0.0135; ledgerG.add(pages);
-  for (let i = 0; i < 4; i++) box(0.416, 0.002, 0.296, new THREE.MeshStandardMaterial({ color: 0xe0d8bf, roughness: 0.95 }), 0, 0.0125 - i * 0.0018, 0, ledgerG);   // 书页厚度
-  const ledgerSurf = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.286), new THREE.MeshBasicMaterial({ visible: false })); ledgerSurf.rotation.x = -Math.PI / 2; ledgerSurf.position.y = 0.028; ledgerG.add(ledgerSurf);
-  { const pn = pencil(); pn.position.set(DX + 0.12, T + 0.03, DZc + 0.05); pn.rotation.y = 0.5; g.add(pn); }   // 铅笔搁在账本上
+  // 供体动物登记簿：摊开着，能一页一页翻（office-paper.js）
+  const ledger = makeLedger({ pbr, RB }), ledgerG = ledger.group;
+  ledgerG.position.set(DX + 0.12, T, DZc + 0.12); ledgerG.rotation.y = Math.PI / 2 - 0.08; g.add(ledgerG);
+  { const pn = pencil(); pn.position.set(DX - 0.15, T + 0.006, DZc + 0.12); pn.rotation.y = 0.5; g.add(pn); }   // 铅笔搁在登记簿旁边（不压着书页）
   // 台灯
   model('desk_lamp_arm_01', { pos: [DX - 0.25, T, DZc + 0.66], rot: 2.4, parent: g });
-  const lampL = new THREE.PointLight(0xffc27a, 1.6, 2.2, 1.6); lampL.position.set(DX - 0.05, T + 0.38, DZc + 0.42); g.add(lampL);
+  const lampL = new THREE.PointLight(0xffa450, 1.1, 2.6, 1.5); lampL.position.set(DX - 0.07, T + 0.5, DZc + 0.48); g.add(lampL);
   // 电话：米色按键座机，听筒架在上面，卷线
   { const ph = new THREE.Group(); ph.position.set(DX + 0.2, T, DZc + 0.58); ph.rotation.y = Math.PI / 2 + 0.3; g.add(ph);
-    const pm = new THREE.MeshPhysicalMaterial({ color: 0xd6cdb4, roughness: 0.45, clearcoat: 0.3 });
+    const pm = pbr('Plastic013B', 0.21, 0.22, { size: 0.25, color: 0xd6cdb4, roughness: 0.5 });
     const base = RB(0.2, 0.05, 0.22, 0.015, pm, 0, 0.025, 0, ph); base.rotation.x = 0;
     RB(0.21, 0.035, 0.055, 0.015, pm, 0, 0.068, -0.03, ph);                         // 听筒
     const keys = canvasTexture(96, 128, (c, W, Hh) => { c.fillStyle = '#d6cdb4'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#efe8d8'; for (let r = 0; r < 4; r++) for (let k = 0; k < 3; k++) { c.fillRect(10 + k * 28, 10 + r * 28, 22, 20); } c.fillStyle = '#2a2a2a'; c.font = 'bold 14px Arial'; '123456789*0#'.split('').forEach((t, i) => c.fillText(t, 16 + (i % 3) * 28, 26 + (i / 3 | 0) * 28)); });
@@ -161,13 +162,41 @@ export function buildOffice(ctx) {
     const manila = new THREE.MeshStandardMaterial({ color: 0xc8a86a, roughness: 0.85 }), paper = new THREE.MeshStandardMaterial({ color: 0xece6d6, roughness: 0.95 });
     for (let i = 0; i < 7; i++) { const y = 0.004 + i * 0.011, r = (rnd() - 0.5) * 0.08; const f = box(0.24, 0.004, 0.32, manila, (rnd() - 0.5) * 0.015, y, 0, fg); f.rotation.y = r; const p = box(0.225, 0.005, 0.3, paper, (rnd() - 0.5) * 0.01, y + 0.005, 0.005, fg); p.rotation.y = r + (rnd() - 0.5) * 0.04;
       if (i % 2) box(0.06, 0.003, 0.02, manila, -0.06 + i * 0.015, y, 0.17, fg).rotation.y = r; } }
-  // 印章 + 印台，计算器，杯子，烟灰缸
-  { const pad = box(0.11, 0.018, 0.07, new THREE.MeshStandardMaterial({ color: 0x2a3a6a, roughness: 0.5, metalness: 0.4 }), DX + 0.27, T + 0.009, DZc - 0.15, g); pad.rotation.y = 0.2;
-    plane(0.095, 0.055, new THREE.MeshStandardMaterial({ color: 0x8a1a18, roughness: 0.9 }), DX + 0.27, T + 0.0185, DZc - 0.15, 0, g).rotation.set(-Math.PI / 2, 0, 0.2);
-    cyl(0.018, 0.022, 0.06, railM, DX + 0.18, T + 0.05, DZc - 0.22, g, 12); cyl(0.024, 0.024, 0.02, M.ink, DX + 0.18, T + 0.01, DZc - 0.22, g, 16);
-    const calcT = canvasTexture(96, 128, (c, W, Hh) => { c.fillStyle = '#2a2a2a'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#9fb09a'; c.fillRect(8, 8, 80, 24); c.fillStyle = '#222'; c.font = 'bold 18px monospace'; c.fillText('1680.', 30, 27); c.fillStyle = '#bbb'; for (let r = 0; r < 5; r++) for (let k = 0; k < 4; k++) c.fillRect(8 + k * 21, 42 + r * 17, 17, 13); });
-    const calc = RB(0.09, 0.012, 0.13, 0.004, new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5 }), DX - 0.07, T + 0.006, DZc + 0.45); calc.rotation.y = 0.3;
-    const cp = plane(0.085, 0.125, new THREE.MeshStandardMaterial({ map: calcT, roughness: 0.5 }), DX - 0.07, T + 0.0125, DZc + 0.45, 0, g); cp.rotation.set(-Math.PI / 2, 0, 0.3);
+  // 印章 + 铁皮印台（印垫 110 × 70 mm），计算器（103 × 147 × 29 mm），杯子，烟灰缸
+  { const pad = new THREE.Group(); pad.position.set(DX + 0.26, T, DZc - 0.2); pad.rotation.y = 0.15; g.add(pad);
+    const tin = pbr('Metal009', 0.121, 0.085, { size: 0.15, color: 0x5a5c57, metalness: 0.7, roughness: 0.55 }), inner = pbr('Metal009', 0.121, 0.085, { size: 0.15, color: 0x8e948f, metalness: 0.8, roughness: 0.5 });
+    const felt = pbr('Fabric045', 0.11, 0.07, { size: 0.12, color: 0x5c1210, roughness: 1 }), W = 0.121, D = 0.085, t = 0.0015;
+    box(W, t, D, tin, 0, t / 2, 0, pad);
+    for (const e of [-1, 1]) { box(W, 0.013, t, tin, 0, 0.0065, e * (D - t) / 2, pad); box(t, 0.013, D, tin, e * (W - t) / 2, 0.0065, 0, pad); }
+    RB(0.11, 0.009, 0.07, 0.004, felt, 0, 0.006, 0, pad);
+    const hinge = cyl(0.0022, 0.0022, 0.07, inner, 0, 0.0135, -D / 2, pad, 8); hinge.rotation.z = Math.PI / 2;
+    const lid = new THREE.Group(); lid.position.set(0, 0.0135, -D / 2); lid.rotation.x = -1.85; pad.add(lid);   // 盖子往后掀着
+    box(W, t, D, tin, 0, t, D / 2, lid); box(W - 0.004, t, D - 0.004, inner, 0, -0.0002, D / 2, lid);
+    box(W, 0.006, t, tin, 0, -0.002, D, lid);
+    for (const e of [-1, 1]) box(t, 0.006, D, tin, e * (W - t) / 2, -0.002, D / 2, lid);
+    const sx = DX + 0.145, sz = DZc - 0.18;                                        // 车木手柄的橡皮章，没盖正，橡皮沾着红
+    const knob = new THREE.Mesh(new THREE.LatheGeometry([[0, 0], [0.016, 0], [0.011, 0.012], [0.009, 0.026], [0.014, 0.042], [0.017, 0.053], [0.013, 0.063], [0, 0.066]].map(([a, b]) => new THREE.Vector2(a, b)), 20), railM);
+    knob.position.set(sx, T + 0.023, sz); g.add(knob);
+    RB(0.06, 0.016, 0.03, 0.003, railM, sx, T + 0.015, sz).rotation.y = 0.5;
+    box(0.056, 0.007, 0.026, pbr('Rubber004', 0.056, 0.026, { size: 0.1, color: 0x6a2420 }), sx, T + 0.0035, sz, g).rotation.y = 0.5;
+
+    const calc = new THREE.Group(); calc.position.set(DX - 0.07, T, DZc + 0.47); calc.rotation.y = Math.PI / 2 - 0.3; g.add(calc);
+    const side = new THREE.Shape([[-0.0735, 0.002], [0.0735, 0.002], [0.0735, 0.012], [-0.0735, 0.027]].map(([a, b]) => new THREE.Vector2(a, b)));
+    const shellGeo = new THREE.ExtrudeGeometry(side, { depth: 0.103, bevelEnabled: false }); shellGeo.rotateY(-Math.PI / 2); shellGeo.translate(0.0515, 0, 0);
+    { const uv = shellGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 0.147, uv.getY(i) / 0.103); }
+    calc.add(new THREE.Mesh(shellGeo, pbr('Plastic013B', 0.147, 0.103, { size: 0.12, color: 0x45464a, roughness: 0.65 })));
+    for (const a of [-0.04, 0.04]) for (const b of [-0.06, 0.06]) cyl(0.005, 0.005, 0.002, M.ink, a, 0.001, b, calc, 10);
+    const face = new THREE.Group(); face.position.set(0, 0.0197, 0); face.rotation.x = Math.atan2(0.015, 0.147); calc.add(face);   // 面板是斜的
+    box(0.099, 0.0012, 0.142, pbr('Metal009', 0.099, 0.142, { size: 0.2, color: 0x9a9c98, metalness: 0.7, roughness: 0.45 }), 0, 0.0006, 0, face);
+    const lcd = canvasTexture(240, 70, (c, W, Hh) => { c.fillStyle = '#87957f'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#20281f'; c.font = '500 46px "IBM Plex Mono", monospace'; c.textAlign = 'right'; c.fillText('1680.', W - 12, 52); });
+    RB(0.088, 0.003, 0.032, 0.001, M.ink, 0, 0.002, -0.047, face);
+    plane(0.078, 0.0225, new THREE.MeshPhysicalMaterial({ map: lcd, roughness: 0.18, clearcoat: 1 }), 0, 0.0037, -0.047, 0, face).rotation.set(-Math.PI / 2, 0, 0);
+    const keys = ['MC', 'MR', 'M−', 'M+', '÷', '%', '7', '8', '9', '×', '√', '4', '5', '6', '−', 'C', '1', '2', '3', '+', 'AC', '0', '00', '.', '='];
+    const keyMap = canvasTexture(440, 460, (c, W, Hh) => { c.clearRect(0, 0, W, Hh); c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '600 34px "Inter", sans-serif';
+      keys.forEach((k, i) => { c.fillStyle = k === 'AC' ? '#fff' : i % 5 === 0 || i % 5 === 4 || i < 5 ? '#f0eee6' : '#25262a'; c.fillText(k, 44 + (i % 5) * 88, 46 + Math.floor(i / 5) * 92); }); });
+    const num = pbr('Plastic010', 0.014, 0.013, { size: 0.06, color: 0xcfcabb, roughness: 0.6 }), fn = pbr('Plastic010', 0.014, 0.013, { size: 0.06, color: 0x34363a, roughness: 0.6 }), ac = pbr('Plastic010', 0.014, 0.013, { size: 0.06, color: 0x9a4a22, roughness: 0.6 });
+    keys.forEach((k, i) => RB(0.0145, 0.004, 0.0135, 0.0016, k === 'AC' ? ac : i % 5 === 0 || i % 5 === 4 || i < 5 ? fn : num, (i % 5 - 2) * 0.018, 0.003, -0.014 + Math.floor(i / 5) * 0.019, face, 2));
+    plane(0.09, 0.095, new THREE.MeshStandardMaterial({ map: keyMap, transparent: true, depthWrite: false, roughness: 0.6 }), 0, 0.00515, 0.024, 0, face).rotation.set(-Math.PI / 2, 0, 0);
     ITEM.mug(g, DX - 0.25, T, DZc + 0.42, { seed: 7 }); ITEM.ashtray(g, DX - 0.28, T, DZc - 0.62, { seed: 3 }); }
 
   // ---------------------------------------------------------------- 办公椅：五星脚、气杆、灰色布面坐垫和靠背（往一边转着）
@@ -208,8 +237,8 @@ export function buildOffice(ctx) {
     cyl(0.004, 0.004, 0.003, new THREE.MeshBasicMaterial({ color: 0x40ff60 }), 0.14, 0.03, 0.152, cm, 8).rotation.x = Math.PI / 2; }
   model('wall_clock', { pos: [-8.37, 2.25, Z0 + 0.02], parent: g });
   // 营业执照（镜框，玻璃反光）
-  { const lic = canvasTexture(420, 580, (c, W, Hh) => { c.fillStyle = '#efe6d0'; c.fillRect(0, 0, W, Hh); c.strokeStyle = '#a07a3a'; c.lineWidth = 8; c.strokeRect(16, 16, W - 32, Hh - 32); c.fillStyle = '#7a1a18'; c.font = `700 40px ${SANS}`; c.textAlign = 'center'; c.fillText('营业执照', W / 2, 110);
-      c.font = `500 18px ${SANS}`; c.fillStyle = '#2a2a2a'; ['名称：未来肉类市场有限公司', '类型：食品经营（肉类零售）', '经营范围：鲜肉、冻品、熟食', '细胞培养肉（试点）', '成立日期：2024 年 3 月'].forEach((t, i) => c.fillText(t, W / 2, 190 + i * 40));
+  { const lic = canvasTexture(420, 580, (c, W, Hh) => { c.fillStyle = '#efe6d0'; c.fillRect(0, 0, W, Hh); c.strokeStyle = '#a07a3a'; c.lineWidth = 8; c.strokeRect(16, 16, W - 32, Hh - 32); c.fillStyle = '#7a1a18'; c.font = `700 40px ${SANS}`; c.textAlign = 'center'; c.font = `700 31px ${SANS}`; c.fillText('FOOD BUSINESS', W / 2, 100); c.fillText('REGISTRATION', W / 2, 136);
+      c.font = `500 18px ${SANS}`; c.fillStyle = '#2a2a2a'; ['Future Meat Market Ltd.', 'Category: retail butcher', 'Fresh, frozen and cooked meat', 'Cultivated meat (pilot scheme)', 'Registered 11 March 2024'].forEach((t, i) => c.fillText(t, W / 2, 190 + i * 40));
       c.strokeStyle = 'rgba(190,30,30,.75)'; c.lineWidth = 4; c.beginPath(); c.arc(W / 2 + 80, 470, 52, 0, 7); c.stroke(); c.fillStyle = 'rgba(190,30,30,.75)'; c.font = '30px serif'; c.fillText('★', W / 2 + 80, 482); });
     const fr = new THREE.Group(); fr.position.set(-10.28, 1.75, Z0 + 0.02); g.add(fr);
     box(0.42, 0.56, 0.02, new THREE.MeshStandardMaterial({ color: 0x2a1e14, roughness: 0.5 }), 0, 0, 0.01, fr);
@@ -221,7 +250,7 @@ export function buildOffice(ctx) {
     box(BD1 - BD0 + 0.14, 0.07, 0.14, frameM, (BD0 + BD1) / 2, DH + 0.035, Z0 - 0.02, g);
     box(BD1 - BD0 - 0.01, DH - 0.01, 0.05, dm, (BD0 + BD1) / 2, DH / 2, Z0 - 0.02, g);
     box(0.7, 0.04, 0.05, M.steel, (BD0 + BD1) / 2, 1.0, Z0 + 0.04, g); for (const s of [-1, 1]) box(0.03, 0.05, 0.06, M.steel, (BD0 + BD1) / 2 + s * 0.36, 1.0, Z0 + 0.025, g);   // 推杠
-    const sg = canvasTexture(400, 260, (c, W, Hh) => { c.fillStyle = '#e8c832'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1a1a1a'; c.font = `800 54px ${SANS}`; c.fillText('WAREHOUSE', 26, 80); c.font = `600 34px ${SANS}`; c.fillText('仓库 · 随手关门', 28, 140); c.font = `500 24px ${SANS}`; c.fillText('KEEP CLOSED  →  COLD STORE', 28, 210); });
+    const sg = canvasTexture(400, 260, (c, W, Hh) => { c.fillStyle = '#e8c832'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1a1a1a'; c.font = `800 54px ${SANS}`; c.fillText('WAREHOUSE', 26, 80); c.font = `600 34px ${SANS}`; c.fillText('KEEP DOOR SHUT', 28, 140); c.font = `500 24px ${SANS}`; c.fillText('KEEP CLOSED  →  COLD STORE', 28, 210); });
     plane(0.4, 0.26, new THREE.MeshStandardMaterial({ map: sg, roughness: 0.6 }), (BD0 + BD1) / 2, 1.55, Z0 + 0.007, 0, g);
     decal('Scratches003', g, { pos: [(BD0 + BD1) / 2, 0.5, Z0 + 0.006], w: 0.8, h: 0.8, color: 0xc0c0b8, opacity: 0.5 }); }
   // 档案柜右边：小桌子上一台传真机，旁边一摞纸
@@ -234,23 +263,8 @@ export function buildOffice(ctx) {
     const out = new THREE.Mesh(fl, new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.9, side: THREE.DoubleSide })); out.rotation.x = -1.2; out.position.set(0, 0.08, 0.2); fx.add(out); }   // 刚吐出来的一张
 
   // ---------------------------------------------------------------- 右墙（大厅墙的背面）：批次白板
-  { const wb = canvasTexture(880, 640, (c, W, Hh) => { c.fillStyle = '#f2f2ee'; c.fillRect(0, 0, W, Hh);
-      c.fillStyle = 'rgba(120,130,150,.08)'; for (let i = 0; i < 18; i++) { c.beginPath(); c.ellipse(Math.random() * W, Math.random() * Hh, 60 + Math.random() * 90, 20, Math.random(), 0, 7); c.fill(); }   // 没擦干净的旧字印子
-      c.textBaseline = 'alphabetic'; c.fillStyle = '#1d3a8a'; c.font = HAND(56, 700); c.fillText('BATCH LOG — NOV', 40, 72);
-      c.strokeStyle = '#1d3a8a'; c.lineWidth = 3; for (const y of [96, 150]) { c.beginPath(); c.moveTo(36, y); c.lineTo(W - 40, y); c.stroke(); }
-      c.font = HAND(32); ['LINE', 'TANK', 'HARVEST', 'STATUS'].forEach((t, i) => c.fillText(t, 44 + i * 200, 136));
-      const rows = [['B-0417', 'R2', '11/21', 'ok ✓', '#1d3a8a'], ['P-0932', 'R3', '—', 'contam? re-seed', '#b22222'], ['G-0221', 'R1', '11/23', 'donor gone ⚠', '#b22222'], ['F-1180', '—', '—', 'waiting FBS', '#1d3a8a']];
-      rows.forEach((r, i) => { c.fillStyle = r[4]; c.font = HAND(36); r.slice(0, 4).forEach((t, k) => c.fillText(t, 44 + k * 200, 200 + i * 62)); });
-      c.fillStyle = '#b22222'; c.font = HAND(40, 700); c.fillText('AUDIT 12/02 !!', 44, 500); c.fillStyle = '#1d3a8a'; c.font = HAND(32); c.fillText('farm visit #1 → 11/24 (biopsy x2)', 44, 556);
-      c.fillStyle = '#2a7a3a'; c.fillText('FBS order: 6 × 500 mL', 520, 500); c.fillStyle = '#1d3a8a'; c.fillText('call vet re: consent forms?', 470, 600); });
-    const fr = new THREE.Group(); fr.position.set(X1 - 0.012, 1.45, 1.95); fr.rotation.y = -Math.PI / 2; g.add(fr);
-    plane(1.1, 0.8, new THREE.MeshPhysicalMaterial({ map: wb, roughness: 0.15, clearcoat: 0.8 }), 0, 0, 0.006, 0, fr);
-    for (const y of [-0.41, 0.41]) box(1.14, 0.025, 0.02, M.steel, 0, y, 0.008, fr); for (const x of [-0.56, 0.56]) box(0.025, 0.84, 0.02, M.steel, x, 0, 0.008, fr);
-    box(0.5, 0.025, 0.06, M.steel, 0.2, -0.43, 0.03, fr);                          // 笔槽
-    for (const [x, col] of [[0.05, 0x1d3a8a], [0.14, 0xb22222], [0.2, 0x1a1a1a]]) { const m = cyl(0.008, 0.008, 0.12, new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 }), x, -0.405, 0.035, fr, 8); m.rotation.z = Math.PI / 2; }
-    box(0.12, 0.03, 0.05, new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.8 }), 0.36, -0.4, 0.035, fr); }   // 板擦
-
-  // ---------------------------------------------------------------- 左墙：挂历；前墙：铁皮架子上的档案盒、活页夹，一件挂着的外套，一个保险柜
+  const whiteboard = makeWhiteboard({ pbr, M, box, cyl });
+  whiteboard.group.position.set(X1 - 0.012, 1.45, 1.95); whiteboard.group.rotation.y = -Math.PI / 2; g.add(whiteboard.group);
   { const cal = canvasTexture(300, 420, (c, W, Hh) => { c.fillStyle = '#f4f0e6'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#9a2422'; c.fillRect(0, 0, W, 150); c.fillStyle = '#fff'; c.font = `700 40px ${SANS}`; c.fillText('2026', 20, 60); c.font = `700 70px ${SANS}`; c.fillText('11', 190, 120);
       c.fillStyle = '#333'; c.font = `500 16px ${SANS}`; for (let d = 1; d <= 30; d++) { const i = d + 6 - 1, x = 16 + (i % 7) * 40, y = 190 + (i / 7 | 0) * 44; c.fillStyle = d === 20 ? '#9a2422' : '#333'; c.fillText(String(d), x, y); }
       c.strokeStyle = 'rgba(180,30,30,.8)'; c.lineWidth = 3; c.beginPath(); c.arc(16 + ((24 + 5) % 7) * 40 + 8, 190 + ((24 + 5) / 7 | 0) * 44 - 6, 16, 0, 7); c.stroke(); });
@@ -261,8 +275,8 @@ export function buildOffice(ctx) {
     for (const [y, n] of [[0.13, 3], [1.42, 3]]) for (let i = 0; i < n; i++) { const b = box(0.36, 0.26, 0.36, cardM, -0.42 + i * 0.4, y + 0.14, 0, sh); b.rotation.y = (rnd() - 0.5) * 0.08;
       const lb = canvasTexture(160, 90, (c, W, Hh) => { c.fillStyle = '#f2ecd8'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#222'; c.font = HAND(30); c.fillText(['2024', '2025', 'DONORS', 'Q3', 'BIOPSY', 'OLD'][(i + (y > 1 ? 3 : 0)) % 6], 14, 40); c.font = HAND(22, 500); c.fillText('records', 16, 74); });
       plane(0.14, 0.08, new THREE.MeshStandardMaterial({ map: lb, roughness: 0.9 }), -0.42 + i * 0.4, y + 0.15, 0.181, 0, sh); }
-    const cols = [0x1d3a6a, 0x7a1a18, 0x2a5a3a, 0x222222, 0xc8a030];
-    for (const y of [0.56, 0.99]) { let x = -0.6; while (x < 0.58) { const w = 0.05 + rnd() * 0.03, lean = rnd() < 0.15 ? 0.25 : 0; const b = box(w, 0.32, 0.28, new THREE.MeshStandardMaterial({ color: cols[Math.floor(rnd() * cols.length)], roughness: 0.6 }), x + w / 2, y + 0.17, 0, sh); b.rotation.z = lean; x += w + 0.004 + lean * 0.1; } } }
+    const cols = [0x4a5560, 0x6a4a3c, 0x55604e, 0x3a3835, 0x8c7a58].map((color, i) => pbr(['Fabric045', 'leather_red_02', 'canvas_fabric', 'Cardboard001', 'rough_linen'][i], 0.28, 0.32, { size: 0.3, color, roughness: 0.85 }));   // 旧文件夹：布面、皮面、纸板
+    for (const y of [0.56, 0.99]) { let x = -0.6; while (x < 0.58) { const w = 0.05 + rnd() * 0.03, lean = rnd() < 0.15 ? 0.25 : 0; const b = box(w, 0.32, 0.28, cols[Math.floor(rnd() * cols.length)], x + w / 2, y + 0.17, 0, sh); b.rotation.z = lean; x += w + 0.004 + lean * 0.1; } } }
   { const coat = hookGarment({ w: 0.5, h: 0.8, mat: pbr('denim_fabric_03', 0.5, 0.8, { size: 0.4, color: 0x3a3e46 }), seed: 21, sleeves: true });   // 挂在门后墙上的一件旧夹克
     const hk = new THREE.Group(); hk.position.set(-8.55, 1.78, Z1 - 0.02); hk.rotation.y = Math.PI; hk.add(coat); g.add(hk);
     box(0.03, 0.03, 0.06, M.steel, -8.55, 1.8, Z1 - 0.03, g); }
@@ -278,7 +292,11 @@ export function buildOffice(ctx) {
 
   ledgerG.updateWorldMatrix(true, false);
   return {
-    spots: { records: { eye: ledgerG.localToWorld(new THREE.Vector3(0, 0.55, 0.12)).toArray(), at: ledgerG.localToWorld(new THREE.Vector3(0, 0.02, 0)).toArray(), fov: 42, surface: { mesh: ledgerSurf, w: 560, h: 400, size: 0.4 } } },
+    spots: {
+      records: { eye: ledgerG.localToWorld(new THREE.Vector3(0, 0.54, 0.17)).toArray(), at: ledgerG.localToWorld(new THREE.Vector3(0, 0.02, 0)).toArray(), fov: 42 },
+      board: { eye: [X1 - 1.17, 1.46, 1.96], at: [X1 - 0.012, 1.44, 1.95], fov: 47 },
+    },
+    ledger,
     ledgerPos: ledgerG.position.clone(),
   };
 }

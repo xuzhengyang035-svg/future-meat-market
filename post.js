@@ -36,14 +36,26 @@ const FilmShader = {
     }`,
 };
 
-export function createPost(renderer, scene, camera, grade = {}) {
-  const pr = Math.min(devicePixelRatio, 1.25);
-  const rt = new THREE.WebGLRenderTarget(innerWidth * pr, innerHeight * pr, { type: THREE.HalfFloatType, samples: 4 });
+// 五个场景共用一套缓冲（以前每个场景各有一套 4× MSAA + AO + 辉光，走一圈就是一两个 GB 显存）；切场景只换 scene 和调色
+let core = null;
+export const quality = { scale: 1 };
+export function pixelRatio() {
+  const fit = Math.sqrt(1.5e6 / (innerWidth * innerHeight));                  // 最多约 1600 × 940 那么多像素
+  return Math.min(devicePixelRatio, 1.5, fit) * quality.scale;
+}
+
+function createCore(renderer, scene, camera) {
+  const pr = pixelRatio();
+  const rt = new THREE.WebGLRenderTarget(innerWidth * pr, innerHeight * pr, { type: THREE.HalfFloatType, samples: 2 });
   const composer = new EffectComposer(renderer, rt);
   composer.setPixelRatio(pr);
-  composer.addPass(new RenderPass(scene, camera));
+  composer.setSize(innerWidth, innerHeight);
+  const renderPass = new RenderPass(scene, camera);
+  composer.addPass(renderPass);
 
   const ao = new GTAOPass(scene, camera, innerWidth, innerHeight);
+  const aoSize = ao.setSize.bind(ao);
+  ao.setSize = (w, h) => aoSize(Math.round(w * 0.6), Math.round(h * 0.6));     // 遮蔽是模糊的，0.6 倍算足够
   ao.updateGtaoMaterial({ radius: 0.5, distanceExponent: 1.4, thickness: 1.2, scale: 1.2, samples: 8 });
   ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 5, rings: 2, samples: 8 });
   ao.blendIntensity = 1.0;
@@ -56,18 +68,40 @@ export function createPost(renderer, scene, camera, grade = {}) {
     });
   };
   composer.addPass(ao);
-  composer.addPass(new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 1.1));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 1.1);
+  const bloomSize = bloom.setSize.bind(bloom);
+  bloom.setSize = (w, h) => bloomSize(Math.round(w / 2), Math.round(h / 2));
+  composer.addPass(bloom);
   composer.addPass(new OutputPass());
   const film = new ShaderPass(FilmShader);
-  for (const [k, v] of Object.entries(grade)) {
-    const u = film.uniforms[k];
-    if (u) u.value = Array.isArray(v) ? new THREE.Vector3(...v) : v;
-  }
   composer.addPass(film);
-
   return {
-    composer, ao,
-    setSize(w, h) { composer.setSize(w, h); },
-    render(t) { film.uniforms.uTime.value = t; composer.render(); },
+    composer, ao, renderPass, film,
+    resize(w, h) {
+      const r = pixelRatio();
+      composer.setPixelRatio(r); composer.setSize(w, h);
+    },
+  };
+}
+
+export const postTarget = () => core?.composer.readBuffer ?? null;
+export function resizePost(w, h) { core?.resize(w, h); }
+
+export function createPost(renderer, scene, camera, grade = {}) {
+  core ??= createCore(renderer, scene, camera);
+  const look = Object.entries({ ...Object.fromEntries(Object.entries(FilmShader.uniforms).filter(([k]) => k !== 'tDiffuse' && k !== 'uTime').map(([k, u]) => [k, u.value])), ...grade })
+    .filter(([k]) => FilmShader.uniforms[k])
+    .map(([k, v]) => [k, Array.isArray(v) ? new THREE.Vector3(...v) : v]);
+  return {
+    render(t) {
+      const { composer, ao, renderPass, film } = core;
+      renderPass.scene = scene; ao.scene = scene;
+      for (const [k, v] of look) {
+        const u = film.uniforms[k];
+        if (v.isVector3) u.value.copy(v); else u.value = v;
+      }
+      film.uniforms.uTime.value = t;
+      composer.render();
+    },
   };
 }

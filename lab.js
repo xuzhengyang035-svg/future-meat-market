@@ -1,15 +1,19 @@
 // 加工间参观廊：熟客可以隔着玻璃看。玻璃后面不是光鲜的大罐车间，而是一个地下作坊——
-// 正对玻璃的一排不锈钢采样床上躺着供体动物，后面用防水布隔出几台小型反应器。
+// 正对玻璃的一排采样床用蓝帘隔开，后面是工作区和回收角，顶上吊着三座高位罐。
 // 观众站在参观廊里；玻璃前的展台上是“你的批次”——一个台式灌流培养罐，里面的肉在长大。
 // 左墙是生长数据墙；玻璃最左边是一扇磨砂门：细胞库，非参观区域。
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { deferImages } from './gfx.js';
 import { canvasTexture } from './textures.js';
-import { makeAnimal } from './animals.js';
 import { meatGeometry, meatMaterial, meatHeight, kindFor } from './meat.js';
 import { SPECIES } from './data.js';
 import { pbr, model, decal, userDecal } from './assets.js';
 import { ITEM } from './dress.js';
 import { curve } from './growth.js';
+import { createCurtain } from './curtain.js';
+import { lightCone, glowColumn, hazeLayer } from './atmosphere.js';
 import { grimeWallMaps, grimeFloorMaps, grimeMap, ageCanvas, puddleDecal, bloodSplatter } from './materials.js';
 import { steelMaps, concreteMaps, epoxyMaps, wallMaps, slatMaps, smudgeMap, gratingAlpha, blobShadow, graduationMap, tapeLabel, gaugeMap } from './materials.js';
 
@@ -275,77 +279,6 @@ export function drawDataWall(g, W, H, t, b, r) {
   g.textAlign = 'left';
 }
 
-// ------------------------------------------------------------------ 培养罐（车间里的大罐子）
-const legH = 0.6;
-function tankGeometry(r, h) {
-  const pts = [new THREE.Vector2(0.001, 0), new THREE.Vector2(r * 0.16, 0), new THREE.Vector2(r, h * 0.16), new THREE.Vector2(r, h * 0.86)];
-  for (let i = 1; i <= 10; i++) { const a = (i / 10) * Math.PI / 2; pts.push(new THREE.Vector2(Math.max(0.001, r * Math.cos(a)), h * 0.86 + Math.sin(a) * h * 0.14)); }
-  return new THREE.LatheGeometry(pts, 56);
-}
-const TANK_GEO = { small: tankGeometry(0.85, 3.0), big: tankGeometry(1.2, 3.8) };
-const ringGeo = new THREE.TorusGeometry(1, 0.025, 8, 64);
-const legGeo = new THREE.CylinderGeometry(0.045, 0.045, 1, 10);
-
-function tank(kind, name, parent) {
-  const r = kind === 'big' ? 1.2 : 0.85, h = kind === 'big' ? 3.8 : 3.0;
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(TANK_GEO[kind], M.steel);
-  body.position.y = legH;
-  g.add(body);
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const leg = new THREE.Mesh(legGeo, M.steelDark);
-    leg.scale.y = legH + h * 0.2;
-    leg.position.set(Math.cos(a) * r * 0.8, leg.scale.y / 2, Math.sin(a) * r * 0.8);
-    g.add(leg);
-  }
-  for (const k of [0.3, 0.55, 0.8]) {
-    const ring = new THREE.Mesh(ringGeo, M.steelDark);
-    ring.scale.set(r + 0.01, r + 0.01, 1); ring.rotation.x = Math.PI / 2; ring.position.y = legH + h * k;
-    g.add(ring);
-  }
-  cyl(0.2, 0.2, 0.14, M.steel, 0, legH + h + 0.04, 0, g);
-  cyl(0.15, 0.15, 0.36, M.steelDark, 0.35, legH + h - 0.02, 0, g);
-  // 视镜：能看到里面粉红色的培养液
-  const sightY = legH + h * 0.48;
-  const sight = new THREE.Mesh(new THREE.CircleGeometry(0.11, 24), M.sight);
-  sight.position.set(0, sightY, r + 0.012);
-  g.add(sight);
-  const sightRing = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.02, 8, 24), M.steelDark);
-  sightRing.position.copy(sight.position);
-  g.add(sightRing);
-  plane(0.42, 0.13, textSign([[name, 64, '#1d1f22', 0.7, 500, MONO, 'center']], 256, 80, { bg: '#e8eaeb' }), 0, legH + h * 0.66, r + 0.012, 0, g, false);
-  for (const y of [0.32, 0.4]) {
-    const port = cyl(0.04, 0.04, 0.16, M.steelDark, 0, 0, 0, g, 12);
-    port.rotation.z = Math.PI / 2; port.position.set(r + 0.06, legH + h * y, 0);
-  }
-  // 压力表
-  const ga = -0.55, gy = legH + h * 0.4;
-  const stem = cyl(0.012, 0.012, 0.1, M.steelDark, Math.sin(ga) * (r + 0.05), gy, Math.cos(ga) * (r + 0.05), g, 8);
-  stem.rotation.set(Math.PI / 2, ga, 0, 'YXZ');
-  const gauge = new THREE.Mesh(new THREE.CircleGeometry(0.075, 24), new THREE.MeshBasicMaterial({ map: gaugeMap() }));
-  gauge.position.set(Math.sin(ga) * (r + 0.105), gy, Math.cos(ga) * (r + 0.105)); gauge.rotation.y = ga;
-  g.add(gauge);
-  const bezel = new THREE.Mesh(new THREE.TorusGeometry(0.078, 0.012, 6, 24), M.steel);
-  bezel.position.copy(gauge.position); bezel.rotation.y = ga;
-  g.add(bezel);
-  parent.add(g);
-  return g;
-}
-
-function worker(parent) {
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.9, 4, 12), M.suit);
-  body.position.y = 0.75; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 12), M.suit);
-  head.position.y = 1.55; g.add(head);
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.09, 0.06), M.visor);
-  visor.position.set(0, 1.56, 0.12); g.add(visor);
-  for (const s of [-1, 1]) { const boot = box(0.12, 0.1, 0.22, M.steelDark, s * 0.09, 0.05, 0.03, g); boot.material = new THREE.MeshStandardMaterial({ color: 0x3c6fa0, roughness: 0.6 }); }
-  parent.add(g);
-  return g;
-}
-
 // ------------------------------------------------------------------ 台式培养罐（你的批次）
 // 点云只取部分顶点，否则肉很小的时候会被绿点糊满
 const sampleCache = new WeakMap();
@@ -418,7 +351,7 @@ const m4 = new THREE.Matrix4();
 // ------------------------------------------------------------------ 场景
 export function createLab(env) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111312);
+  scene.background = new THREE.Color(0x041514);
   scene.environment = env;
   scene.environmentIntensity = 0.55;
   const root = new THREE.Group();
@@ -433,15 +366,15 @@ export function createLab(env) {
   Object.assign(M.steelDark, { roughnessMap: sm.roughnessMap, normalMap: sm.normalMap, roughness: 1.5 });
   M.steelDark.normalScale.set(0.3, 0.3);
   // 发光体调到高于 1，后期辉光只会作用在灯上
-  M.light.color.setRGB(2.8, 3.1, 2.9); M.warmLight.color.setRGB(3, 2.75, 2.45);
+  M.light.color.setRGB(1.5, 2.9, 2.6); M.warmLight.color.setRGB(0.5, 1.15, 0.98);
   M.sight.color.multiplyScalar(1.4); M.ledRed.color.setRGB(4, 0.3, 0.3);
-  scene.fog = new THREE.Fog(0x24272a, 12, 40);   // 车间里灰蒙蒙的，远处发暗
+  scene.fog = new THREE.FogExp2(0x0a3240, 0.047);                          // 越往里越沉进青绿色的雾里
   // 墙：参观廊是发黄的旧瓷砖 + 绿漆墙裙；车间是刷漆的大墙，墙裙更高，满是锈水痕
   const wallMat = (w, h, o = {}) => pbr('long_white_tiles', w, h, { size: 2.6, rotate: Math.PI / 2, roughness: 0.75, color: 0xcfcac0 });   // 真实的旧白瓷砖
   const hallWallMat = (w, h) => new THREE.MeshStandardMaterial({ ...grimeWallMaps(w, h, { tile: false, dado: 1.6, ppm: 40, upper: [138, 142, 134], paint: [62, 76, 68], seed: 9, ao: 0.6 }) });
 
   // 参观廊：x -5..5，z -1..4，层高 3m，偏暗
-  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.6, envMapIntensity: 1.4, color: 0xb0b0b0 }));
+  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.33, envMapIntensity: 2.2, color: 0xbcd8d2 }));
   gFloor.rotation.x = -Math.PI / 2; gFloor.position.set(0, 0, 1.5);
   root.add(gFloor);
   const gCeil = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('OfficeCeiling003', 10, 5, { size: 1.2, roughness: 0.9, color: 0x6a6a66 }));   // 矿棉板吊顶（照片扫描）
@@ -469,72 +402,50 @@ export function createLab(env) {
   box(8.5, 0.1, 0.16, M.frame, 0.8, 2.72, -1.0, root);
   box(8.4, 0.05, 0.3, M.frame, 0.8, 0.875, -0.95, root);
   box(1.8, 3, 0.2, wallMat(1.8, 3), -4.3, 1.5, -1.0, root);
-  plane(0.16, 0.16, noPhotoSticker(), -2.3, 1.55, -0.99, 0, root);
-  plane(0.16, 0.16, noPhotoSticker(), 3.9, 1.55, -0.99, 0, root);
+  plane(0.14, 0.14, noPhotoSticker(), -3.15, 2.5, -0.99, 0, root);
+  plane(0.14, 0.14, noPhotoSticker(), 4.75, 2.5, -0.99, 0, root);
 
   // 细胞库：磨砂玻璃门、红色标牌、读卡器
   box(1.12, 2.2, 0.06, M.frame, -4.25, 1.1, -0.88, root);
   plane(1.0, 2.1, frostedTexture(), -4.25, 1.07, -0.845, 0, root, false);
-  plane(1.3, 0.24, textSign([['细胞库 · 禁止游客进入', 30, '#ffffff', 0.62, 500, SANS, 'center']], 640, 118, { bg: '#b3262d' }), -4.25, 2.42, -0.89, 0, root);
+  plane(1.3, 0.24, textSign([['CELL BANK · NO VISITORS', 30, '#ffffff', 0.62, 500, SANS, 'center']], 640, 118, { bg: '#b3262d' }), -4.25, 2.42, -0.89, 0, root);
   box(0.08, 0.13, 0.03, M.frame, -3.6, 1.2, -0.87, root);
   const led = box(0.014, 0.014, 0.01, M.ledRed, -3.6, 1.24, -0.853, root);
 
-  // 展台和三台台式培养罐
+  // 玻璃里面第一排：左边是显微镜台和留样托盘（模型里），右边一条瓷砖台——三台台式培养罐里长着肉，其中一台是你的批次
   const tileTop = (w, d) => pbr('long_white_tiles', w, d, { size: 1.6, roughness: 0.45, color: 0xb8b0a2, envMapIntensity: 1.2 });
-  box(8.2, 0.92, 0.62, wallMat(8.2, 0.92, { dado: 0, size: 0.1, ppm: 120 }), 0.8, 0.46, -0.6, root);       // 整条瓷砖台面，沿着玻璃
-  { const tt = new THREE.Mesh(new THREE.PlaneGeometry(8.3, 0.7), tileTop(8.3, 0.7, 77)); tt.rotation.x = -Math.PI / 2; tt.position.set(0.8, 0.935, -0.6); root.add(tt); }
-  box(8.3, 0.04, 0.04, M.frame, 0.8, 0.915, -0.27, root);
-  const vesL = vessel('chicken', 0.55, root, ['BR-01 G-0221', 'D14  P41']); vesL.group.position.set(-1.05, 0.95, -0.6);
-  const vesC = vessel('beef', 0.3, root, ['BR-02 sample', '11/08  P37']); vesC.group.position.set(0.2, 0.95, -0.6);
-  const vesR = vessel('pork', 0.85, root, ['BR-03 P-0932', 'D24  P52']); vesR.group.position.set(1.45, 0.95, -0.6);
-  const plate = (txt, sub, x, hi) => plane(0.5, 0.09, textSign([[txt, 30, hi ? '#ffffff' : '#1d1f22', 0.48, 500, SANS], [sub, 20, hi ? 'rgba(255,255,255,.75)' : '#6b6762', 0.85, 400, MONO]], 400, 72, { bg: hi ? '#b3262d' : '#ebe9e4' }), x, 0.78, -0.274, 0, root, false);
-  plate('展示批次 · 培养鸡胸肉', 'BR-01 · G-0221', -1.05, false);
-  const myPlate = plate('你的批次', 'BR-02 · 演示', 0.2, true);
-  plate('展示批次 · 培养猪排', 'BR-03 · P-0932', 1.45, false);
-  const yTube = new THREE.MeshStandardMaterial({ color: 0xc8a030, roughness: 0.35, transparent: true, opacity: 0.85 });
-  for (const x of [-1.05, 0.2, 1.45]) { const c = new THREE.CatmullRomCurve3([new THREE.Vector3(x + 0.05, 1.6, -0.6), new THREE.Vector3(x + 0.12, 2.05, -0.7), new THREE.Vector3(x + 0.35, 2.15, -0.85), new THREE.Vector3(x + 0.5, 1.6, -0.95), new THREE.Vector3(x + 0.55, 0.96, -0.86)]); root.add(new THREE.Mesh(new THREE.TubeGeometry(c, 40, 0.009, 8), yTube)); }
-  { const pot = cyl(0.16, 0.12, 0.3, new THREE.MeshStandardMaterial({ color: 0x8a7a66, roughness: 0.9, map: grimeMap(88) }), -2.4, 1.1, -0.6, root, 18);
-    const lg = new THREE.SphereGeometry(0.07, 8, 5); lg.scale(1, 0.25, 1.4); const lm = new THREE.MeshStandardMaterial({ color: 0x3e5a32, roughness: 0.7, side: THREE.DoubleSide });
-    let sd = 41; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 70; i++) { const a = rr() * 6.28, h = rr(); const l = new THREE.Mesh(lg, lm); l.position.set(-2.4 + Math.cos(a) * (0.1 + h * 0.25), 1.25 + h * 0.45 - (rr() < 0.3 ? rr() * 0.6 : 0), -0.6 + Math.sin(a) * (0.1 + h * 0.2)); l.rotation.set(rr() * 2, rr() * 6, rr()); root.add(l); } }
-  { box(0.5, 0.03, 0.34, M.steel, -1.85, 0.955, -0.5, root); for (const [dx, dz, w, d] of [[0, -0.16, 0.5, 0.02], [0, 0.16, 0.5, 0.02], [-0.24, 0, 0.02, 0.34], [0.24, 0, 0.02, 0.34]]) box(w, 0.05, d, M.steel, -1.85 + dx, 0.975, -0.5 + dz, root); }
-  { const ct = canvasTexture(256, 256, (g, W, H) => { g.fillStyle = '#d8ccc0'; g.fillRect(0, 0, W, H); g.strokeStyle = 'rgba(160,60,60,.5)'; g.lineWidth = 4; for (let k = 0; k < 8; k++) { g.beginPath(); g.moveTo(0, k * 32 + 10); g.lineTo(W, k * 32 + 10); g.stroke(); g.beginPath(); g.moveTo(k * 32 + 10, 0); g.lineTo(k * 32 + 10, H); g.stroke(); } const rr = ((n) => () => (n = (n * 16807) % 2147483647) / 2147483647)(5); bloodSplatter(g, 130, 120, 40, rr, { dry: 0.3, drops: 10 }); bloodSplatter(g, 80, 180, 22, rr, { dry: 0.7, drops: 6 }); });
-    const cloth = ITEM.rag(root, -1.45, 0.936, -0.47, { seed: 5, ry: 0.4, mat: new THREE.MeshStandardMaterial({ map: ct, roughness: 1, side: THREE.DoubleSide }) });   // 皱巴巴的一块沾血纱布
-    const hg = new THREE.PlaneGeometry(0.28, 0.25, 8, 8), hp = hg.attributes.position;      // 搭在台沿上垂下来的一角
-    for (let i = 0; i < hp.count; i++) { const x = hp.getX(i), y = hp.getY(i); hp.setZ(i, Math.sin(x * 38) * 0.008 * (0.125 - y) * 6 + (0.125 - y) * 0.05); }
-    hg.computeVertexNormals(); const hang = new THREE.Mesh(hg, cloth.material); hang.position.set(-1.35, 0.8, -0.27); hang.rotation.z = 0.06; root.add(hang); }
-  { const amber = new THREE.MeshPhysicalMaterial({ color: 0x5a2a0a, roughness: 0.1, transparent: true, opacity: 0.85 }), clear = new THREE.MeshPhysicalMaterial({ color: 0xe8ece8, roughness: 0.05, transparent: true, opacity: 0.4, depthWrite: false });
-    for (const [x, z, h, m] of [[-0.55, -0.75, 0.2, amber], [-0.45, -0.62, 0.24, clear], [-0.35, -0.72, 0.16, clear], [0.8, -0.6, 0.22, new THREE.MeshStandardMaterial({ color: 0xe8e4d8, roughness: 0.5 })]]) { cyl(0.04, 0.04, h, m, x, 0.94 + h / 2, z, root, 14); cyl(0.018, 0.018, 0.04, M.frame, x, 0.96 + h, z, root, 10); } }
-  { const cb = canvasTexture(256, 340, (g, W, H) => { g.fillStyle = '#e4dcc8'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = '600 18px sans-serif'; g.fillText('采样记录', 20, 40); g.font = '14px monospace'; for (let i = 0; i < 12; i++) { g.fillText(['11/15 06:02 P-0932', '11/14 22:00 B-0417', '11/14 14:10 P-0932', '11/14 14:00 B-0417', '11/14 06:00 P-1077'][i % 5], 20, 76 + i * 20); } ageCanvas(g, W, H, { amount: 1, seed: 71, drips: false }); });
-    const clip = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.34), lit(cb)); clip.rotation.set(-Math.PI / 2, 0, -0.2); clip.position.set(2.35, 0.947, -0.5); root.add(clip);
-    box(0.28, 0.008, 0.36, new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.7 }), 2.35, 0.94, -0.5, root).rotation.y = -0.2;
-    box(0.1, 0.02, 0.04, M.steel, 2.39, 0.955, -0.67, root).rotation.y = -0.2;
-    const pen = cyl(0.005, 0.005, 0.14, M.frame, 2.5, 0.955, -0.45, root, 6); pen.rotation.z = Math.PI / 2; pen.rotation.y = 0.5; }
-  { box(0.3, 0.02, 0.1, M.steel, 3.1, 1.0, -0.62, root); box(0.3, 0.02, 0.1, M.steel, 3.1, 1.08, -0.62, root); for (const x of [-0.14, 0.14]) box(0.01, 0.12, 0.1, M.steel, 3.1 + x, 1.0, -0.62, root);
-    const red = new THREE.MeshStandardMaterial({ color: 0x8a1a16, roughness: 0.3 }); for (let i = 0; i < 6; i++) { cyl(0.011, 0.011, 0.16, red, 2.98 + i * 0.05, 1.07, -0.62, root, 8); cyl(0.013, 0.013, 0.02, M.frame, 2.98 + i * 0.05, 1.16, -0.62, root, 8); } }
+  const FZ = -1.78;                                                        // 这一排台子的中线
+  box(4.5, 0.92, 0.62, wallMat(4.5, 0.92, { dado: 0, size: 0.1, ppm: 120 }), 2.4, 0.46, FZ, root);
+  { const tt = new THREE.Mesh(new THREE.PlaneGeometry(4.54, 0.68), tileTop(4.54, 0.68)); tt.rotation.x = -Math.PI / 2; tt.position.set(2.4, 0.935, FZ); root.add(tt); }
+  box(4.54, 0.04, 0.04, M.frame, 2.4, 0.915, FZ + 0.33, root);
+  const vesL = vessel('chicken', 0.55, root, ['BR-01 G-0221', 'D14  P41']); vesL.group.position.set(0.55, 0.95, FZ);
+  const vesC = vessel('beef', 0.3, root, ['BR-02 sample', '11/08  P37']); vesC.group.position.set(1.35, 0.95, FZ);
+  const vesR = vessel('pork', 0.85, root, ['BR-03 P-0932', 'D24  P52']); vesR.group.position.set(2.15, 0.95, FZ);
+  const plate = (txt, sub, x, hi) => plane(0.5, 0.09, textSign([[txt, 30, hi ? '#ffffff' : '#1d1f22', 0.48, 500, SANS], [sub, 20, hi ? 'rgba(255,255,255,.75)' : '#6b6762', 0.85, 400, MONO]], 400, 72, { bg: hi ? '#b3262d' : '#ebe9e4' }), x, 0.83, FZ + 0.336, 0, root, false);
+  plate('CULTIVATED CHICKEN', 'BR-01 · G-0221', 0.55, false);
+  const myPlate = plate('YOUR BATCH', 'BR-02 · DEMO', 1.35, true);
+  plate('CULTIVATED PORK', 'BR-03 · P-0932', 2.15, false);
+  for (const [x, i] of [[0.55, 4], [1.35, 8], [2.15, 4]]) {
+    const s = new THREE.SpotLight(x > 1 && x < 2 ? 0xd6ffd8 : 0xffb868, i, 3.4, 0.36, 0.6, 1.4);
+    s.position.set(x, 2.8, FZ + 0.4); s.target.position.set(x, 1.0, FZ);
+    root.add(s, s.target);
+    lightCone(root, [x, 2.8, FZ + 0.4], [0, -1.8, -0.4], { length: 1.75, radius: 0.5, top: 0.05, color: x > 1 && x < 2 ? 0xc8ffd0 : 0xffb868, strength: x > 1 && x < 2 ? 0.15 : 0.09 });
+  }
   { const wl = new THREE.Group(); wl.position.set(-3.75, 2.25, -0.86); root.add(wl);                 // 铁丝罩壁灯
     box(0.12, 0.12, 0.04, M.frame, 0, 0, -0.04, wl); cyl(0.07, 0.07, 0.18, new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.2, 1.2) }), 0, 0, 0.08, wl, 14).rotation.x = Math.PI / 2;
     for (let k = 0; k < 6; k++) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.004, 4, 16), M.frame); r.position.set(0, 0, 0.02 + k * 0.035); wl.add(r); }
     const wlp = new THREE.PointLight(0xffb060, 4, 4, 1.6); wlp.position.set(0, 0, 0.3); wl.add(wlp); }
-  // 真实模型：台上的显微镜、记录夹板、化学试剂套装；一张被拉开的铁凳
-  model('industrial_microscope', { pos: [-0.5, 0.935, -0.62], rot: 0.5, parent: root });
-  model('chemistry_set', { pos: [3.85, 0.935, -0.65], rot: -0.1, scale: 0.8, parent: root });
-  model('clipboard', { pos: [2.0, 0.937, -0.42], rot: 0.35, parent: root });
-  model('metal_stool_01', { pos: [-1.6, 0, 0.0], rot: 0.6, tilt: 0.04, parent: root });
-  model('WetFloorSign_01', { pos: [2.6, 0, 1.1], rot: -0.4, scale: 1.25, parent: root });
-  model('desk_lamp_arm_01', { pos: [-0.12, 0.935, -0.78], rot: -0.6, scale: 0.85, parent: root });   // 显微镜旁的台灯
-  model('binder_notebook', { pos: [3.15, 0.936, -0.42], rot: 0.25, parent: root });
-  model('medical_box', { pos: [-2.95, 0.935, -0.62], rot: 0.08, scale: 0.8, parent: root });
+  // 真实模型：右头的试剂套装、台灯、记录夹；参观廊里一张铁凳和地上的提示牌
+  model('chemistry_set', { pos: [4.15, 0.936, FZ - 0.06], rot: -0.1, scale: 0.72, parent: root });
+  model('clipboard', { pos: [3.86, 0.937, FZ + 0.16], rot: 0.35, parent: root });
+  model('desk_lamp_arm_01', { pos: [2.62, 0.936, FZ - 0.22], rot: -0.6, scale: 0.85, parent: root });
+  model('metal_stool_01', { pos: [-2.2, 0, 3.6], rot: 0.6, tilt: 0.04, parent: root });
+  model('WetFloorSign_01', { pos: [-3.6, 0, 3.4], rot: -0.4, scale: 1.25, parent: root });
   // 参观廊：门口到玻璃前踩出来的脏印、拖地的湿痕；墙角返潮
   decal('SurfaceImperfections017', root, { pos: [1.2, 0.003, 1.6], rot: [-Math.PI / 2, 0, 0.3], w: 5.0, h: 2.6, color: 0x2e2a24, opacity: 0.45 });
   decal('Smear007', root, { pos: [2.2, 0.0035, 0.9], rot: [-Math.PI / 2, 0, 1.9], w: 2.2, h: 1.3, color: 0x2a2a24, opacity: 0.22, roughness: 0.1 });
   decal('Leaking009', root, { pos: [-4.99, 0.45, 2.9], rot: [0, Math.PI / 2, 0], w: 2.0, h: 0.9, color: 0x5a5040, opacity: 0.6 });
   decal('Leaking004', root, { pos: [4.99, 2.55, 3.2], rot: [0, -Math.PI / 2, 0], w: 1.0, h: 1.2, color: 0x6a5a44, opacity: 0.6 });
-  for (const [x, i] of [[-1.05, 3], [0.2, 9], [1.45, 3]]) {
-    const s = new THREE.SpotLight(0xffe2b8, i, 3.4, 0.34, 0.65, 1.4);
-    s.position.set(x, 2.95, -0.25); s.target.position.set(x, 1.0, -0.6);
-    root.add(s, s.target);
-  }
 
   // 左墙：生长数据墙
   const dataTex = canvasTexture(1600, 900, (g, W, H) => { g.fillStyle = '#06080a'; g.fillRect(0, 0, W, H); });
@@ -564,321 +475,102 @@ export function createLab(env) {
   box(1.8, 0.42, 0.45, M.frame, -0.6, 0.21, 2.9, root);
   box(1.76, 0.06, 0.42, M.fabric, -0.6, 0.45, 2.9, root);
 
-  // ================================================================ 玻璃后面：加工间（参考帆布棚里的地下实验室 + 停尸房的一排床）
-  // 一个地下作坊不会有 2000 升的大罐：这里是几台 200 升的一次性生物反应器，用防水布隔出来。
-  // 玻璃正对面是一排不锈钢采样床——原代细胞传几十代就会衰老，所以供体动物就养在这里，定期活检。
+  // ================================================================ 玻璃后面：夜班的加工间（FMM Laboratory Kit：assets/lab/lab_kit.glb）
+  // 参观廊正对着一排用蓝帘隔开的采样床（四只动物 + 一张停用的空床）；PVC 门帘后面是工作区、靠右墙的医疗废品回收角、三台 200 L 反应器；
+  // 再往上是 6.5 m 高的设备层：三座吊在钢梁上的高位罐。模型怎么修、怎么压的见 tools/blender/lab_kit.py
   const hall = new THREE.Group();
   root.add(hall);
-  const HC = 3.6;                                                         // 层高很低，压抑
-  // 地面：老式八角形白瓷砖，砖缝里嵌着小方块（参考老医院、老实验室）
-  const octTex = (() => {
-    const S = 512, n = 4, cs = S / n, k = cs * 0.29;
-    const draw = (g, mode) => {
-      g.fillStyle = mode === 'map' ? '#5a625e' : mode === 'rough' ? '#e0e0e0' : '#000'; g.fillRect(0, 0, S, S);
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-        const x0 = x * cs + 3, y0 = y * cs + 3, w = cs - 6;
-        g.beginPath(); g.moveTo(x0 + k, y0); g.lineTo(x0 + w - k, y0); g.lineTo(x0 + w, y0 + k); g.lineTo(x0 + w, y0 + w - k); g.lineTo(x0 + w - k, y0 + w); g.lineTo(x0 + k, y0 + w); g.lineTo(x0, y0 + w - k); g.lineTo(x0, y0 + k); g.closePath();
-        if (mode === 'map') { const v = 200 + ((x * 7 + y * 13) % 5) * 6; g.fillStyle = `rgb(${v},${v + 6},${v + 4})`; } else g.fillStyle = mode === 'rough' ? '#5a5a5a' : '#fff';
-        g.fill();
-      }
-      for (let y = 0; y <= n; y++) for (let x = 0; x <= n; x++) {           // 砖缝交叉处的小方块
-        g.save(); g.translate(x * cs, y * cs); g.rotate(Math.PI / 4);
-        g.fillStyle = mode === 'map' ? '#7d8783' : mode === 'rough' ? '#6a6a6a' : '#e8e8e8'; const q = k * 0.62; g.fillRect(-q / 2, -q / 2, q, q);
-        g.restore();
-      }
-    };
-    const c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d'); draw(g, 'map');
-    ageCanvas(g, S, S, { amount: 1.1, seed: 53, drips: false });
-    const rc = document.createElement('canvas'); rc.width = rc.height = S; draw(rc.getContext('2d'), 'rough');
-    const mk = (cv, srgb) => { const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(16 / 1.2, 11 / 1.2); t.anisotropy = 8; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
-    return { map: mk(c, true), roughnessMap: mk(rc, false) };
-  })();
-  const hFloor = new THREE.Mesh(new THREE.PlaneGeometry(16, 11), pbr('worn_tile_floor', 16, 11, { size: 2.4, roughness: 0.55, envMapIntensity: 1.5, color: 0xa8a8a8 }));
-  hFloor.rotation.x = -Math.PI / 2; hFloor.position.set(0, 0, -6.6);
-  hall.add(hFloor);
-  const hCeil = new THREE.Mesh(new THREE.PlaneGeometry(16, 11), new THREE.MeshStandardMaterial({ color: 0x3a3c38, roughness: 1, map: grimeMap(80) }));
-  hCeil.rotation.x = Math.PI / 2; hCeil.position.set(0, HC, -6.6);
-  hall.add(hCeil);
-  const tileWall = (w, h) => pbr('long_white_tiles', w, h, { size: 2.6, rotate: Math.PI / 2, roughness: 0.75, color: 0xbab6ac });
-  box(16, HC, 0.2, tileWall(16, HC), 0, HC / 2, -12.1, hall);
-  box(0.2, 0.9, 11, tileWall(11, 0.9), -8.1, 0.45, -6.6, hall);
-  {                                                                         // 玻璃砖墙：后面一排灯管，透出冷绿色的光
-    const gb = canvasTexture(512, 512, (g, Wt, Ht) => {
-      g.fillStyle = '#4a5a54'; g.fillRect(0, 0, Wt, Ht);
-      const n = 8, cs = Wt / n;
-      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-        const gr = g.createRadialGradient(x * cs + cs / 2, y * cs + cs / 2, 2, x * cs + cs / 2, y * cs + cs / 2, cs * 0.6);
-        const v = 0.75 + ((x * 5 + y * 3) % 7) / 25;
-        gr.addColorStop(0, `rgba(${Math.round(200 * v)},${Math.round(240 * v)},${Math.round(222 * v)},1)`); gr.addColorStop(1, `rgba(${Math.round(110 * v)},${Math.round(150 * v)},${Math.round(136 * v)},1)`);
-        g.fillStyle = gr; g.fillRect(x * cs + 4, y * cs + 4, cs - 8, cs - 8);
-        g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; g.strokeRect(x * cs + 10, y * cs + 10, cs - 20, cs - 20);
-      }
-      ageCanvas(g, Wt, Ht, { amount: 0.8, seed: 31, drips: false });
-    });
-    gb.wrapS = gb.wrapT = THREE.RepeatWrapping; gb.repeat.set(11 / 1.6, (HC - 0.9) / 1.6);
-    const gm = new THREE.MeshStandardMaterial({ map: gb, emissiveMap: gb, emissive: new THREE.Color(0.55, 0.75, 0.68), emissiveIntensity: 0.5, roughness: 0.15, metalness: 0.1 });
-    box(0.2, HC - 0.9, 11, gm, -8.1, 0.9 + (HC - 0.9) / 2, -6.6, hall);
-    box(0.24, 0.08, 11, M.white, -8.0, 0.92, -6.6, hall);
-  }
-  box(0.2, HC, 11, tileWall(11, HC), 8.1, HC / 2, -6.6, hall);
-  box(16, HC - 2.7, 0.2, M.frame, 0, 2.7 + (HC - 2.7) / 2, -1.2, hall);
-  box(0.08, 0.02, 10, M.drum, 0, 0.004, -6.6, hall);                      // 地上的排水沟
-  for (const z of [-2.2, -6.0, -9.8]) { const d = cyl(0.12, 0.12, 0.01, M.frame, 0, 0.006, z, hall, 16); }
-
-  const W = {                                                             // 床、帘子、输液用的材质
-    sheet: new THREE.MeshStandardMaterial({ color: 0x9aa098, roughness: 1, map: grimeMap(81) }),
-    strap: new THREE.MeshStandardMaterial({ color: 0x2a2a26, roughness: 0.7 }),
-    gauze: new THREE.MeshStandardMaterial({ color: 0xd0cbbd, roughness: 1 }),
-    tag: new THREE.MeshStandardMaterial({ color: 0xd8b02a, roughness: 0.5 }),
-    bag: new THREE.MeshPhysicalMaterial({ color: 0xc8d4cc, roughness: 0.2, transparent: true, opacity: 0.6 }),
-    line: new THREE.MeshStandardMaterial({ color: 0x9a3a3a, roughness: 0.3, transparent: true, opacity: 0.85 }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x1e201e, roughness: 0.8 }),
-    curtain: new THREE.MeshStandardMaterial({ color: 0x6f7d72, roughness: 1, transparent: true, opacity: 0.92, side: THREE.DoubleSide, map: grimeMap(82) }),
-    tarp: new THREE.MeshPhysicalMaterial({ color: 0xdfe8e4, roughness: 0.2, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false, map: grimeMap(83) }),
-    duct: new THREE.MeshStandardMaterial({ color: 0xc8d2ce, roughness: 0.5, metalness: 0.3, map: grimeMap(84) }),
-    enamel: new THREE.MeshStandardMaterial({ color: 0xd8e2de, roughness: 0.35, map: grimeMap(85) }),
-    enamelDark: new THREE.MeshStandardMaterial({ color: 0x9aa8a4, roughness: 0.45, map: grimeMap(86) }),
-    yellow: new THREE.MeshStandardMaterial({ color: 0xb89a2a, roughness: 0.5, metalness: 0.3, map: grimeMap(87) }),
-    cable: new THREE.MeshStandardMaterial({ color: 0x141616, roughness: 0.6 }),
-    glow: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 2.6, 2.5) }),
-    lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.55, 2.3) }),
-    medium: new THREE.MeshStandardMaterial({ color: 0xc8506a, roughness: 0.25, transparent: true, opacity: 0.75 }),
-  };
-  const hose = (pts, r, mat = W.rubber, parent = hall) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p))), 48, r, 8), mat); parent.add(m); return m; };
   const blobMat = new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false, opacity: 0.85 });
   const blob = (x, z, sz, parent = hall, y = 0.006) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), blobMat); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); parent.add(p); return p; };
+  gFloor.userData.walk = true;                                             // 参观廊地上的箭头只落在这块地上
 
-  // ---------------------------------------------------------------- 一排采样床（头朝玻璃，观众正好看见动物的脸）
-  // 心电监护的波形：一张横向平铺的贴图，tick 里让它滚动
-  const ecgTex = canvasTexture(512, 128, (g, Wt, Ht) => {
-    g.fillStyle = '#041008'; g.fillRect(0, 0, Wt, Ht);
-    g.strokeStyle = '#6aff7a'; g.lineWidth = 3; g.beginPath();
-    for (let x = 0; x <= Wt; x += 2) { const p = (x % 128) / 128; const y = p > 0.42 && p < 0.46 ? 20 : p > 0.46 && p < 0.5 ? 108 : p > 0.6 && p < 0.7 ? 56 : 70; g.lineTo(x, y); }
+  // 一整道帘子：实验台在前，病床和动物都在帘子后面，拉开才看得见
+  const cloth = pbr('Fabric045', 1, 1, { size: 0.38, roughness: 0.96, color: 0x2d6a74, emissive: 0x02100f, side: THREE.DoubleSide, normalScale: 0.6 });
+  const curtain = createCurtain({ x0: -8.85, x1: 8.85, split: 0.8, z: -2.5, top: 3.52, bottom: 0.14,
+    fabric: cloth, metal: pbr('Metal009', 1, 1, { size: 0.3, metalness: 0.8, roughness: 0.6 }) });
+  hall.add(curtain.group);
+  const WARD = -0.55;                                                      // 病床整体往里让了这么多（和 lab_kit.py 里一致）
+
+  // 监护仪上的心跳：一张横向平铺的贴图，tick 里让它滚动（盖在模型屏幕原来那条静止的波形上；停用床的那台不动）
+  const ecgTex = canvasTexture(512, 80, (g, Wt, Ht) => {
+    g.fillStyle = '#0d211e'; g.fillRect(0, 0, Wt, Ht);
+    g.strokeStyle = '#8fce98'; g.lineWidth = 4; g.beginPath();
+    for (let x = 0; x <= Wt; x += 2) { const p = (x % 128) / 128; g.lineTo(x, p > 0.42 && p < 0.46 ? 8 : p > 0.46 && p < 0.5 ? 72 : p > 0.6 && p < 0.7 ? 38 : 48); }
     g.stroke();
   });
   ecgTex.wrapS = THREE.RepeatWrapping;
-  const flatTex = canvasTexture(512, 128, (g, Wt, Ht) => {                // 空床的监护仪：没有信号
-    g.fillStyle = '#030604'; g.fillRect(0, 0, Wt, Ht);
-    g.fillStyle = 'rgba(106,255,122,.45)'; g.fillRect(0, 70, Wt, 2);
-    g.font = '600 22px monospace'; g.fillStyle = 'rgba(255,90,90,.85)'; g.fillText('NO SIGNAL', 16, 34);
-  });
-  const bedTop = 0.82;
-  const beds = [];
-  const ward = (x, kind, info) => {
-    const g = new THREE.Group(); g.position.set(x, 0, -3.9); g.rotation.y = -Math.PI / 2; hall.add(g);   // 本地 +x（床头）朝向玻璃
-    const L = (lx, ly, lz) => new THREE.Vector3(x - lz, ly, -3.9 + lx);        // 床的本地坐标 → 世界坐标（走近观察用的标注点）
-    let pose = null, siteY = bedTop + 0.3;
-    box(1.6, 0.04, 0.74, M.steel, 0, bedTop - 0.02, 0, g);
-    for (const s of [-1, 1]) {
-      box(1.6, 0.05, 0.02, M.steel, 0, bedTop + 0.13, s * 0.38, g);
-      for (const xx of [-0.65, 0, 0.65]) cyl(0.008, 0.008, 0.15, M.steel, xx, bedTop + 0.05, s * 0.38, g, 6);
-    }
-    for (const [xx, zz] of [[-0.74, -0.33], [0.74, -0.33], [-0.74, 0.33], [0.74, 0.33]]) {
-      cyl(0.016, 0.016, bedTop - 0.08, M.steel, xx, (bedTop - 0.08) / 2 + 0.06, zz, g, 8);
-      cyl(0.035, 0.035, 0.03, W.rubber, xx, 0.035, zz, g, 12).rotation.x = Math.PI / 2;
-    }
-    box(1.5, 0.02, 0.64, M.steelDark, 0, 0.3, 0, g);
-    box(1.52, 0.03, 0.68, W.sheet, 0, bedTop + 0.015, 0, g);
-    box(0.04, 0.5, 0.74, M.steel, 0.8, bedTop + 0.1, 0, g);                  // 床头板
-    // 床头挂的记录板（对着玻璃，看得清）
-    const card = plane(0.34, 0.24, textSign([[info[0], 34, '#141414', 0.24, 600, MONO], [info[1], 22, '#333', 0.46, 400, SANS], [info[2], 22, '#333', 0.64, 400, SANS], [info[3], 22, '#b3262d', 0.84, 600, SANS]], 340, 240, { bg: '#e8e2cc' }), 0.83, bedTop + 0.12, 0, Math.PI / 2, g, false);
-    // 输液架 + 采样机 + 监护仪
-    cyl(0.012, 0.012, 1.9, M.steel, -0.7, 0.95, 0.46, g, 8);
-    box(0.25, 0.012, 0.012, M.steel, -0.7, 1.88, 0.46, g);
-    box(0.09, 0.16, 0.03, W.bag, -0.63, 1.75, 0.46, g);
-    const sampler = new THREE.Group(); sampler.position.set(0.3, 0, -0.62); g.add(sampler);
-    box(0.32, 0.95, 0.32, M.white, 0, 0.475, 0, sampler);
-    cyl(0.012, 0.012, 0.02, M.ledRed, 0.1, 0.62, 0.165, sampler, 8).rotation.x = Math.PI / 2;
-    const mon = new THREE.Group(); mon.position.set(0.55, 1.45, 0.5); mon.rotation.y = Math.PI / 2 - 0.4; g.add(mon);
-    box(0.3, 0.22, 0.05, M.frame, 0, 0, -0.03, mon);
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.18), new THREE.MeshBasicMaterial({ map: kind === 'empty' ? flatTex : ecgTex, color: new THREE.Color(1.4, 1.4, 1.4) })); mon.add(scr);
-    cyl(0.01, 0.01, 0.6, M.steel, 0, -0.35, -0.03, mon, 6);
-    // 头顶一盏无影灯
-    const head = new THREE.Group(); head.position.set(0.1, HC - 0.75, 0); g.add(head);
-    cyl(0.01, 0.01, 0.75, M.steel, 0, 0.37, 0, head, 6);
-    cyl(0.22, 0.26, 0.09, M.frame, 0, 0, 0, head, 24);
-    cyl(0.18, 0.18, 0.01, W.lamp, 0, -0.05, 0, head, 24);
-    const sl = new THREE.SpotLight(0xf0eee2, 2.3, 3.4, 0.5, 0.55, 1.3); sl.position.set(0.1, HC - 0.82, 0); sl.target.position.set(0, bedTop, 0); g.add(sl, sl.target);
-    let tubeEnd = [0.1, bedTop + 0.3, 0];
-    if (kind === 'pig' || kind === 'cow') {                                   // 侧躺在床上，头朝床头
-      const sc = kind === 'pig' ? 2.2 : 2.25;
-      const lie = new THREE.Group(); lie.rotation.set(Math.PI / 2, 0, 0); g.add(lie);
-      const half = (kind === 'pig' ? 0.095 : 0.078) * sc;
-      lie.position.set(-0.02, bedTop + 0.03 + half * 0.92, 0);
-      const a = makeAnimal(kind, 'photo'); a.scale.setScalar(sc); a.position.set(-0.04 * sc, -0.17 * sc, 0); lie.add(a);
-      pose = { o: a, s: sc, rate: kind === 'cow' ? 1.1 : 1.7 };                 // 呼吸：镇静的牛慢一点
-      siteY = bedTop + 0.03 + half * 1.84;
-      for (const xx of [-0.3, 0.2]) box(0.06, 0.012, 0.76, W.strap, xx, bedTop + 0.03 + half * 1.85, 0, g);   // 约束带
-      box(0.07, 0.004, 0.05, W.gauze, -0.05, bedTop + 0.03 + half * 1.84, 0.05, g);                         // 采样处的纱布
-      if (info.length > 4) box(0.05, 0.004, 0.04, W.gauze, 0.15, bedTop + 0.03 + half * 1.82, -0.05, g);
-      tubeEnd = [-0.05, bedTop + 0.03 + half * 1.8, 0.03];
-      if (kind === 'cow') {                                                     // 小牛：身上盖着布，露出头和耳标
-        const cover = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), W.sheet);
-        cover.scale.set(0.5, half * 2.25, 0.37); cover.position.set(-0.22, bedTop + 0.02, 0); g.add(cover);
-        box(0.025, 0.035, 0.006, W.tag, 0.4, bedTop + half * 1.55, 0.12, g);
-      }
-    } else if (kind === 'hen') {                                                // 鸡在铁丝笼里
-      const cage = new THREE.Group(); cage.position.set(0, bedTop + 0.03, 0); g.add(cage);
-      for (let i = 0; i <= 6; i++) for (const s of [-1, 1]) cyl(0.003, 0.003, 0.42, M.steel, -0.3 + i * 0.1, 0.21, s * 0.22, cage, 4);
-      for (let i = 0; i <= 4; i++) for (const s of [-1, 1]) cyl(0.003, 0.003, 0.42, M.steel, s * 0.3, 0.21, -0.2 + i * 0.1, cage, 4);
-      box(0.62, 0.006, 0.46, M.steel, 0, 0.42, 0, cage);
-      const a = makeAnimal('hen', 'photo'); a.rotation.y = 0.5; cage.add(a);
-      pose = { o: a, s: 1, hen: true };
-    } else {                                                                     // 空床：床单皱着，约束带松开垂下来
-      for (const xx of [-0.3, 0.2]) { box(0.06, 0.012, 0.3, W.strap, xx, bedTop + 0.04, 0.2, g); const d = box(0.06, 0.3, 0.012, W.strap, xx, bedTop - 0.12, 0.38, g); d.rotation.x = 0.1; }
-      const lump = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), W.sheet); lump.scale.set(0.4, 0.06, 0.25); lump.position.set(-0.3, bedTop + 0.04, -0.05); g.add(lump);
-    }
-    hose([[-0.63, 1.66, 0.46], [-0.45, 1.3, 0.38], [-0.2, bedTop + 0.5, 0.2], tubeEnd], 0.004, W.line, g);
-    if (kind !== 'empty') hose([[0.3, 0.88, -0.5], [0.2, bedTop + 0.35, -0.3], [tubeEnd[0] + 0.05, tubeEnd[1] + 0.02, tubeEnd[2] - 0.05]], 0.005, W.line, g);
-    blob(x, -3.9, 1.9);
-    // 走近观察：站在床侧（靠中间走道那边、避开采样机），从斜上方看下去
-    const s = x > 0.5 ? -1 : 1;
-    const pts = {
-      card: L(0.83, bedTop + 0.12, 0), mon: L(0.55, 1.45, 0.5), samp: L(0.3, 0.72, -0.62), iv: L(-0.63, 1.75, 0.46),
-      site: kind === 'hen' ? L(0, bedTop + 0.24, 0) : kind === 'empty' ? L(-0.3, bedTop + 0.06, -0.05) : L(-0.05, siteY, 0.05),
-      strap: kind === 'empty' ? L(-0.3, bedTop - 0.12, 0.38) : L(-0.3, siteY, -0.25),
-      tag: L(0.4, bedTop + 0.12, 0.12),
-    };
-    beds.push({ id: info[0], kind, x, pose, pts, eye: kind === 'hen' ? [x - 1.2, 1.8, -3.7] : [x + s * 1.65, 1.95, -4.4], at: [x, kind === 'hen' ? 1.08 : 1.0, -3.9] });
-    return g;
-  };
-  ward(-6.8, 'pig', ['P-0932', '杜洛克 · 母 · 4 岁', '活检 865 次', '下次：明早 06:00']);
-  ward(-4.1, 'cow', ['B-0417', '荷斯坦 · 公', '活检 1,312 次', '下次：今晚 22:00', 2]);
-  ward(0.0, 'empty', ['P-0101', '——', '活检 2,040 次', '已停用 11/09']);
-  ward(4.1, 'pig', ['P-1077', '大白 · 母 · 8 月龄', '活检 6 次', '新到 11/13']);
-  ward(6.8, 'hen', ['G-0221', '白羽 · 母', '活检 412 次', '状态：观察']);
-  // 床与床之间的布帘（挂在顶上的轨道上，有的拉开、有的拉上一半）
-  for (const x of [-5.45, -2.05, 2.05, 5.45]) {
-    box(0.03, 0.03, 2.2, M.steel, x, HC - 0.3, -3.9, hall);
-    const n = x === 2.05 ? 12 : x === -5.45 ? 4 : 8;
-    for (let k = 0; k < n; k++) {
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 2.0), W.curtain);
-      s.position.set(x + (k % 2) * 0.04, HC - 1.32, -4.95 + k * 0.11); s.rotation.y = (k % 2 ? 0.5 : -0.5); hall.add(s);
-    }
-  }
-  // 地上：接水桶、一卷软管、几块沾了碘伏的纱布
-  for (const x of [-5.9, 3.1]) cyl(0.16, 0.13, 0.3, M.drum, x, 0.15, -2.6, hall, 18);
-  for (let i = 0; i < 6; i++) { const p = plane(0.08, 0.06, null, -3 + i * 1.2, 0.007, -2.5 - (i % 3) * 0.3, 0, hall, false); p.material = W.gauze; p.rotation.set(-Math.PI / 2, 0, i); }
-  hose([[-7.9, 0.3, -2.0], [-7.0, 0.02, -2.6], [-3.5, 0.02, -2.4], [-1.2, 0.02, -2.9]], 0.02);
+  const ecgMat = new THREE.MeshBasicMaterial({ map: ecgTex });
+  for (const [x, y, z] of [[-7.523, 1.248, -4.981], [-4.963, 1.309, -5.441], [3.559, 1.248, -4.779], [6.394, 1.248, -4.623]]) plane(0.33, 0.056, ecgMat, x, y + 0.037, z + WARD + 0.002, 0, hall);
 
-  // ---------------------------------------------------------------- 后半间：塑料隔断后面的生产区（白色反应器、手套箱工作台、培养箱、液氮罐）
-  for (const [x, w] of [[-5.5, 4.4], [1.4, 4.6], [6.5, 2.4]]) {                 // 半透明的白色塑料隔断，留着几道缝
-    for (let k = 0; k < Math.round(w / 0.2); k++) { const t = new THREE.Mesh(new THREE.PlaneGeometry(0.22, HC - 0.25), W.tarp); t.position.set(x - w / 2 + 0.11 + k * 0.2, (HC - 0.25) / 2 + 0.03, -6.6 + (k % 2) * 0.02); t.rotation.y = (Math.sin(k * 7.1 + x) * 0.15); hall.add(t); }   // 透明 PVC 门帘条
-  }
-  hose([[-8, HC - 0.1, -6.6], [8, HC - 0.1, -6.6]], 0.01, M.frame);
-  const bioTex = canvasTexture(128, 112, (g, Wt, Ht) => {                       // 黄色三角警示牌：生物危害
-    g.clearRect(0, 0, Wt, Ht); g.fillStyle = '#d8b82a'; g.strokeStyle = '#141414'; g.lineWidth = 7;
-    g.beginPath(); g.moveTo(Wt / 2, 6); g.lineTo(Wt - 6, Ht - 6); g.lineTo(6, Ht - 6); g.closePath(); g.fill(); g.stroke();
-    g.fillStyle = '#141414'; g.font = '700 46px sans-serif'; g.textAlign = 'center'; g.fillText('☣', Wt / 2, Ht - 22);
+  const beds = [['P-0932', 'duroc', -6.8], ['B-0417', 'holstein', -4.1], ['P-0101', null, 0], ['P-1077', 'white', 4.1], ['G-0221', 'hen', 6.8]]
+    .map(([id, animal, x]) => ({ id, animal, x, pose: null }));
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const tankList = [
+    { name: 'HT-01', size: '高位罐', tissue: ['融合片层', 'LM-04'], pos: v(-1.95, 2.9, -9.3) },
+    { name: 'HT-02', size: '高位罐', tissue: ['富脂褶皱', 'FT-02'], pos: v(1.59, 3.1, -9.1) },
+    { name: 'HT-03', size: '高位罐', tissue: ['定向纤维', 'FB-07'], pos: v(5.48, 2.7, -9.5) },
+    { name: 'BR-04', size: '200 L', pos: v(0.8, 1.6, -7.95) }, { name: 'BR-05', size: '200 L', pos: v(3.0, 1.6, -7.95) }, { name: 'BR-06', size: '200 L', pos: v(5.2, 1.6, -7.95) },
+  ];
+
+  let pending = null;                                                      // 第一次走进实验室才下载模型
+  const load = () => pending ??= new Promise((resolve) => {
+    const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/');
+    deferImages(new GLTFLoader()).setDRACOLoader(draco).load('assets/lab/lab_kit.glb', ({ scene: kit }) => {
+      const meshes = [];
+      kit.updateMatrixWorld(true);
+      kit.traverse((o) => { if (o.isMesh) meshes.push(o); });
+      const pivots = {};
+      for (const b of beds) if (b.animal) {                                 // 每只动物的支点在床垫面上：呼吸时蹄子和身子底下不离开床垫
+        const g = new THREE.Group(); g.position.set(b.x, b.animal === 'holstein' ? 0.8985 : 0.84, -3.9 + WARD); g.updateMatrixWorld(); hall.add(g);
+        pivots[b.animal] = g; b.pose = { o: g, rate: { duroc: 1.5, holstein: 1.1, white: 1.8, hen: 3.2 }[b.animal] };
+      }
+      for (const o of meshes) {
+        const m = o.material, name = m.name || '';
+        m.envMapIntensity = 0.65;
+        if (name.startsWith('Grouted ceramic / floor')) { m.roughness = 0.5; m.envMapIntensity = 1.3; m.color.set(0x86aaa4); }   // 冲洗过的湿地：灯都拖出倒影
+        if (name.startsWith('Grouted ceramic / wall')) m.color.set(0x7c9c98);
+        if (name.startsWith('High bay limewash')) m.color.set(0x6f8f8a);
+        if (name.startsWith('Internal instrument strip')) m.emissiveIntensity = 4.2;
+        if (name.startsWith('Amber inspection lamp')) m.emissiveIntensity = 3;
+        if (name.startsWith('Opal fluorescent diffuser')) m.emissive.setRGB(0.36, 0.95, 0.85);
+        for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = 8;
+        if (m.transparent) {
+          m.depthWrite = false;                                            // 玻璃、培养液、门帘后面的东西不能被它们挡掉
+          if (/rinse film|contact marks/i.test(name)) { m.polygonOffset = true; m.polygonOffsetFactor = -4; m.polygonOffsetUnits = -4; }
+          else if (/glass|fluid/i.test(name)) o.renderOrder = 2;
+        }
+        const animal = /^A_([a-z]+)/.exec(o.name) || /^A_([a-z]+)/.exec(o.parent?.name || '');
+        (animal ? pivots[animal[1]] : hall).attach(o);
+      }
+      draco.dispose();
+      resolve(true);
+    }, undefined, (e) => { console.error('实验室模型没有加载出来', e); resolve(false); });
   });
-  const bioMat = new THREE.MeshBasicMaterial({ map: bioTex, transparent: true, color: new THREE.Color(0.8, 0.8, 0.8) });
-  const crt = (rows, seed) => canvasTexture(256, 192, (g, Wt, Ht) => {          // 绿色单色显示器
-    g.fillStyle = '#031208'; g.fillRect(0, 0, Wt, Ht);
-    g.fillStyle = '#5aff7a'; g.font = '600 16px monospace';
-    rows.forEach((r, i) => g.fillText(r, 12, 26 + i * 22));
-    g.strokeStyle = '#5aff7a'; g.lineWidth = 2; g.beginPath();
-    for (let x = 0; x < Wt; x += 4) g.lineTo(x, Ht - 30 + Math.sin(x * 0.08 + seed) * 10 + Math.sin(x * 0.31 + seed) * 4); g.stroke();
-    g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 0; y < Ht; y += 3) g.fillRect(0, y, Wt, 1);
-  });
-  const tankList = [];
-  const reactor = (x, z, name, fill) => {                                      // 200 L 一次性袋式反应器：不锈钢外壳 + 观察窗 + 控制箱
-    const g = new THREE.Group(); g.position.set(x, 0, z); hall.add(g);
-    box(0.8, 0.5, 0.8, M.steelDark, 0, 0.25, 0, g);
-    for (const [xx, zz] of [[-0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35]]) cyl(0.03, 0.03, 0.03, W.rubber, xx, 0.015, zz, g, 10).rotation.z = Math.PI / 2;
-    cyl(0.34, 0.34, 1.0, M.steel, 0, 1.0, 0, g, 32);
-    cyl(0.35, 0.35, 0.04, M.steel, 0, 0.52, 0, g, 32); cyl(0.35, 0.35, 0.04, M.steel, 0, 1.49, 0, g, 32);
-    { const b = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.12), bioMat); b.position.set(-0.2, 1.25, 0.29); b.rotation.y = -0.6; g.add(b); }
-    const win = new THREE.Mesh(new THREE.CylinderGeometry(0.345, 0.345, 0.7, 24, 1, true, -0.35, 0.7), W.medium); win.position.y = 0.95; win.rotation.y = Math.PI / 2 - 0.05; g.add(win);
-    cyl(0.3, 0.3, 0.02, M.steelDark, 0, 1.51, 0, g, 24);
-    for (const a of [0, 2, 4]) hose([[Math.cos(a) * 0.15, 1.52, Math.sin(a) * 0.15], [Math.cos(a) * 0.3, 1.9, Math.sin(a) * 0.3], [Math.cos(a) * 0.6, HC - 0.1, -0.3]], 0.012, a ? W.line : W.rubber, g);
-    box(0.3, 0.4, 0.2, W.enamel, 0.55, 1.1, 0, g);
-    plane(0.22, 0.14, screenTex(name, [`T 37.0`, `pH 7.${1 + (fill % 3)}`, `DO ${36 + fill}%`]), 0.55, 1.18, 0.101, 0, g);
-    plane(0.3, 0.09, textSign([[name, 52, '#1d1f22', 0.72, 600, MONO, 'center']], 256, 76, { bg: '#d8d6cc' }), 0, 1.35, 0.342, 0, g, false);
-    blob(x, z, 1.4);
-    tankList.push({ name, size: '200 L', pos: new THREE.Vector3(x, 1.75, z + 0.3) });
-  };
-  [[-5.8, -8.4], [-3.6, -8.4], [-1.4, -8.4], [0.8, -8.4], [3.0, -8.4], [5.2, -8.4]].forEach(([x, z], i) => reactor(x, z, 'BR-' + String(i + 1).padStart(2, '0'), i * 7));
-  // 后墙：一排白色手套箱工作台（窗口里亮着白光、两只手套口、侧面一台绿色显示器、上面贴着生物危害标识）
-  const station = (x, name, rows) => {
-    const g = new THREE.Group(); g.position.set(x, 0, -11.55); hall.add(g);
-    box(2.0, 0.9, 0.85, W.enamel, 0, 0.45, 0, g);                              // 下柜
-    box(2.0, 0.05, 0.95, W.enamelDark, 0, 0.92, 0.05, g);                       // 台面
-    for (let i = 0; i < 3; i++) box(0.6, 0.6, 0.01, W.enamelDark, -0.65 + i * 0.65, 0.45, 0.43, g);
-    box(2.0, 1.3, 0.8, W.enamel, 0, 1.6, -0.05, g);                             // 上箱
-    const winM = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 2.1, 2.05) });
-    const w = plane(1.5, 0.75, winM, -0.12, 1.62, 0.352, 0, g); w.rotation.x = -0.12;   // 亮着的观察窗
-    box(1.6, 0.08, 0.06, W.enamelDark, -0.12, 2.04, 0.37, g); box(1.6, 0.08, 0.06, W.enamelDark, -0.12, 1.2, 0.4, g);
-    for (const dx of [-0.45, 0.2]) { const r = cyl(0.09, 0.09, 0.05, M.frame, dx, 1.45, 0.4, g, 18); r.rotation.x = Math.PI / 2 - 0.12; const gl = cyl(0.075, 0.06, 0.25, W.rubber, dx, 1.45, 0.52, g, 14); gl.rotation.x = Math.PI / 2 - 0.12; }
-    for (let i = 0; i < 4; i++) cyl(0.03, 0.03, 0.08, W.medium, -0.6 + i * 0.25, 1.06, 0.1, g, 12);   // 窗里几只培养瓶
-    box(0.45, 0.42, 0.42, W.enamelDark, 0.82, 2.48, 0.0, g);                    // 顶上的风机
-    const mon = new THREE.Group(); mon.position.set(0.85, 1.55, 0.36); g.add(mon);   // 侧面一台小显示器
-    box(0.3, 0.25, 0.2, W.enamelDark, 0, 0, -0.08, mon);
-    plane(0.24, 0.18, new THREE.MeshBasicMaterial({ map: crt(rows, x), color: new THREE.Color(1.3, 1.3, 1.3) }), 0, 0, 0.022, 0, mon);
-    { const b = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.17), bioMat); b.position.set(0.85, 2.05, 0.37); g.add(b); }
-    plane(0.4, 0.09, textSign([[name, 40, '#1d1f22', 0.72, 600, MONO, 'center']], 256, 60, { bg: '#d8ded8' }), -0.12, 2.15, 0.36, 0, g, false);
-    const l = new THREE.PointLight(0xe6fff6, 1.6, 2.4, 2); l.position.set(-0.1, 1.6, 0.8); g.add(l);
-    blob(x, -11.4, 2.3);
-    return g;
-  };
-  station(-5.9, 'GB-01', ['CELL LINE B-0417', 'PASSAGE P38', 'VIAB 96.2%', 'O2 0.4 ppm']);
-  station(-3.4, 'GB-02', ['CELL LINE P-0932', 'PASSAGE P52', 'VIAB 94.8%', 'O2 0.6 ppm']);
-  station(-0.9, 'GB-03', ['BIOPSY INTAKE', 'P-1077  11/15', 'DIGEST 45 MIN', 'TRYPSIN 0.25%']);
-  station(1.6, 'GB-04', ['CELL LINE G-0221', 'PASSAGE P41', 'VIAB 91.0%', 'O2 0.5 ppm']);
-  // 两台叠起来的 CO₂ 培养箱（白色）
-  for (let i = 0; i < 2; i++) { box(0.8, 0.8, 0.7, W.enamel, 4.0, 0.45 + i * 0.82, -11.5, hall); plane(0.12, 0.07, screenTex('CO₂ 5.0%', ['37.0 C']), 4.25, 0.62 + i * 0.82, -11.14, 0, hall); box(0.04, 0.3, 0.03, M.frame, 3.65, 0.45 + i * 0.82, -11.14, hall); }
-  // 液氮罐、CO₂ 气瓶挪到右后角
-  for (const [x, z] of [[5.6, -11.3], [6.3, -11.5]]) { cyl(0.3, 0.3, 1.1, M.steel, x, 0.6, z, hall, 24); const d = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.steel); d.position.set(x, 1.15, z); hall.add(d); }
-  for (let i = 0; i < 3; i++) cyl(0.11, 0.11, 1.35, M.frame, 7.4, 0.68, -9.4 + i * 0.3, hall, 14);
-  // 反应器前面一圈黄色护栏
-  { const rz = -7.55, x0 = -6.6, x1 = 6.0;
-    const r1 = cyl(0.025, 0.025, x1 - x0, W.yellow, (x0 + x1) / 2, 1.0, rz, hall, 10); r1.rotation.z = Math.PI / 2;
-    const r2 = cyl(0.02, 0.02, x1 - x0, W.yellow, (x0 + x1) / 2, 0.55, rz, hall, 10); r2.rotation.z = Math.PI / 2;
-    for (let x = x0; x <= x1 + 0.01; x += 1.4) { cyl(0.03, 0.03, 1.0, W.yellow, x, 0.5, rz, hall, 10); cyl(0.07, 0.07, 0.02, W.yellow, x, 0.01, rz, hall, 14); }
+
+  // 打光分三层：远处沉在青色的雾里，中景是三座罐子的绿光，近处是几摊暖黄的台灯。暗的地方就让它暗（不开阴影）
+  for (const [x, y, z] of [[-1.73, 3.98, -9.78], [1.81, 4.18, -9.59], [5.7, 3.91, -9.91]]) { const l = new THREE.PointLight(0x62f0a0, 7, 6, 1.8); l.position.set(x, y - 0.7, z + 0.7); hall.add(l); }
+  for (const [x, y, z] of [[-1.95, 3.85, -10.0], [1.59, 4.05, -9.83], [5.48, 3.65, -10.15]]) {
+    glowColumn(hall, [x, y, z], { radius: 1.05, height: 3.2, color: 0x43d97a, strength: 0.13 });
+    lightCone(hall, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.5, radius: 1.15, top: 0.4, color: 0x4fe8a0, strength: 0.14 });   // 罐底漏下来的光
   }
-  model('wooden_ladder', { pos: [-4.6, 0, -7.6], rot: 0.5, parent: hall });
-  model('steel_frame_shelves_02', { pos: [-7.6, 0, -9.6], rot: Math.PI / 2, parent: hall }); model('steel_frame_shelves_02', { pos: [-7.6, 0, -8.95], rot: Math.PI / 2, parent: hall });
-  model('plastic_container', { pos: [-7.3, 0.0, -10.6], rot: 1.4, parent: hall });
-  model('industrial_storage_cart', { pos: [6.2, 0, -8.2], rot: -0.4, parent: hall });
-  model('Barrel_01', { pos: [7.4, 0, -5.4], parent: hall });
-  { const ld = new THREE.Group(); ld.position.set(-4.5, 0, -8.0); ld.rotation.set(0, 0.4, -0.18); ld.visible = false; hall.add(ld);    // （原来的铝梯，换成真实模型后隐藏）
-    const al = new THREE.MeshStandardMaterial({ color: 0xb8bab4, roughness: 0.4, metalness: 0.8 });
-    for (const x of [-0.22, 0.22]) box(0.05, 2.2, 0.03, al, x, 1.1, 0, ld); for (let k = 0; k < 7; k++) box(0.44, 0.03, 0.06, al, 0, 0.25 + k * 0.3, 0, ld); }
-  // 地上：积水、几滴血（从采样床那边拖过来）
-  for (const [x, z, w, d, r, sd] of [[-1.5, -5.2, 2.4, 1.4, 0.4, 41], [3.5, -9.5, 2, 1.2, 1.4, 42], [-5.5, -2.6, 1.6, 1.0, 2.2, 43]]) { const pd = puddleDecal(sd); const m = new THREE.MeshStandardMaterial({ map: pd.map, roughnessMap: pd.roughnessMap, roughness: 0.08, metalness: 0.3, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }); const p = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); p.rotation.set(-Math.PI / 2, 0, r); p.position.set(x, 0.004, z); hall.add(p); }
-  for (const [x, z, sz, sd] of [[-4.1, -2.9, 0.9, 51], [-6.8, -2.8, 0.7, 52], [0.4, -3.0, 0.6, 53]]) { const pd = puddleDecal(sd, { kind: 'blood' }); const p = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), new THREE.MeshStandardMaterial({ map: pd.map, roughness: 0.4, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })); p.rotation.set(-Math.PI / 2, 0, sd); p.position.set(x, 0.005, z); hall.add(p); }
-  // 真实的警示牌、工具柜、监控、清洁用品；后墙的漏水痕、地上拖地的湿痕和锈圈
-  for (const [n, x, y] of [['Sign010', 5.95, 1.85], ['Sign005', -1.4, 2.4], ['Sign008', -7.2, 1.9], ['Sign023', 3.1, 2.75]]) decal(n, hall, { pos: [x, y, -11.995], w: 0.34, h: 0.34, roughness: 0.6, opacity: 0.95 });
-  model('metal_tool_chest', { pos: [7.35, 0, -7.0], rot: -Math.PI / 2, parent: hall });
-  model('security_camera_02', { pos: [-7.6, 3.15, -11.99], rot: 0.5, parent: hall });
-  model('medical_box', { pos: [4.0, 1.67, -11.5], rot: 0.1, scale: 0.9, parent: hall });
-  model('plastic_jerrycan', { pos: [-7.0, 0, -8.2], rot: 0.6, parent: hall }); model('plastic_jerrycan', { pos: [-6.7, 0, -8.35], rot: 2.2, parent: hall });
-  model('bleach_bottle', { pos: [2.85, 0.945, -11.25], rot: 0.4, parent: hall }); model('multi_cleaner_bottle', { pos: [-4.55, 0.945, -11.2], rot: 1.4, parent: hall });
-  model('plastic_broom', { pos: [6.9, 0, -6.5], rot: 1.2, parent: hall });
-  for (const [x, w, k] of [[-3.0, 1.2, 'Leaking003'], [3.1, 1.0, 'Leaking004'], [6.9, 1.1, 'Leaking005']]) decal(k, hall, { pos: [x, 2.7, -11.995], w, h: 1.6, color: 0x5a4a34, opacity: 0.6 });
-  decal('Smear007', hall, { pos: [-1.5, 0.004, -4.6], rot: [-Math.PI / 2, 0, 0.5], w: 3.0, h: 1.8, color: 0x2a2a24, opacity: 0.22, roughness: 0.1 });
-  decal('Smear006', hall, { pos: [2.6, 0.004, -8.6], rot: [-Math.PI / 2, 0, 2.3], w: 2.6, h: 1.6, color: 0x2a2a24, opacity: 0.18, roughness: 0.12 });
-  decal('SurfaceImperfections017', hall, { pos: [0, 0.0035, -6.6], rot: [-Math.PI / 2, 0, 0], w: 12, h: 4, color: 0x2e2a24, opacity: 0.4 });
-  userDecal('blood_smear.webp', hall, { pos: [-3.3, 0.0045, -3.3], rot: [-Math.PI / 2, 0, 0.3], w: 1.6, h: 0.52, color: 0x7a4a46, roughness: 0.55 });   // 采样床那边拖过来的血
-  decal('Rust001', hall, { pos: [7.4, 0.005, -5.4], rot: [-Math.PI / 2, 0, 0.7], w: 0.9, h: 0.9, opacity: 0.8 });   // 铁桶底下的锈圈
-  // 两根白色方柱（塑料隔断的两头）
-  for (const x of [-3.3, 3.7]) { box(0.5, HC, 0.5, W.enamel, x, HC / 2, -6.6, hall); box(0.6, 0.18, 0.6, W.enamelDark, x, 0.09, -6.6, hall); box(0.6, 0.12, 0.6, W.enamelDark, x, HC - 0.06, -6.6, hall); }
-  // 头顶：一条条银色软风管（像帆布棚实验室里那样），日光灯管
-  hose([[-8, 3.2, -10], [-5, 3.0, -8], [-2, 3.35, -5], [2, 3.0, -4.5], [6, 3.3, -9], [8, 3.2, -10]], 0.2, W.duct);
-  hose([[8, 3.3, -3], [4, 3.1, -2.5], [0, 3.35, -3.5], [-4, 3.1, -2.6], [-8, 3.3, -3]], 0.14, W.duct);
-  for (const [x, z] of [[-4, -6.0], [0, -6.0], [4, -6.0], [-3, -10], [3, -10]]) {
-    box(1.3, 0.05, 0.14, M.frame, x, HC - 0.03, z, hall);
-    box(1.22, 0.03, 0.05, M.light, x, HC - 0.07, z, hall);
+  hazeLayer(hall, [0, 2.2, -6.75], { width: 18, height: 4.6, color: 0x124c5c, strength: 0.09 });
+  hazeLayer(hall, [0, 2.5, -11.0], { width: 18, height: 5.2, color: 0x1c6a96, strength: 0.19 });
+  lightCone(hall, [-1.55, 2.66, -1.62], [0, -1, -0.07], { length: 1.75, radius: 0.95, color: 0xffb25e, strength: 0.16 });
+  lightCone(hall, [-5.55, 3.3, -3.57], [0.04, -0.88, -0.47], { length: 2.7, radius: 1.3, color: 0x6fe6dc, strength: 0.14 });
+  lightCone(hall, [4.25, 3.3, -3.69], [0.04, -0.93, -0.37], { length: 2.7, radius: 1.3, color: 0x5fd0d8, strength: 0.13 });
+  lightCone(hall, [0.1, 3.3, -4.51], [0, -1, -0.04], { length: 2.4, radius: 0.85, color: 0xd8ffe8, strength: 0.17 });
+  lightCone(hall, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18], { length: 2.5, radius: 0.9, color: 0xff9c4a, strength: 0.16 });
+  for (const [col, i, dist, outer, inner, [x, y, z], [dx, dy, dz]] of [
+    [0xffb468, 23, 5, 0.82, 0.4, [-1.55, 2.7, -1.6], [0, -1, -0.07]],          // 显微镜台：一摊暖黄
+    [0x7fe0d2, 34, 7, 0.95, 0.42, [-5.55, 3.05, -3.57], [0.04, -0.88, -0.47]], // 左边两张床
+    [0x62c8d4, 36, 7, 0.95, 0.42, [4.25, 3.16, -3.69], [0.04, -0.93, -0.37]],  // 右边两张床
+    [0x2a88cc, 58, 9, 1.0, 0.5, [-6.7, 3.13, -6.92], [0.78, -0.39, -0.49]],    // 工作区：冷青的侧光
+    [0xff9440, 26, 5, 0.8, 0.4, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18]],   // 回收角：钠灯一样的橙
+    [0xdcffe6, 19, 5, 0.58, 0.3, [0.1, 2.88, -4.51], [0, -1, -0.04]],          // 停用的空床：单独一束，垫子上擦过的血痕要看得见
+  ]) {
+    const l = new THREE.SpotLight(col, i, dist, outer, 1 - inner / outer, 2);
+    l.position.set(x, y, z); l.target.position.set(x + dx, y + dy, z + dz); hall.add(l, l.target);
   }
-  for (const [x, z] of [[-3, -6.5], [3, -6.5], [0, -10], [-5, -10], [5, -10]]) { const l = new THREE.PointLight(0xd4f0ea, 7, 9, 1.6); l.position.set(x, HC - 0.2, z); hall.add(l); }
-  // 顶上垂着一圈圈黑色电缆（从一台设备牵到另一台）
-  for (const [a, b, sag] of [[[-7.9, HC - 0.1, -11.8], [-2.0, HC - 0.1, -9.0], 0.6], [[-4.0, HC - 0.1, -12], [4.5, HC - 0.1, -10.5], 0.8], [[7.9, HC - 0.1, -11.0], [1.0, HC - 0.1, -8.0], 0.5], [[-6.0, HC - 0.1, -7.0], [2.0, HC - 0.1, -6.8], 0.45], [[0.5, HC - 0.1, -12], [6.0, HC - 0.1, -7.5], 0.7]]) {
-    const m = [(a[0] + b[0]) / 2, HC - 0.1 - sag, (a[2] + b[2]) / 2];
-    hose([a, [(a[0] + m[0]) / 2, HC - 0.1 - sag * 0.75, (a[2] + m[2]) / 2], m, [(b[0] + m[0]) / 2, HC - 0.1 - sag * 0.75, (b[2] + m[2]) / 2], b], 0.018, W.cable);
-  }
-  for (const [x, z] of [[-6, -9.5], [-1, -9.5], [4, -9.5]]) { cyl(0.012, 0.012, 0.5, W.cable, x, HC - 0.25, z, hall, 6); const sh = cyl(0.28, 0.32, 0.18, W.enamel, x, HC - 0.58, z, hall, 20); cyl(0.24, 0.24, 0.01, W.glow, x, HC - 0.675, z, hall, 20); }   // 吊着的工矿灯
-  // 墙上：一张手写的排班表、一个“无菌区”的旧牌子
-  plane(1.4, 0.45, textSign([['采样排班', 46, '#141414', 0.42, 600, SANS, 'center'], ['B-0417 22:00 · P-0932 06:00 · P-1077 14:00', 20, '#444', 0.8, 400, MONO, 'center']], 800, 260, { bg: '#ddd6c0' }), -4.6, 3.0, -11.99, 0, hall, false);
-  plane(1.2, 0.36, textSign([['无菌区 · 请穿戴防护服', 40, '#1d1f22', 0.48, 500, SANS, 'center'], ['ASEPTIC AREA', 20, '#6b6762', 0.82, 500, MONO, 'center']], 800, 240, { bg: '#d8e0d8', bar: '#1f8a4c' }), 7.99, 2.4, -4.0, -Math.PI / 2, hall, false);
 
   // 参观廊：扶手、隔离带、轨道射灯、监控探头、灭火器、回风口、地贴、展台提示牌
   const rail = (x0, x1) => {
@@ -892,7 +584,7 @@ export function createLab(env) {
     cyl(0.042, 0.042, 0.06, M.frame, x, 0.93, z, root, 16);
   };
   post(-4.85, -0.2); post(-3.65, -0.2);
-  plane(1.16, 0.05, textSign([['禁止游客进入', 22, '#ffffff', 0.78, 500, SANS, 'center']], 600, 30, { bg: '#b3262d' }), -4.25, 0.88, -0.2, 0, root);
+  plane(1.16, 0.05, textSign([['NO VISITORS BEYOND THIS POINT', 22, '#ffffff', 0.78, 500, SANS, 'center']], 600, 30, { bg: '#b3262d' }), -4.25, 0.88, -0.2, 0, root);
   blob(-4.85, -0.2, 0.5, root, 0.003); blob(-3.65, -0.2, 0.5, root, 0.003);
   box(3.6, 0.03, 0.05, M.frame, 0.2, 2.975, -0.27, root);
   for (const x of [-1.05, 0.2, 1.45]) {
@@ -908,24 +600,17 @@ export function createLab(env) {
   cyl(0.075, 0.075, 0.5, new THREE.MeshStandardMaterial({ color: 0xc8211f, roughness: 0.35 }), 4.55, 0.4, 3.86, root, 20);
   cyl(0.03, 0.04, 0.09, M.frame, 4.55, 0.69, 3.86, root, 12);
   box(0.16, 0.1, 0.04, M.frame, 4.55, 0.2, 3.95, root);
-  plane(0.2, 0.26, textSign([['灭火器', 44, '#fff', 0.45, 600, SANS, 'center'], ['FIRE', 26, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root);
+  plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root);
   plane(1.0, 0.35, canvasTexture(400, 140, (g, W, H) => { g.fillStyle = '#a4a29d'; g.fillRect(0, 0, W, H); g.fillStyle = '#34353a'; for (let y = 10; y < H - 6; y += 12) g.fillRect(8, y, W - 16, 6); }), -2.4, 2.6, 3.99, Math.PI, root, false);
   // 提问终端：观众可以向品牌提问
   const kiosk = new THREE.Group(); kiosk.position.set(3.9, 0, 0.35); kiosk.rotation.y = -0.5; root.add(kiosk);
   box(0.42, 1.0, 0.34, M.white, 0, 0.5, 0, kiosk);
   box(0.46, 0.04, 0.38, M.frame, 0, 1.02, 0, kiosk);
-  const ks = plane(0.4, 0.28, textSign([['有问题？', 54, '#ffffff', 0.38, 400, SANS, 'center'], ['问问我们', 54, '#ffffff', 0.62, 400, SANS, 'center'], ['ASK US ANYTHING', 22, '#b8ff6a', 0.86, 500, MONO, 'center']], 400, 280, { bg: '#101214' }), 0, 1.25, 0.06, 0, kiosk);
+  const ks = plane(0.4, 0.28, textSign([['ANY', 54, '#ffffff', 0.38, 400, SANS, 'center'], ['QUESTIONS?', 46, '#ffffff', 0.62, 400, SANS, 'center'], ['ASK US ANYTHING', 22, '#b8ff6a', 0.86, 500, MONO, 'center']], 400, 280, { bg: '#101214' }), 0, 1.25, 0.06, 0, kiosk);
   ks.rotation.x = -0.3;
   box(0.44, 0.31, 0.03, M.frame, 0, 1.25, 0.04, kiosk).rotation.x = -0.3;
   blob(3.9, 0.35, 0.9, root, 0.003);
-  for (const x of [-0.42, 0.85]) {
-    const sg = plane(0.12, 0.078, textSign([['请勿触摸', 34, '#141414', 0.5, 500, SANS, 'center'], ['DO NOT TOUCH', 18, '#6b6762', 0.84, 500, MONO, 'center']], 200, 130, { bg: '#f5f3ee' }), x, 0.995, -0.4, 0, root, false);
-    sg.rotation.x = -0.25;
-    box(0.13, 0.008, 0.05, M.frame, x, 0.954, -0.42, root);
-  }
-  blob(0.2, -0.55, 4.4, root, 0.003).scale.set(1, 0.35, 1);
-
-  scene.add(new THREE.HemisphereLight(0xa8b8ae, 0x262823, 0.34));
+  scene.add(new THREE.HemisphereLight(0x5cacb0, 0x071416, 0.42));
 
   // ---------------------------------------------------------------- 动画与数据
   let lastWall = -1, scanOn = 0;
@@ -949,7 +634,7 @@ export function createLab(env) {
     const g = tx.userData.ctx, W = 400, H = 72;
     g.fillStyle = '#b3262d'; g.fillRect(0, 0, W, H);
     g.font = `500 30px ${SANS}`; g.fillStyle = '#fff'; g.textAlign = 'left';
-    g.fillText(b.demo ? '演示批次' : (b.name ? `「${b.name}」` : '你的批次'), W * 0.06, H * 0.48);
+    g.fillText(b.demo ? 'DEMO BATCH' : (b.name ? `“${b.name}”` : 'YOUR BATCH'), W * 0.06, H * 0.48);
     g.font = `400 20px ${MONO}`; g.fillStyle = 'rgba(255,255,255,.75)';
     g.fillText(`BR-02 · ${b.demo ? 'DEMO' : b.no} · ${SPECIES[sp].id}`, W * 0.06, H * 0.85);
     tx.needsUpdate = true;
@@ -973,13 +658,12 @@ export function createLab(env) {
     vesC.pts.material.opacity = scanOn * (0.45 + 0.35 * Math.sin(t * 2.2) ** 2);
     vesC.scan.material.opacity = scanOn * 0.9;
     vesC.scan.position.y = 0.1 + (0.5 + 0.5 * Math.sin(t * 1.3)) * 0.42;
+    curtain.tick(dt);
     led.material = Math.floor(t * 1.5) % 2 ? M.ledRed : M.frame;
     ecgTex.offset.x = (t * 0.25) % 1;                                      // 监护仪上的心跳一直在走
-    for (const b of beds) {                                                // 床上的动物在呼吸
-      const p = b.pose;
-      if (!p) continue;
-      if (p.hen) p.o.rotation.y = 0.5 + Math.sin(t * 0.7) * 0.18 + Math.sin(t * 2.3) * 0.04;
-      else p.o.scale.setScalar(p.s * (1 + Math.sin(t * p.rate + b.x) * 0.012));
+    for (const b of beds) if (b.pose) {                                    // 床上的动物在呼吸：只有背往上起伏一点
+      const k = Math.sin(t * b.pose.rate + b.x);
+      b.pose.o.scale.set(1, 1 + k * 0.009, 1);
     }
     if (t - lastWall > 0.5) {
       lastWall = t;
@@ -995,5 +679,5 @@ export function createLab(env) {
   };
   const anchor = (k) => vesC.group.localToWorld(ANCHORS[k].clone());
 
-  return { scene, tick, setBatch, setScan, anchor, tanks: tankList, beds };
+  return { scene, tick, setBatch, setScan, anchor, tanks: tankList, beds, load, curtain, setCurtain: curtain.set };
 }

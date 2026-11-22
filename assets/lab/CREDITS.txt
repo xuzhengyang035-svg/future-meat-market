@@ -1,0 +1,8 @@
+lab_kit.glb
+  Source: FMM Laboratory Kit (FMM_Laboratory_Web.glb), supplied by the project author.
+  Processed with tools/blender/lab_kit.py:
+    - visitor gallery and exported lights removed (the gallery and lights live in lab.js)
+    - intersections corrected, hen neck seam and wattles fixed
+    - static meshes joined by material, animals kept separate
+    - WebP textures + Draco geometry
+  All tissue exhibits (LM-04, FT-02, FB-07) are fictional.

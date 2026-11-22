@@ -57,9 +57,9 @@ export function createStreet(env) {
   const scene = new THREE.Scene();
   scene.background = canvasTexture(16, 512, (g, W, H) => {                  // 雨夜的天：上面深蓝黑，往下一点点被城市的灯光照成暖灰
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#05080c'); gr.addColorStop(0.55, '#141b22'); gr.addColorStop(0.8, '#2a2a28'); gr.addColorStop(1, '#3a3228'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
-  scene.fog = new THREE.FogExp2(0x16202a, 0.028);
+  scene.fog = new THREE.FogExp2(0x0f2a2e, 0.028);
   scene.environment = env;
-  scene.environmentIntensity = 0.4;
+  scene.environmentIntensity = 0.25;
   const root = new THREE.Group(); scene.add(root);
   const rnd = R(5);
   const blobMat = new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false, opacity: 0.55 });
@@ -79,10 +79,10 @@ export function createStreet(env) {
   };
 
   // ---------------------------------------------------------------- 地面：石板人行道（湿）、花岗岩路缘、方块弹石路（湿，反光）
-  const walk = new THREE.Mesh(new THREE.PlaneGeometry(40, 4.2), pbr('stone_pavers', 40, 4.2, { size: 2.0, roughness: 0.38, envMapIntensity: 2.4, color: 0x8a8a88 }));
+  const walk = new THREE.Mesh(new THREE.PlaneGeometry(40, 4.2), pbr('stone_pavers', 40, 4.2, { size: 2.0, roughness: 0.48, envMapIntensity: 0.8, color: 0x8a8a88 }));
   walk.rotation.x = -Math.PI / 2; walk.position.set(0, 0.15, 2.1); root.add(walk);
   box(40, 0.16, 0.28, pbr('plastered_stone_wall', 40, 0.3, { size: 1.5, color: 0x7a7a76, roughness: 0.6 }), 0, 0.075, 4.3, root);
-  const road = new THREE.Mesh(new THREE.PlaneGeometry(40, 16), pbr('square_cobblestone', 40, 16, { size: 2.2, roughness: 0.32, metalness: 0.1, envMapIntensity: 2.8, color: 0x6e6e6c }));
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(40, 16), pbr('square_cobblestone', 40, 16, { size: 2.2, roughness: 0.4, metalness: 0.1, envMapIntensity: 1.2, color: 0x6e6e6c }));
   road.rotation.x = -Math.PI / 2; road.position.set(0, 0, 12.4); root.add(road);
   for (const [x, z, w, d, r, sd, y] of [[-3.8, 2.6, 3.2, 1.6, 0.2, 21, 0.152], [1.6, 3.0, 2.2, 1.0, 1.1, 22, 0.152], [-1.0, 6.8, 5, 2.6, 0.5, 23, 0.003], [4.5, 8.6, 3.6, 1.8, 2.2, 24, 0.003], [-6.5, 8.0, 4, 2.0, 1.4, 25, 0.003], [7.5, 5.6, 2.6, 1.4, 0.3, 26, 0.003], [-9.5, 5.2, 3, 1.4, 1.9, 27, 0.003]]) {
     const pd = puddleDecal(sd); const m = new THREE.MeshStandardMaterial({ map: pd.map, roughnessMap: pd.roughnessMap, roughness: 0.02, metalness: 0.5, envMapIntensity: 3.2, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
@@ -149,9 +149,10 @@ export function createStreet(env) {
   box(0.1, SH + 0.6, ID, tiles(ID, SH), SX0, (SH + 0.6) / 2, -ID / 2, root); box(0.1, SH + 0.6, ID, tiles(ID, SH), SX1, (SH + 0.6) / 2, -ID / 2, root);
   box(SX1 - SX0, 0.1, ID, new THREE.MeshStandardMaterial({ color: 0x3a3028, roughness: 0.9 }), (SX0 + SX1) / 2, SH + 0.6, -ID / 2, root);
   { const wood = pbr('wood_table_worn', 1, 1, { size: 1.0, color: 0x9a7a5a });
+    const jarMats = [0x8a3a1a, 0xa86a2a, 0x5a6a2a, 0xd8c8a0].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.17 }));
     for (const [x0, x1] of [[SX0 + 0.4, -2.4], [0.2, SX1 - 0.4]]) for (const y of [1.55, 2.05, 2.55]) {
       box(x1 - x0, 0.04, 0.3, wood, (x0 + x1) / 2, y, -ID + 0.2, root);
-      for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.14 + rnd() * 0.06) { const h = 0.12 + rnd() * 0.1; cyl(0.045, 0.045, h, new THREE.MeshPhysicalMaterial({ color: [0x8a3a1a, 0xa86a2a, 0x5a6a2a, 0xd8c8a0][Math.floor(rnd() * 4)], roughness: 0.2, transmission: 0.2 }), x, y + 0.02 + h / 2, -ID + 0.2, root, 12); cyl(0.047, 0.047, 0.02, M.iron, x, y + h + 0.03, -ID + 0.2, root, 12); }
+      for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.14 + rnd() * 0.06) { const h = 0.12 + rnd() * 0.1; cyl(0.045, 0.045, h, jarMats[Math.floor(rnd() * 4)], x, y + 0.02 + h / 2, -ID + 0.2, root, 12); cyl(0.047, 0.047, 0.02, M.iron, x, y + h + 0.03, -ID + 0.2, root, 12); }
     } }
   for (const x of [-4.2, -1.1, 1.5]) { model('hanging_industrial_lamp', { pos: [x, SH + 0.5, -1.4], scale: 0.8, parent: root }); const l = new THREE.PointLight(0xffb468, 3.2, 6, 1.6); l.position.set(x, 2.6, -1.4); root.add(l); }
   { const l = new THREE.PointLight(0xffc888, 3.5, 6, 1.6); l.position.set(-1.1, 2.0, 0.6); root.add(l); }
@@ -214,7 +215,7 @@ export function createStreet(env) {
     const bl = cyl(0.15, 0.15, 0.012, new THREE.MeshPhysicalMaterial({ map: brushedSteelMaps(61, { scuff: false }).map, metalness: 1, roughness: 0.2 }), -0.02, 0.27, 0.05, sl, 40); bl.rotation.x = Math.PI / 2;
     cyl(0.04, 0.04, 0.03, M.iron, -0.02, 0.27, 0.07, sl, 16).rotation.x = Math.PI / 2;
     box(0.26, 0.02, 0.2, M.steel, -0.08, 0.14, 0.12, sl);
-    for (let i = 0; i < 4; i++) cyl(0.05, 0.05, 0.16, new THREE.MeshPhysicalMaterial({ color: [0x8a3a1a, 0xc8a050, 0x5a6a2a, 0xd8c8a0][i], roughness: 0.15, transmission: 0.3 }), WR1 - 0.6 + i * 0.13, 1.11, -0.5, root, 14);
+    for (let i = 0; i < 4; i++) cyl(0.05, 0.05, 0.16, new THREE.MeshStandardMaterial({ color: [0x8a3a1a, 0xc8a050, 0x5a6a2a, 0xd8c8a0][i], roughness: 0.15, transparent: true, opacity: 0.88 }), WR1 - 0.6 + i * 0.13, 1.11, -0.5, root, 14);
   }
 
   // ---------------------------------------------------------------- 破旧的帆布遮阳篷
@@ -358,7 +359,7 @@ export function createStreet(env) {
 
   // ---------------------------------------------------------------- 左边：墙角的铸铁壁灯；往左是一条退进去的老街（远处的楼和亮着的窗）
   model('street_lamp_02', { pos: [BX0 + 0.15, 4.1, 0.05], scale: 1.2, parent: root });
-  { const l = new THREE.PointLight(0xffb060, 5, 9, 1.6); l.position.set(BX0 + 0.15, 4.3, 0.95); root.add(l); const s = new THREE.SpotLight(0xffb060, 6, 14, 0.9, 0.6, 1.4); s.position.set(BX0 + 0.2, 4.4, 1.0); s.target.position.set(-5, 0, 4); root.add(s, s.target); }
+  { const l = new THREE.PointLight(0xffb060, 5, 9, 1.6); l.position.set(BX0 + 0.15, 4.3, 0.95); root.add(l); const s = new THREE.SpotLight(0xffb060, 3.2, 14, 0.9, 0.6, 1.4); s.position.set(BX0 + 0.2, 4.4, 1.0); s.target.position.set(-5, 0, 4); root.add(s, s.target); }
   const farWin = (f) => canvasTexture(512, 1024, (g, W, H) => {
     const r = R(f); g.fillStyle = '#55504a'; g.fillRect(0, 0, W, H);
     for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(${30 + r() * 40},${30 + r() * 40},${30 + r() * 30},${r() * 0.2})`; g.fillRect(r() * W, r() * H, 20 + r() * 80, 4 + r() * 40); }
@@ -372,7 +373,7 @@ export function createStreet(env) {
     box(1.0, h, 6.2, farMat(200 + k), BX0 - 0.6, h / 2, z - 6.6, root);
   }
   for (let k = 0; k < 3; k++) { const z = -2 - k * 8; const l = new THREE.PointLight(0xffb060, 2.2, 7, 1.7); l.position.set(-12.5, 4, z); root.add(l); cyl(0.1, 0.14, 0.3, M.warm, -13.7, 4, z, root, 8); }
-  { const al = new THREE.Mesh(new THREE.PlaneGeometry(6, 40), pbr('brick_pavement', 6, 40, { size: 2.0, roughness: 0.35, envMapIntensity: 2.4, color: 0x7a6e66 })); al.rotation.x = -Math.PI / 2; al.position.set(-11.2, 0.004, -16); root.add(al); }
+  { const al = new THREE.Mesh(new THREE.PlaneGeometry(6, 40), pbr('brick_pavement', 6, 40, { size: 2.0, roughness: 0.55, envMapIntensity: 0.5, color: 0x7a6e66 })); al.rotation.x = -Math.PI / 2; al.position.set(-11.2, 0.004, -16); root.add(al); }
   { const back = new THREE.Mesh(new THREE.PlaneGeometry(80, 22), new THREE.MeshBasicMaterial({ map: farWin(400), color: new THREE.Color(0.35, 0.33, 0.32) })); back.position.set(0, 11, -40); root.add(back); }
 
   // ---------------------------------------------------------------- 四周的楼：同一边左右各两栋，对街一整排；真实的抹灰/砖墙贴图 + 一格格窗（有的亮着）+ 檐口 + 灰瓦斜屋顶 + 底层小店
@@ -434,10 +435,10 @@ export function createStreet(env) {
     building({ x0: a, x1: b, face: 22.5, dir: -1, floors: f, tex: t, color: 0x7a7670, seed: 30 + i }));
   { const sw2 = new THREE.Mesh(new THREE.PlaneGeometry(150, 2.5), pbr('stone_pavers', 150, 2.5, { size: 2.0, roughness: 0.4, envMapIntensity: 2.2, color: 0x7a7a78 })); sw2.rotation.x = -Math.PI / 2; sw2.position.set(0, 0.15, 21.2); root.add(sw2);
     box(150, 0.16, 0.28, M.stone(150, 0.3), 0, 0.075, 19.95, root);
-    const rd2 = new THREE.Mesh(new THREE.PlaneGeometry(150, 16), pbr('square_cobblestone', 150, 16, { size: 2.2, roughness: 0.32, metalness: 0.1, envMapIntensity: 2.8, color: 0x6e6e6c })); rd2.rotation.x = -Math.PI / 2; rd2.position.set(0, -0.002, 12.4); root.add(rd2);
-    const sw3 = new THREE.Mesh(new THREE.PlaneGeometry(30, 4.2), pbr('stone_pavers', 30, 4.2, { size: 2.0, roughness: 0.38, envMapIntensity: 2.4, color: 0x8a8a88 })); sw3.rotation.x = -Math.PI / 2; sw3.position.set(0, 0.149, 2.1); sw3.scale.x = 5; root.add(sw3); }
+    const rd2 = new THREE.Mesh(new THREE.PlaneGeometry(150, 16), pbr('square_cobblestone', 150, 16, { size: 2.2, roughness: 0.4, metalness: 0.1, envMapIntensity: 1.2, color: 0x6e6e6c })); rd2.rotation.x = -Math.PI / 2; rd2.position.set(0, -0.002, 12.4); root.add(rd2);
+    const sw3 = new THREE.Mesh(new THREE.PlaneGeometry(30, 4.2), pbr('stone_pavers', 30, 4.2, { size: 2.0, roughness: 0.48, envMapIntensity: 0.8, color: 0x8a8a88 })); sw3.rotation.x = -Math.PI / 2; sw3.position.set(0, 0.149, 2.1); sw3.scale.x = 5; root.add(sw3); }
   // 对街的两盏铸铁路灯
-  for (const x of [-9, 9]) { cyl(0.06, 0.1, 4.2, M.iron, x, 2.1, 19.6, root, 10); const lt = cyl(0.16, 0.1, 0.4, M.warm, x, 4.4, 19.6, root, 6); const l = new THREE.PointLight(0xffb060, 6, 11, 1.6); l.position.set(x, 4.3, 19.4); root.add(l); }
+  for (const x of [-9, 9]) { cyl(0.06, 0.1, 4.2, M.iron, x, 2.1, 19.6, root, 10); const lt = cyl(0.16, 0.1, 0.4, M.warm, x, 4.4, 19.6, root, 6); const l = new THREE.PointLight(0xffb060, 3, 11, 1.6); l.position.set(x, 4.3, 19.4); root.add(l); }
 
   // ---------------------------------------------------------------- 雨
   const RN = 3200, rainPos = new Float32Array(RN * 6), rainSeed = new Float32Array(RN * 3);
@@ -446,8 +447,8 @@ export function createStreet(env) {
   const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xa8b2ba, transparent: true, opacity: 0.12, depthWrite: false })); rain.frustumCulled = false; root.add(rain);
 
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗
-  scene.add(new THREE.HemisphereLight(0x3a4a5a, 0x0c0d0d, 0.45));
-  const moon = new THREE.DirectionalLight(0x8aa0c0, 0.25); moon.position.set(5, 14, 10); scene.add(moon);
+  scene.add(new THREE.HemisphereLight(0x5fb8c4, 0x0a1616, 3.0));
+  const moon = new THREE.DirectionalLight(0x5fb4c4, 1.3); moon.position.set(5, 14, 10); scene.add(moon);
 
   function tick(t) {
     for (const s of steam) {

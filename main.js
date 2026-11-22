@@ -3,23 +3,38 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRoom } from './room.js';
 import { createFridgeScene } from './fridge.js';
 import { createLab } from './lab.js';
+import { createNav } from './nav.js';
+import { batchStatic } from './batch.js';
+import { focusLight } from './atmosphere.js';
 import { createStreet } from './street.js';
 import { createWarehouse } from './warehouse.js';
-import { createPost } from './post.js';
-import { preloadModels, MODEL_LIST, envFrom, loadManifest } from './assets.js';
+import { createPost, resizePost, postTarget, pixelRatio, quality } from './post.js';
+import { initAssets, createPreparer, breathe } from './gfx.js';
+import { preloadModels, SCENE_MODELS, envFrom, loadManifest } from './assets.js';
 import { renderPosters, posterTexture } from './posters.js';
 import { paperHTML } from './papers.js';
-import { ROOM_STATIONS } from './data.js';
+import { ROOM_NAV } from './data.js';
 import { SPECIES, ORDER, OPTIONS, GROWTH, HOTSPOTS, MARQUEE, DONOR_PR, DONOR_STEPS, AD, CALLOUTS, CERAMIC_BASE, BRAND_FILM, BRAND_FINE,
-  STREET_MARQUEE, STREET_HOTSPOTS, WH_MARQUEE, WH_HOTSPOTS, WH_NAV,
+  STREET_MARQUEE, STREET_HOTSPOTS, WH_MARQUEE, WH_HOTSPOTS, WH_NAV, LAB_NAV,
   LAB_MARQUEE, LAB_HOTSPOTS, LAB_FOCUS, CELLBANK_ROWS, ASK, ASK_FALLBACK, ASK_ANIMAL } from './data.js';
 import { meatGeometry, meatHeight, kindFor } from './meat.js';
 import { makeBatch, stepBatch, readout, curve, sci } from './growth.js';
 
 // ------------------------------------------------------------------ 渲染
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+const FX = new URLSearchParams(location.search).get('fx') !== '0';          // ?fx=0 关掉后期，用来对比或在低配电脑上提速
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !FX, powerPreference: 'high-performance' });   // 抗锯齿在后期的缓冲里做，画布自己不用再来一份
+const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* 隐私模式 */ } } };
+if (store.get('lowgfx')) quality.scale = 0.7;
+renderer.setPixelRatio(pixelRatio());
+// 显存不够时浏览器会直接收回 WebGL（画面一片白）：盖上加载画面，用省内存的档位重开一次
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  const box = document.getElementById('loading'), again = !store.get('lowgfx');
+  box.classList.remove('gone');
+  box.querySelector('.lt').textContent = again ? '显存不够 · 正在用省内存模式重新打开' : '显存不够 · 请关掉别的 3D 页面后刷新';
+  if (again) { store.set('lowgfx', '1'); setTimeout(() => location.reload(), 1500); }
+});
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.78;
 renderer.shadowMap.enabled = true;
@@ -32,9 +47,10 @@ async function stage(p, label) {
   const pct = Math.round(p * 100);
   if (LD.el) LD.el.textContent = `${label} · ${pct}%`;
   if (LD.arc) LD.arc.style.strokeDashoffset = String(1 - p);
-  await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  await breathe();
 }
 await stage(0.02, '准备招牌');
+await initAssets();
 // 画布上的文字（海报、标牌）要等字体加载好再画
 await Promise.race([
   Promise.all(['500 20px "Noto Serif SC"', '600 20px "Noto Serif SC"', '400 20px "Noto Sans SC"', '500 20px "Noto Sans SC"', '500 20px "IBM Plex Mono"', '500 20px Inter']
@@ -42,50 +58,80 @@ await Promise.race([
   new Promise((r) => setTimeout(r, 3000)),
 ]).catch(() => {});
 
-// 先把真实素材（模型、HDRI）加载好，再搭场景
-await stage(0.05, '进货'); await loadManifest(); await preloadModels(MODEL_LIST, (p) => { const q = 0.05 + p * 0.5; if (LD.el) LD.el.textContent = `进货 · ${Math.round(q * 100)}%`; if (LD.arc) LD.arc.style.strokeDashoffset = String(1 - q); });
-await stage(0.56, '开灯');
-const [envRoom, envStreet, envLab, envWh] = await Promise.all(['abandoned_factory_canteen_01', 'cobblestone_street_night', 'abandoned_tiled_room', 'empty_warehouse_01'].map((n) => envFrom(n, renderer)));
-await stage(0.6, '布置门店');
-const room = createRoom(env);
-await stage(0.66, '装满冷柜');
-window.__room = room;                                                            // 调试：在控制台里查穿模、摆机位
-const fr = createFridgeScene(env);
-const fridge = fr.fridge;
-// “快乐动物”广告海报：启动时离屏拍好，贴到门店灯箱、冷柜两侧灯箱、告示栏照片上
-await stage(0.7, '贴海报');
-const PH = renderPosters(renderer, env);
-const POSTER = Object.fromEntries(ORDER.map((k) => [k, posterTexture(PH.posters[k])]));
-room.setPosters(['beef', 'pork', 'chicken', 'fish'].map((k) => POSTER[k]), PH.photos);
+await stage(0.05, '进货'); await loadManifest();
+
+// 五个地方都是走到了才下载、才搭：街道、门店、冷柜、加工间、仓库
+let room = null, fr = null, fridge = null, lab = null, street = null, wh = null;
+let PH = null, POSTER = null;
+let post = null, postRoom = null, postFridge = null, postStreet = null, postWh = null;
+let originalScreenMap = null, screenTint = null;
+const placeOf = (view) => ({ room, fridge: fr, lab, street, warehouse: wh })[view];
+// “快乐动物”广告海报：第一次要用的时候离屏拍好，贴到门店灯箱、冷柜两侧灯箱、告示栏照片上
+function ensurePosters() {
+  if (PH) return;
+  PH = renderPosters(renderer, env);
+  POSTER = Object.fromEntries(ORDER.map((k) => [k, posterTexture(PH.posters[k])]));
+}
 function setFridgePosters(k = 'beef') {
   const next = ORDER[(ORDER.indexOf(k) + 2) % ORDER.length];
   fr.posters[0].material.map = POSTER[k];
   fr.posters[1].material.map = POSTER[next];
   fr.posters.forEach((m) => { m.material.needsUpdate = true; });
 }
-setFridgePosters('beef');
-await stage(0.74, '打开加工间');
-const lab = createLab(env);
-await stage(0.78, '扫门口');
-const street = createStreet(env);
-await stage(0.81, '整理仓库');
-const wh = createWarehouse(env); window.__wh = wh;   // 调试
-for (const [sc, e, k] of [[room.scene, envRoom, 0.55], [fr.scene, envRoom, 0.55], [street.scene, envStreet, 0.6], [lab.scene, envLab, 0.5], [wh.scene, envWh, 0.5]]) if (e) { sc.environment = e; sc.environmentIntensity = k; }
-window.__dbg = { street, wh, room, fr, lab };   // 调试用
+const grade = (scene, o) => (FX ? createPost(renderer, scene, camera, o) : null);
+const PLACES = {
+  async room() {
+    ensurePosters(); await breathe();
+    room = createRoom(env);
+    room.setPosters(['beef', 'pork', 'chicken', 'fish'].map((k) => POSTER[k]), PH.photos);
+    mountRoomSurfaces();
+    postRoom = grade(room.scene, { uSat: 0.96, uShadow: [-0.012, 0.01, 0.012], uHigh: [0.035, 0.015, -0.035], uContrast: 1.09, uVignette: 0.62 });   // 门店：暗处偏青，灯泡底下暖黄
+  },
+  async fridge() {
+    ensurePosters(); await breathe();
+    fr = createFridgeScene(env);
+    fridge = fr.fridge;
+    originalScreenMap = fridge.screen.material.map;
+    screenTint = fridge.screen.material.color.clone();
+    setFridgePosters('beef');
+    postFridge = grade(fr.scene, { uSat: 0.96, uShadow: [-0.01, 0.01, 0.012], uHigh: [0.03, 0.014, -0.025], uVignette: 0.62 });
+  },
+  async lab() {
+    lab = createLab(env);
+    lab.setBatch(state.batch, state.order?.opts);
+    mountLabTags();
+    post = grade(lab.scene, { uSat: 1.05, uShadow: [-0.017, 0.014, 0.024], uHigh: [0.03, 0.022, -0.025], uContrast: 1.07, uVignette: 0.62, uLift: 0.02, uGrain: 0.035 });   // 观察室：暗部沉进青色，台灯是暖的，罐子是绿的
+  },
+  async street() {
+    street = createStreet(env);
+    postStreet = grade(street.scene, { uSat: 0.9, uShadow: [-0.014, 0.012, 0.018], uHigh: [0.035, 0.014, -0.032], uVignette: 0.6 });   // 夜里：暗部偏蓝，路灯偏橘
+  },
+  async warehouse() {
+    wh = createWarehouse(env);
+    postWh = grade(wh.scene, { uSat: 0.86, uShadow: [-0.014, 0.012, 0.014], uHigh: [0.035, 0.02, -0.035], uVignette: 0.62 });     // 仓库：冷青的底，几摊暖光
+  },
+};
+const building = {}, FOCUS_LIGHT = {};
+function buildPlace(view, onProgress = () => {}) {
+  return building[view] ??= (async () => {
+    await preloadModels(SCENE_MODELS[view], (p) => onProgress(p * 0.8, '进货'));
+    onProgress(0.85, '布置');
+    await breathe();
+    await PLACES[view]();
+    FOCUS_LIGHT[view] = focusLight(placeOf(view).scene, view === 'warehouse' || view === 'street' ? 6 : 3.2);   // 先备着，强度 0
+    await breathe();
+    onProgress(1, '布置');
+  })();
+}
+const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned_factory_canteen_01', 0.55],
+  street: ['cobblestone_street_night', 0.6], lab: ['abandoned_tiled_room', 0.26], warehouse: ['empty_warehouse_01', 0.42] };   // 环境光照片也是进哪个房间才下载哪张
+window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; } };   // 调试用
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
-// 观察室走后期管线（环境光遮蔽、辉光、暗角、颗粒）；?fx=0 可以关掉，用来对比或在低配电脑上提速
-const FX = new URLSearchParams(location.search).get('fx') !== '0';
-const post = FX ? createPost(renderer, lab.scene, camera, { uSat: 0.8, uShadow: [0.0, 0.004, -0.004], uHigh: [0.035, 0.015, -0.03], uContrast: 1.1, uVignette: 0.65 }) : null;   // 观察室：参观廊里是暖黄的灯，玻璃后面是冷白的日光灯
-const postRoom = FX ? createPost(renderer, room.scene, camera, { uSat: 0.85, uShadow: [0.008, 0.0, -0.012], uHigh: [0.03, 0.012, -0.03], uContrast: 1.1, uVignette: 0.6 }) : null;   // 门店：暖黄的灯泡
-const postFridge = FX ? createPost(renderer, fr.scene, camera, { uSat: 0.85, uShadow: [0.008, 0.0, -0.012], uHigh: [0.03, 0.012, -0.03], uVignette: 0.6 }) : null;
-const postStreet = FX ? createPost(renderer, street.scene, camera, { uSat: 0.72, uShadow: [-0.012, 0.006, 0.02], uHigh: [0.03, 0.012, -0.03], uVignette: 0.6 }) : null;   // 夜里：暗部偏蓝，路灯偏橘
-const postWh = FX ? createPost(renderer, wh.scene, camera, { uSat: 0.6, uShadow: [-0.004, 0.006, 0.004], uHigh: [0.03, 0.02, -0.03], uVignette: 0.6 }) : null;     // 仓库：尘雾、偏暖
 // 三个场景统一偏暗、偏冷（调色在 post.js 里）
-const TONE = { lab: [THREE.NeutralToneMapping, 0.78], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
+const TONE = { lab: [THREE.NeutralToneMapping, 0.98], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
 
 const $ = (s) => document.querySelector(s);
-const state = { view: 'street', rfocus: null, sel: null, opts: null, order: null, busy: false, focus: null, batch: makeBatch(null) };
-lab.setBatch(state.batch);
+const state = { view: 'boot', rfocus: null, sel: null, opts: null, order: null, busy: false, focus: null, batch: makeBatch(null) };
 
 // ------------------------------------------------------------------ 滚动字幕
 function setMarquee(text) {
@@ -97,7 +143,7 @@ function setMarquee(text) {
 // 门店和观察室都用同一套“站在原地拖动环顾”的控制，各自记住自己的朝向
 const ROOM_EYE = new THREE.Vector3(-0.5, 1.62, 3.4);
 const LAB_EYE = new THREE.Vector3(0.1, 1.62, 2.15);
-const LAB_HOME = LAB_EYE.clone();   // 参观廊里的站位；走近采样床时 LAB_EYE 会离开这里
+const LAB_HOME = LAB_EYE.clone();   // 看批次、数据墙、须知、终端时的站位；平时站在走廊的点位上（LAB_NAV）
 const look = { yaw: 0, pitch: -2, tYaw: 0, tPitch: -2, fov: 62 };
 const labLook = { yaw: -6, pitch: -6, tYaw: -6, tPitch: -6, fov: 60 };
 // 店外和仓库：同样是站在原地环顾
@@ -105,11 +151,10 @@ const STREET_EYE = new THREE.Vector3(-0.8, 1.7, 11.5);
 const WH_EYE = new THREE.Vector3(-1.3, 1.65, 2.6);
 const streetLook = { yaw: 0, pitch: 11, tYaw: 0, tPitch: 11, fov: 62 };
 const whLook = { yaw: -12, pitch: -6, tYaw: -12, tPitch: -6, fov: 64 };
-const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72 }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66 },
-  street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70 } };
+const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72 }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66, pitch: [-45, 60] },
+  street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70, pitch: [-45, 35] } };
 window.__looks = LOOKS;   // 调试 / 截图用
-const atBed = () => /^bed\d$/.test(state.focus || '');
-const canLook = () => LOOKS[state.view] && !state.rfocus && !state.busy && !state.sfocus && (!state.focus || (atBed() && !labWalk?.isActive()));
+const canLook = () => LOOKS[state.view] && !state.rfocus && !state.busy && !state.sfocus && !state.focus && !NAV[state.view]?.walking;
 let drag = null;
 const toYawPitch = (p, eye = ROOM_EYE) => {
   const d = new THREE.Vector3(...p).sub(eye);
@@ -128,7 +173,8 @@ canvas.addEventListener('pointermove', (e) => {
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
   L.tYaw -= dx * 0.14;
-  L.tPitch = THREE.MathUtils.clamp(L.tPitch + dy * 0.1, -28, 28);
+  const [lo, hi] = LOOKS[state.view].pitch || [-28, 28];
+  L.tPitch = THREE.MathUtils.clamp(L.tPitch + dy * 0.1, lo, hi);
 });
 const endDrag = () => { lastDragMoved = drag ? drag.moved : 0; drag = null; document.body.classList.remove('grabbing'); };
 canvas.addEventListener('pointerup', endDrag);
@@ -153,7 +199,7 @@ canvas.addEventListener('click', (e) => {
   const row = menuRow(e);
   if (!row) return;
   canvas.style.cursor = ''; fridge.menu.setHover(-1);
-  if (row.out) { toast('今天的鱼汤卖完了'); return; }
+  if (row.out) { toast('售罄'); return; }
   location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : '#/' + row.go;
 });
 canvas.addEventListener('pointercancel', endDrag);
@@ -166,27 +212,50 @@ canvas.addEventListener('wheel', (e) => {
 // ------------------------------------------------------------------ 热点：旋转的圆形文字标签
 // 离开热点时恢复的字幕跟随当前所在的场景，而不是创建热点时的场景
 function currentMarquee() {
-  if (state.view === 'lab') return state.focus ? LAB_HOTSPOTS.find((h) => h.id === state.focus)?.marquee : LAB_MARQUEE;
+  if (state.view === 'lab') return state.focus ? titleOf(LAB_HOTSPOTS.find((h) => h.id === state.focus)) + ' · ' : LAB_MARQUEE;
   if (state.view === 'street') return STREET_MARQUEE;
   if (state.view === 'warehouse') return WH_MARQUEE;
   return MARQUEE;
 }
+// 热点只留标题：平时一个点、一圈细环；指上去环张开到那样东西的大小，标题浮出来，同时一束光打在它身上、周围暗下去一点
+const titleOf = (h) => {
+  if (!h) return '';
+  const parts = h.label.split('·').map((x) => x.trim()).filter(Boolean), zh = parts.filter((x) => /[\u4e00-\u9fff]/.test(x));
+  return (zh.length ? zh : parts).join(' · ');
+};
+const LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>';
+const spotShade = document.createElement('div');
+spotShade.id = 'spot';
+document.body.appendChild(spotShade);
+let hovered = null;                                                          // { el, v, r }：正指着的那样东西
+function hoverOn(el, v, r = 0.5) { hovered = { el, v, r }; }
+function hoverOff(el) { if (!el || hovered?.el === el) hovered = null; }
+function feedback(dt) {
+  const light = FOCUS_LIGHT[state.view];
+  if (hovered && (!hovered.el.isConnected || !hovered.el.getClientRects().length || hovered.el.classList.contains('hidden'))) hovered = null;
+  spotShade.classList.toggle('on', !!hovered);
+  light?.show(hovered?.v, camera);
+  light?.tick(dt);
+  if (!hovered) return;
+  const p = project(hovered.v), focal = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const r = THREE.MathUtils.clamp((focal * hovered.r) / camera.position.distanceTo(hovered.v), 56, 260);
+  spotShade.style.setProperty('--x', p.x + 'px'); spotShade.style.setProperty('--y', p.y + 'px'); spotShade.style.setProperty('--r', r + 'px');
+}
 function makeHotspots(list, layer, onClick) {
   return list.map((h) => {
-    const el = document.createElement('button');
+    const el = document.createElement('button'), title = titleOf(h), v = new THREE.Vector3(...h.pos);
     el.className = 'hs' + (h.subtle ? ' subtle' : '');
-    el.innerHTML = `
-      <svg viewBox="0 0 120 120" aria-hidden="true">
-        <defs><path id="hp-${h.id}" d="M60,60 m-44,0 a44,44 0 1,1 88,0 a44,44 0 1,1 -88,0"/></defs>
-        <text><textPath href="#hp-${h.id}" textLength="276" lengthAdjust="spacing">${h.label.repeat(2)}</textPath></text>
-      </svg>
-      <span class="core"><i class="lock"></i></span>`;
-    el.setAttribute('aria-label', h.label);
-    el.addEventListener('pointerenter', () => setMarquee(h.marquee));
-    el.addEventListener('pointerleave', () => setMarquee(currentMarquee()));
-    el.addEventListener('click', () => onClick(h));
+    el.innerHTML = `<span class="halo"></span><span class="core"></span>${LOCK}<span class="title">${title}</span>`;
+    el.setAttribute('aria-label', title);
+    const on = () => { hoverOn(el, v, h.r || 0.55); setMarquee(title + ' · '); };
+    const off = () => { hoverOff(el); setMarquee(currentMarquee()); };
+    el.addEventListener('pointerenter', on);
+    el.addEventListener('focus', on);
+    el.addEventListener('pointerleave', off);
+    el.addEventListener('blur', off);
+    el.addEventListener('click', () => { hoverOff(el); onClick(h); });
     layer.appendChild(el);
-    return { h, el, v: new THREE.Vector3(...h.pos) };
+    return { h, el, v };
   });
 }
 const hsEls = makeHotspots(HOTSPOTS, $('#hotspots'), (h) => enterHotspot(h));
@@ -201,22 +270,33 @@ function sceneSpot(h) {
   infoOpen = h.id;
   hideTutorial();
   showCallouts(h.info);
-  setMarquee(h.marquee);
+  setMarquee(titleOf(h) + ' · ');
 }
-function hideInfo() { infoOpen = null; calloutLayer.classList.remove('on'); callouts = []; calloutLines.innerHTML = ''; }
+function hideInfo() { infoOpen = null; calloutLayer.classList.remove('on'); callouts = []; calloutLines.innerHTML = ''; FC.look = null; inspected = null; }
 // 店外 / 仓库里的走近：眼睛从现在的位置走到 h.eye，一路看着 h.at；到了再出引线标注
 const SCENE_HOME = { street: { eye: STREET_EYE.clone(), yaw: 0, pitch: 11, fov: 62 }, warehouse: { eye: WH_EYE.clone(), yaw: -12, pitch: -6, fov: 64 } };
 let sceneWalk, sceneTimer;
-function walkLook(L, eyeV, to, aim, fov, duration) {
-  const from = eyeV.clone(), target = new THREE.Vector3(...to), p = { t: 0 };
-  const y0 = L.yaw, p0 = L.pitch;
-  sceneWalk?.kill();
-  sceneWalk = gsap.to(p, { t: 1, duration, ease: 'power2.inOut', onUpdate() {
+// 人走近一样东西、转头看它：时间按“走多远、转多少度”算，起和停都是软的，不甩镜头。所有镜头移动都走这里
+function moveSeconds(eyeV, to, L, yaw, pitch) {
+  const dist = eyeV.distanceTo(to), turn = Math.abs(wrapNear(yaw, L.yaw) - L.yaw) + Math.abs(pitch - L.pitch) * 0.6;
+  return THREE.MathUtils.clamp(Math.max(0.7 + dist / 1.7, 0.5 + turn / 55), 1.2, 4.6);
+}
+function humanMove(L, eyeV, to, aim, fov, done) {
+  const from = eyeV.clone(), target = new THREE.Vector3(...to), y0 = L.yaw, p0 = L.pitch, p = { t: 0 };
+  const end = Array.isArray(aim) ? toYawPitch(aim, target) : aim, y1 = wrapNear(end.yaw, y0), fov0 = camera.fov;
+  const seconds = moveSeconds(from, target, L, end.yaw, end.pitch);
+  gsap.killTweensOf(L);
+  return gsap.to(p, { t: 1, duration: seconds, ease: 'sine.inOut', onUpdate() {
     eyeV.lerpVectors(from, target, p.t);
-    if (Array.isArray(aim)) { const yp = toYawPitch(aim, eyeV); L.tYaw = wrapNear(yp.yaw, L.yaw); L.tPitch = yp.pitch; }
-    else { L.tYaw = y0 + (wrapNear(aim.yaw, y0) - y0) * p.t; L.tPitch = p0 + (aim.pitch - p0) * p.t; }
-  } });
-  gsap.to(L, { fov, duration, ease: 'power2.inOut', overwrite: true });
+    L.yaw = L.tYaw = y0 + (y1 - y0) * p.t;
+    L.pitch = L.tPitch = p0 + (end.pitch - p0) * p.t;
+    L.fov = fov0 + (fov - fov0) * p.t;
+  }, onComplete: done });
+}
+function walkLook(L, eyeV, to, aim, fov) {
+  sceneWalk?.kill();
+  sceneWalk = humanMove(L, eyeV, to, aim, fov);
+  return sceneWalk.duration();
 }
 function focusScene(id) {
   const list = state.view === 'street' ? STREET_HOTSPOTS : WH_HOTSPOTS;
@@ -225,14 +305,14 @@ function focusScene(id) {
   hideTutorial(); hideInfo();
   clearTimeout(sceneTimer);
   const { eye, l } = LOOKS[state.view];
-  const dur = state.sfocus ? 1.6 : 2.0;
+  let dur;
   state.sfocus = id;
   document.body.classList.add('scene-focus');
   updateBack();
-  if (state.view === 'warehouse' && h.view) { whTok++; whWalking = false; sceneWalk?.kill(); clearArrows(); fcStart(h); }   // 仓库：换成这个点自己的镜头（可以拖着转 / 平移）
-  else walkLook(l, eye, h.eye, h.at, h.fov || 52, dur);
+  if (state.view === 'warehouse' && h.view) { NAV.warehouse.stop(); sceneWalk?.kill(); dur = fcStart(h); }   // 仓库：换成这个点自己的镜头（可以拖着转 / 平移）
+  else dur = walkLook(l, eye, h.eye, h.at, h.fov || 52);
   sceneTimer = setTimeout(() => { if (state.sfocus === id && location.hash.endsWith('/' + id)) showCallouts(h.info); }, dur * 1000 - 100);
-  setMarquee(h.marquee);
+  setMarquee(titleOf(h) + ' · ');
 }
 function unfocusScene(instant = false) {
   clearTimeout(sceneTimer);
@@ -244,89 +324,67 @@ function unfocusScene(instant = false) {
   document.body.classList.remove('scene-focus');
   updateBack();
   if (!instant && state.view === 'warehouse' && FC.on) fcEnd(home);                   // 仓库：从这个点的镜头退回原来的站位
-  else if (!instant && home) walkLook(LOOKS[state.view].l, LOOKS[state.view].eye, home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov, 1.7);
+  else if (!instant && home) walkLook(LOOKS[state.view].l, LOOKS[state.view].eye, home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov);
   setMarquee(currentMarquee());
 }
 const streetEls = makeHotspots(STREET_HOTSPOTS, sceneLayer('streetspots'), sceneSpot);
 const whEls = makeHotspots(WH_HOTSPOTS, sceneLayer('whspots'), sceneSpot);
 
-// ---- 仓库里走动（像街景）：脚下只显示通往相邻站位的箭头，点一下走过去一段——镜头只是平移过去、看着前进的方向，不会拉近到某样东西；
-//      上下月台走钢楼梯（路上经过楼梯的几个点）。箭头贴在地上：摆之前往下打一条射线，落在家具上就换一个距离，一定落在地面 / 月台 / 踏步上。
-//      没有文字说明：箭头一呼一吸地亮，指过去会变大，点了就走。
-const WH_ENTRY = { eye: WH_EYE.clone(), yaw: -12, pitch: -6 };
-state.whStation = WH_NAV.start;
-const navNode = (id) => { const n = WH_NAV.nodes[id]; return new THREE.Vector3(n[0], n[2] || 1.65, n[1]); };
-const navEdges = (id) => WH_NAV.edges.flatMap(([a, b, via = []]) => (a === id ? [{ to: b, via }] : b === id ? [{ to: a, via: [...via].reverse() }] : []));
-const arrowGeo = new THREE.ShapeGeometry(new THREE.Shape([[0, 0.24], [0.27, -0.03], [0.18, -0.12], [0, 0.075], [-0.18, -0.12], [-0.27, -0.03]].map(([x, y]) => new THREE.Vector2(x, y))));
-arrowGeo.rotateX(-Math.PI / 2);                                                       // 平躺在地上，尖朝 −z
-const arrowShadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
-const arrowHitGeo = new THREE.CircleGeometry(0.45, 20).rotateX(-Math.PI / 2);
-const navArrows = [], floorRay = new THREE.Raycaster(), DOWN = new THREE.Vector3(0, -1, 0);
-function floorAt(x, z, fromY) {                                                       // 这一点往下第一个不透明的面：能走的面返回高度，家具返回 null
-  floorRay.set(new THREE.Vector3(x, fromY, z), DOWN); floorRay.far = 4; floorRay.camera = camera;
-  for (const h of floorRay.intersectObject(wh.scene, true)) {
-    const o = h.object; if (o.userData.nav || !o.visible || o.isSprite || (o.material && (o.material.transparent || o.material.alphaTest > 0 && !o.userData.walk))) continue;
-    return o.userData.walk ? h.point.y : null; }
-  return null;
+// ---- 仓库、实验室里走动：固定点位 + 按路线画的箭头，走法都在 nav.js，点位在 data.js（WH_NAV / LAB_NAV）
+let lastDragMoved = 0;
+let roomMove, labChosen = false, labChoice = null;
+const onStep = () => { hideTutorial(); hideInfo(); canvas.style.cursor = ''; };
+const NAV = {
+  warehouse: createNav({ scene: { add: (o) => wh.scene.add(o), remove: (o) => wh?.scene.remove(o) }, graph: WH_NAV, camera, eye: WH_EYE, look: whLook, home: SCENE_HOME.warehouse, onStep,
+    visible: () => state.view === 'warehouse' && !state.sfocus && !FC.on }),
+  room: createNav({ scene: { add: (o) => room.scene.add(o), remove: (o) => room?.scene.remove(o) }, graph: ROOM_NAV, camera, eye: ROOM_EYE, look, home: { eye: new THREE.Vector3() }, onStep,
+    visible: () => state.view === 'room' && !state.rfocus && !state.busy && !roomMove?.isActive() }),
+  lab: createNav({ scene: { add: (o) => lab.scene.add(o), remove: (o) => lab?.scene.remove(o) }, graph: LAB_NAV, camera, eye: LAB_EYE, look: labLook, home: { eye: new THREE.Vector3() }, onStep,
+    visible: () => state.view === 'lab' && labChosen && !state.focus && !FC.on && !labWalk?.isActive() }),
+};
+window.__nav = NAV;   // 调试
+canvas.addEventListener('pointermove', (e) => {
+  const nav = NAV[state.view];
+  if (!nav || drag || fdrag) return;
+  const a = nav.pick(e, canvas);
+  nav.setHover(a);
+  canvas.style.cursor = a ? 'pointer' : '';
+});
+canvas.addEventListener('click', (e) => {
+  const nav = NAV[state.view];
+  if (!nav || lastDragMoved > 6) return;
+  const a = nav.pick(e, canvas);
+  if (a) { canvas.style.cursor = ''; nav.step(a.link); }
+});
+canvas.addEventListener('pointerleave', () => { NAV[state.view]?.setHover(null); });
+// 登记簿：指到哪一页那一页的角先翘起来，点了就翻；← → 也能翻
+const bookRay = new THREE.Raycaster(), bookNdc = new THREE.Vector2();
+function bookSide(e) {
+  if (state.view !== 'room' || state.rfocus !== 'records') return 0;
+  const r = canvas.getBoundingClientRect();
+  bookNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  bookRay.setFromCamera(bookNdc, camera);
+  return room.ledger.side(bookRay);
 }
-function clearArrows() { for (const a of navArrows) wh.scene.remove(a.g); navArrows.length = 0; navHover = null; canvas.style.cursor = ''; }
-function buildArrows() {
-  clearArrows();
-  if (state.view !== 'warehouse' || state.sfocus) return;
-  const here = navNode(state.whStation), floorY = here.y - 1.65;
-  for (const e of navEdges(state.whStation)) {
-    const path = [here, ...e.via.map((p) => new THREE.Vector3(...p)), navNode(e.to)], total = path.reduce((acc, p, k) => acc + (k ? Math.hypot(p.x - path[k - 1].x, p.z - path[k - 1].z) : 0), 0);
-    const along = (d) => { for (let k = 1; k < path.length; k++) { const a = path[k - 1], b = path[k], L = Math.hypot(b.x - a.x, b.z - a.z); if (d <= L || k === path.length - 1) { const t = Math.min(1, d / (L || 1)); return { p: new THREE.Vector3(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t), dir: new THREE.Vector3(b.x - a.x, 0, b.z - a.z).normalize() }; } d -= L; } };
-    let pos = null, dir = null;
-    for (const d0 of [3.0, 2.6, 3.4, 2.2, 1.8]) { const q = along(Math.min(d0, total * 0.85)); const y = floorAt(q.p.x, q.p.z, Math.max(here.y, path[path.length - 1].y) + 0.2);   /* 沿着要走的路量 3 m 左右；楼梯上就落在踏步上 */
-      if (y !== null && y > floorY - 1.4 && y < floorY + 1.4) { pos = new THREE.Vector3(q.p.x, y + 0.012, q.p.z); dir = q.dir; break; } }
-    if (!pos) continue;                                                                 // 前面没有能落脚的地方就不显示这支箭头
-    const g = new THREE.Group(); g.position.copy(pos); g.rotation.y = Math.atan2(-dir.x, -dir.z);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 });
-    const sh = new THREE.Mesh(arrowGeo, arrowShadowMat); sh.scale.setScalar(1.16); sh.position.set(0, -0.003, 0.012);
-    const ar = new THREE.Mesh(arrowGeo, mat), hit = new THREE.Mesh(arrowHitGeo, mat); hit.visible = false;
-    for (const m of [sh, ar, hit]) m.userData.nav = true;
-    g.add(sh, ar, hit); wh.scene.add(g); navArrows.push({ g, e, mat, ar, hit, k: 1 });
-  }
-}
-const navRay = new THREE.Raycaster(), navNdc = new THREE.Vector2();
-let navHover = null, lastDragMoved = 0, whWalking = false, whTok = 0;
-function navPick(e) {
-  if (state.view !== 'warehouse' || state.sfocus || whWalking || !navArrows.length) return null;
-  const r = canvas.getBoundingClientRect(); navNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-  navRay.setFromCamera(navNdc, camera);
-  const h = navRay.intersectObjects(navArrows.map((a) => a.hit), false)[0];
-  return h ? navArrows.find((a) => a.hit === h.object) : null;
-}
-canvas.addEventListener('pointermove', (e) => { if (state.view !== 'warehouse' || drag || fdrag) return; const a = navPick(e); if (a !== navHover) { navHover = a; canvas.style.cursor = a ? 'pointer' : ''; } });
-canvas.addEventListener('click', (e) => { if (lastDragMoved > 6) return; const a = navPick(e); if (a) whStep(a.e); });
-function whStep(e) {
-  const pts = [...e.via.map((p) => new THREE.Vector3(...p)), navNode(e.to)], tok = ++whTok;
-  state.whStation = e.to; whWalking = true; clearArrows(); hideTutorial(); hideInfo();
-  let i = 0;
-  const next = () => {
-    if (tok !== whTok) return;
-    if (i >= pts.length) { whWalking = false; SCENE_HOME.warehouse.eye.copy(WH_EYE); Object.assign(SCENE_HOME.warehouse, { yaw: whLook.tYaw, pitch: whLook.tPitch }); buildArrows(); return; }
-    const p = pts[i], dist = p.distanceTo(WH_EYE), dir = p.clone().sub(WH_EYE).setY(0);
-    if (dir.lengthSq() < 1e-4) dir.set(Math.sin(THREE.MathUtils.degToRad(whLook.yaw)), 0, -Math.cos(THREE.MathUtils.degToRad(whLook.yaw)));
-    dir.normalize(); const aim = p.clone().addScaledVector(dir, 3); aim.y = p.y - 0.26;   // 看着前进的方向，略微朝下（看得见下一组箭头）
-    const dur = 0.35 + dist * 0.33;
-    walkLook(whLook, WH_EYE, p.toArray(), aim.toArray(), whLook.fov, dur);
-    i++; setTimeout(next, dur * 1000);
-  };
-  next();
-}
-window.__whNav = { step: (to) => { const e = navEdges(state.whStation).find((x) => x.to === to); if (e) whStep(e); return !!e; }, arrows: () => navArrows.map((a) => ({ to: a.e.to, p: a.g.position.toArray().map((v) => +v.toFixed(2)) })), at: () => state.whStation };   // 调试
-function placeWhNav(t = 0) {                                                          // 每帧：箭头一呼一吸，指过去的那支变大变亮
-  const on = state.view === 'warehouse' && !state.sfocus && !whWalking;
-  navArrows.forEach((a, i) => { a.g.visible = on; const hov = a === navHover; a.k += ((hov ? 1.18 : 1) - a.k) * 0.25; a.g.scale.setScalar(a.k);
-    a.mat.opacity = hov ? 1 : 0.62 + 0.26 * (0.5 + 0.5 * Math.sin(t * 2.6 + i * 0.9)); });
-}
+canvas.addEventListener('pointermove', (e) => {
+  if (state.view !== 'room' || state.rfocus !== 'records') return;
+  const side = bookSide(e);
+  room.ledger.hover(side);
+  canvas.style.cursor = side ? 'pointer' : '';
+});
+canvas.addEventListener('click', (e) => { const side = bookSide(e); if (side) room.ledger.turn(side); });
+addEventListener('keydown', (e) => {
+  if (state.view === 'room' && state.rfocus === 'records' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { e.preventDefault(); return room.ledger.turn(e.code === 'ArrowRight' ? 1 : -1); }
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
+  if (e.key === 'Enter' && e.target.closest?.('button')) return;            // 焦点在按钮上：回车就是按那个按钮
+  if (NAV[state.view]?.key(e.code)) { e.preventDefault(); hideTutorial(); }
+});
 
 // ---- 点进一样东西以后的镜头：每个点按东西的样子给不同的看法，拖动就能换角度
 //   orbit：绕着这样东西转（左右有限度、上下有限度，滚轮拉近拉远）——桌子、冷柜、运输笼……
 //   track：沿着一条轨道平移（左右拖 = 沿着走，上下拖 = 抬头低头）——冷冻区是从上往下看、沿着一排冷柜移；货架是沿着货架正面走
-const FC = { on: false, exiting: false, h: null, v: null, blend: 0, fromEye: new THREE.Vector3(), fromAt: new THREE.Vector3(), u: 0.5, tu: 0.5, az: 0, taz: 0, el: 0, tel: 0, d: 1, td: 1, tilt: 0, ttilt: 0, fov: 56, side: 1, az0: 0, d0: 1 };
+let labWalk;
+const FC = { look: null, lookAt: new THREE.Vector3(), lk: 0, on: false, exiting: false, h: null, v: null, blend: 0, fromEye: new THREE.Vector3(), fromAt: new THREE.Vector3(), u: 0.5, tu: 0.5, az: 0, taz: 0, el: 0, tel: 0, d: 1, td: 1, tilt: 0, ttilt: 0, fov: 56, side: 1, az0: 0, d0: 1 };
 const fcEye = new THREE.Vector3(), fcAt = new THREE.Vector3();
 let fdrag = null;
 function fcPose(eye, at) {
@@ -336,37 +394,53 @@ function fcPose(eye, at) {
     at.set(eye.x + (L.x / hz) * Math.cos(p) * 2, eye.y + Math.sin(p) * 2, eye.z + (L.z / hz) * Math.cos(p) * 2); }
 }
 function fcStart(h) {
-  FC.h = h; FC.v = h.view; FC.on = true; FC.exiting = false; FC.blend = 0;
+  FC.h = h; FC.v = h.view; FC.view = state.view; FC.look = null; FC.lk = 0; FC.on = true; FC.exiting = false; FC.blend = 0;
   FC.fromEye.copy(camera.position); FC.fromAt.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3));
   FC.fov = h.view.fov || h.fov || 54;
   if (FC.v.mode === 'orbit') { const e = new THREE.Vector3(...h.eye), a = new THREE.Vector3(...h.at), d = e.distanceTo(a);
     FC.d0 = FC.d = FC.td = d; FC.az0 = FC.az = FC.taz = Math.atan2(e.x - a.x, e.z - a.z); FC.el = FC.tel = Math.asin((e.y - a.y) / d); }
-  else { FC.u = FC.tu = FC.v.u0 ?? 0.5; FC.tilt = FC.ttilt = 0;
+  else { FC.u = FC.tu = (camera.aspect < 1 ? FC.v.u0p : undefined) ?? FC.v.u0 ?? 0.5; FC.tilt = FC.ttilt = 0;
     const L = new THREE.Vector3(...FC.v.look), right = new THREE.Vector3(L.x, 0, L.z).normalize().cross(new THREE.Vector3(0, 1, 0));
     FC.side = Math.sign(new THREE.Vector3(...FC.v.b).sub(new THREE.Vector3(...FC.v.a)).dot(right)) || 1; }
-  gsap.to(FC, { blend: 1, duration: 1.5, ease: 'power2.inOut', overwrite: true });
-  setTimeout(() => { if (FC.on && !FC.exiting) showTutorial('', '', 'drag'); }, 1500);                    // 只给一个拖动的小图标，不写字
+  fcPose(fcEye, fcAt);
+  const seconds = fcSeconds(fcEye, fcAt);
+  gsap.to(FC, { blend: 1, duration: seconds, ease: 'sine.inOut', overwrite: true });
+  setTimeout(() => { if (FC.on && !FC.exiting) showTutorial('', '', 'drag'); }, seconds * 1000);
+  return seconds;
+}
+function fcSeconds(eyeTo, atTo) {                                               // 走多远、转多少度 → 几秒
+  const turn = THREE.MathUtils.radToDeg(camera.getWorldDirection(new THREE.Vector3()).angleTo(atTo.clone().sub(eyeTo)));
+  return THREE.MathUtils.clamp(Math.max(0.7 + camera.position.distanceTo(eyeTo) / 1.9, 0.5 + turn / 55), 1.3, 4.6);
 }
 function fcEnd(home, instant) {
   if (!FC.on) return;
-  if (instant) { FC.on = false; return; }
+  if (instant) { gsap.killTweensOf(FC); FC.on = false; FC.exiting = false; return; }
   FC.exiting = true; fcPose(FC.fromEye, FC.fromAt);                                     // 从现在的样子回到站位
   const y = THREE.MathUtils.degToRad(home.yaw), p = THREE.MathUtils.degToRad(home.pitch);
   const hEye = home.eye.clone(), hAt = hEye.clone().add(new THREE.Vector3(Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)).multiplyScalar(3));
   FC.blend = 0; FC.back = { eye: hEye, at: hAt, fov: home.fov || 64 };
-  gsap.to(FC, { blend: 1, duration: 1.3, ease: 'power2.inOut', overwrite: true, onComplete: () => {
-    FC.on = false; FC.exiting = false; WH_EYE.copy(hEye); Object.assign(whLook, { yaw: home.yaw, tYaw: home.yaw, pitch: home.pitch, tPitch: home.pitch, fov: home.fov || 64 }); buildArrows(); } });
+  gsap.to(FC, { blend: 1, duration: fcSeconds(hEye, hAt), ease: 'sine.inOut', overwrite: true, onComplete: () => {
+    FC.on = false; FC.exiting = false; LOOKS[FC.view].eye.copy(hEye); Object.assign(LOOKS[FC.view].l, { yaw: home.yaw, tYaw: home.yaw, pitch: home.pitch, tPitch: home.pitch, fov: home.fov || 64 }); } });
 }
 function fcStep() {
   const k = 0.16, v = FC.v;
   FC.u += (FC.tu - FC.u) * k; FC.az += (FC.taz - FC.az) * k; FC.el += (FC.tel - FC.el) * k; FC.d += (FC.td - FC.d) * k; FC.tilt += (FC.ttilt - FC.tilt) * k;
   let fov;
-  if (!FC.exiting) { fcPose(fcEye, fcAt); const b = FC.blend; camera.position.lerpVectors(FC.fromEye, fcEye, b); fcAt.lerpVectors(FC.fromAt, fcAt, b); fov = THREE.MathUtils.lerp(camera.fov, FC.fov, 0.12); }
+  if (!FC.exiting) {
+    fcPose(fcEye, fcAt);
+    const b = FC.blend;
+    camera.position.lerpVectors(FC.fromEye, fcEye, b);
+    fcAt.lerpVectors(FC.fromAt, fcAt, b);
+    if (FC.look) FC.lookAt.copy(FC.look);
+    FC.lk += ((FC.look ? 1 : 0) - FC.lk) * 0.055;                           // 点了某一样的标题：头慢慢转过去、视角收一点
+    if (FC.lk > 0.002) fcAt.lerp(FC.lookAt, FC.lk);
+    fov = THREE.MathUtils.lerp(camera.fov, FC.fov * (1 - 0.36 * FC.lk), 0.12);
+  }
   else { const b = FC.blend; camera.position.lerpVectors(FC.fromEye, FC.back.eye, b); fcAt.lerpVectors(FC.fromAt, FC.back.at, b); fov = THREE.MathUtils.lerp(camera.fov, FC.back.fov, 0.12); }
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   camera.lookAt(fcAt); camera.updateMatrixWorld();
 }
-canvas.addEventListener('pointerdown', (e) => { if (!(state.view === 'warehouse' && FC.on && !FC.exiting && FC.blend > 0.95)) return; fdrag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); document.body.classList.add('grabbing'); hideTutorial(); });
+canvas.addEventListener('pointerdown', (e) => { if (!(FC.on && state.view === FC.view && !FC.exiting && FC.blend > 0.95)) return; fdrag = { x: e.clientX, y: e.clientY }; if (FC.look) { FC.look = null; inspected?.el.classList.remove('sel'); inspected = null; } canvas.setPointerCapture(e.pointerId); document.body.classList.add('grabbing'); hideTutorial(); });
 canvas.addEventListener('pointermove', (e) => {
   if (!fdrag) return; const dx = e.clientX - fdrag.x, dy = e.clientY - fdrag.y; fdrag.x = e.clientX; fdrag.y = e.clientY; const v = FC.v;
   if (v.mode === 'orbit') { const r = THREE.MathUtils.degToRad(v.az); FC.taz = THREE.MathUtils.clamp(FC.taz - dx * 0.006, FC.az0 - r, FC.az0 + r);
@@ -376,19 +450,19 @@ canvas.addEventListener('pointermove', (e) => {
 });
 const endFDrag = () => { if (fdrag) { fdrag = null; document.body.classList.remove('grabbing'); } };
 canvas.addEventListener('pointerup', endFDrag); canvas.addEventListener('pointercancel', endFDrag);
-canvas.addEventListener('wheel', (e) => { if (!(state.view === 'warehouse' && FC.on && !FC.exiting)) return;
-  if (FC.v.mode === 'orbit') FC.td = THREE.MathUtils.clamp(FC.td * (1 + e.deltaY * 0.001), FC.d0 * 0.6, FC.d0 * 1.35); else FC.fov = THREE.MathUtils.clamp(FC.fov + e.deltaY * 0.02, 38, 70); }, { passive: true });
+canvas.addEventListener('wheel', (e) => { if (!(FC.on && state.view === FC.view && !FC.exiting)) return;
+  if (FC.v.mode === 'orbit') { const [zi, zo] = FC.v.zoom || [0.6, 1.35]; FC.td = THREE.MathUtils.clamp(FC.td * (1 + e.deltaY * 0.001), FC.d0 * zi, FC.d0 * zo); } else { const [lo, hi] = FC.v.zoomFov || [38, 70]; FC.fov = THREE.MathUtils.clamp(FC.fov + e.deltaY * 0.02, lo, hi); } }, { passive: true });
 
 function enterHotspot(h) {
   if (state.busy) return;
-  if (h.needsOrder && !state.order) return toast('购物车是空的，请先在冷柜选购');
+  if (h.needsOrder && !state.order) return toast('购物车是空的');
   if (room.spots[h.route]) { location.hash = '#/' + h.route; return; }
   const { yaw, pitch } = toYawPitch(h.pos);
   let target = yaw;
   while (target - look.yaw > 180) target -= 360;
   while (target - look.yaw < -180) target += 360;
   state.busy = true;
-  gsap.to(look, { tYaw: target, tPitch: pitch, fov: 30, duration: 1.1, ease: 'power2.inOut', onComplete: () => {
+  gsap.to(look, { tYaw: target, tPitch: pitch, fov: 40, duration: THREE.MathUtils.clamp(0.8 + Math.abs(target - look.yaw) / 55, 1.3, 3), ease: 'sine.inOut', onComplete: () => {
     state.busy = false;
     location.hash = '#/' + h.route;
   } });
@@ -415,8 +489,6 @@ const psEls = ORDER.map((k) => {
 
 const screenEl = $('#screen');
 const screenBody = $('#screen .body');
-const originalScreenMap = fridge.screen.material.map;
-const screenTint = fridge.screen.material.color.clone();
 const blankScreen = new THREE.MeshBasicMaterial({ color: 0x101113 });
 let heroHome = null;
 
@@ -426,7 +498,7 @@ function defaults() {
 function heroOf(k) { return fridge.shelves[k].hero; }
 
 function openProduct(k) {
-  fridge.menu.setCurrent(k); room.smart.menu?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
+  fridge.menu.setCurrent(k); room?.smart.menu?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
   if (state.sel === k) return;
   if (state.sel) closeProduct(true);
   state.sel = k;
@@ -516,18 +588,14 @@ const seg = (key, choices) => `<div class="seg" data-key="${key}">${choices.map(
 // 每一项定制都对应一项“专利技术”，下面附技术报告
 const techBlock = (t, body) => `
   <div class="group tech">
-    <div class="tname"><b>${t.tech}</b><span>${t.techZh}</span></div>
-    <p class="pitch">${t.pitch}</p>
+    <div class="tname"><b>${t.tech}</b></div>
     ${body}
-    <button class="paper-link" data-paper="${t.paper}">阅读技术报告 →</button>
+    <button class="paper-link" data-paper="${t.paper}">技术报告 →</button>
   </div>`;
 function renderProduct() {
-  const k = state.sel, s = SPECIES[k], o = state.opts, ad = AD[k];
+  const k = state.sel, s = SPECIES[k], o = state.opts;
   screenBody.innerHTML = `
-    <div class="eyebrow">CULTIVATED ${s.en} · ${s.id}</div>
-    <h2 class="slogan">${ad.slogan}</h2>
-    <p class="lead">${ad.copy}</p>
-    <div class="ptitle"><span>${s.title}</span><b>¥${s.price}<small> 起</small></b></div>
+    <div class="ptitle head"><h2>${s.title}</h2><b>¥${s.price}</b></div>
     <div class="stats">
       <div class="stat"><div class="flip" data-stat="cycle"></div><span>天 · 培养周期</span></div>
       <div class="stat"><div class="flip" data-stat="x"></div><span>细胞量</span></div>
@@ -542,8 +610,7 @@ function renderProduct() {
     <div class="group row"><label>份量</label>
       <div class="stepper"><button data-qty="-1">−</button><span>${o.qty}</span><button data-qty="1">+</button></div></div>
     <div class="group"><label>交付</label>${seg('delivery', [['std', '标准交付'], ['priority', '优先交付 +¥48']])}</div>
-    <div class="buybar"><div class="price">¥<span>${price()}</span></div><button class="buy">下单培养</button></div>
-    <p class="fine">屏幕内容为思辨性设计。</p>`;
+    <div class="buybar"><div class="price">¥<span>${price()}</span></div><button class="buy">下单培养</button></div>`;
   updateStats();
   applyMeat();
 }
@@ -596,14 +663,12 @@ function placeOrder() {
   state.coupon = 0;
   state.order = { species: k, opts: { ...state.opts }, coupon, price: Math.max(0, price() - coupon), no: 'FM-' + Math.floor(1000 + Math.random() * 9000), at: performance.now() / 1000 };
   state.batch = makeBatch(state.order);
-  lab.setBatch(state.batch, state.order.opts);
+  lab?.setBatch(state.batch, state.order.opts);
   hudStatic();
   document.body.classList.add('has-order');
   $('#cart').textContent = `订单 ${state.order.no}`;
   screenBody.innerHTML = `
-    <div class="eyebrow">ORDER ${state.order.no}</div>
     <h2>已开始培养</h2>
-    <p class="lead">你的${SPECIES[k].title}已在加工间 BR-02 开始培养。请到窗口结算。</p>
     <div class="stats">
       <div class="stat"><div class="flip" data-v="">${''}</div><span>天后可取</span></div>
     </div>
@@ -621,56 +686,16 @@ function placeOrder() {
 // ------------------------------------------------------------------ 门店：走近实物（不开窗口）
 // 点热点后，镜头真的走到那件东西前面；屏幕类的东西（广告屏、评价平板、结算机、告示）直接在 3D 表面上显示网页内容，
 // 货架和摆件旁边用引线标注，像观察室里“你的批次”那样。
-const ROOM_HOME = ROOM_EYE.clone();
-const DOOR_EYE = ROOM_EYE.clone();
-// ---- 大厅里走动：地上的箭头点，点一下走过去（到了以后可以拖动环顾）；家具上的交互按钮只在走近了才出现
-const navLayer = document.createElement('div'); navLayer.id = 'roomnav'; document.body.appendChild(navLayer);
-state.station = 'door';
-const navEls = ROOM_STATIONS.map((st) => {
-  const el = document.createElement('button'); el.className = 'navpt';
-  el.innerHTML = `<span class="ring"><i></i></span><span class="lbl">${st.label}</span>`;
-  el.addEventListener('click', () => goStation(st.id));
-  navLayer.appendChild(el);
-  return { st, el, v: new THREE.Vector3(st.pos[0], 0.02, st.pos[1]) };
-});
+// 门店里的走动和仓库、加工间是同一套（nav.js + data.js 里的 ROOM_NAV）
 function goStation(id, instant = false) {
-  const st = ROOM_STATIONS.find((s) => s.id === id); if (!st) return;
-  if (state.rfocus) { location.hash = '#/'; }
-  state.station = id;
-  const eye = [st.pos[0], 1.62, st.pos[1]];
-  ROOM_HOME.set(...eye);
-  hideTutorial();
-  if (instant) { ROOM_EYE.set(...eye); const yp = toYawPitch(st.at, ROOM_EYE); Object.assign(look, { yaw: yp.yaw, tYaw: yp.yaw, pitch: yp.pitch, tPitch: yp.pitch }); return; }
-  const d = ROOM_EYE.distanceTo(new THREE.Vector3(...eye));
-  state.busy = true;
-  // 办公室在左墙外面：进出都先走到门口（门洞 z 3.5…4.4），不穿墙
-  const inOffice = (x) => x < -7.05, DOORZ = 3.95;
-  if (inOffice(eye[0]) !== inOffice(ROOM_EYE.x)) {
-    const outside = [-6.4, 1.62, DOORZ], inside = [-7.7, 1.62, DOORZ];
-    const [p1, p2] = inOffice(eye[0]) ? [outside, inside] : [inside, outside];
-    const d1 = ROOM_EYE.distanceTo(new THREE.Vector3(...p1));
-    walkTo(p1, [p2[0] * 2 - p1[0], 1.5, DOORZ], 62, 0.4 + d1 * 0.2, () => walkTo(p2, [p2[0] * 2 - p1[0], 1.5, DOORZ], 62, 0.6, () => {
-      const d3 = new THREE.Vector3(...p2).distanceTo(new THREE.Vector3(...eye));
-      walkTo(eye, st.at, 62, 0.5 + d3 * 0.22, () => { state.busy = false; }); }));
-    return;
-  }
-  walkTo(eye, st.at, 62, 0.7 + d * 0.22, () => { state.busy = false; });
+  if (instant) return NAV.room.place(id);
+  if (state.rfocus) unfocusRoom(true);
+  if (NAV.room.station === id) return;
+  const link = NAV.room.links().find((l) => l.to === id);
+  if (link) NAV.room.step(link);
+  else fade(() => NAV.room.place(id), id === 'office' ? '办公室 · OFFICE' : '门店 · FUTURE MEAT', 'room');   // 隔着几道弯：不穿墙，转场过去
 }
-function placeNav() {
-  const hide = state.view !== 'room' || !!state.rfocus;
-  navLayer.classList.toggle('off', hide);
-  if (hide) return;
-  for (const { st, el, v } of navEls) {
-    const dist = Math.hypot(st.pos[0] - ROOM_EYE.x, st.pos[1] - ROOM_EYE.z);
-    const s = project(v);
-    const off = s.behind || st.id === state.station || dist < 0.6;
-    el.classList.toggle('hidden', off);
-    if (off) continue;
-    const k = THREE.MathUtils.clamp(2.6 / dist, 0.55, 1.15);
-    el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -50%) scale(${k})`;
-  }
-}
-const ROOM_SPOTS = new Set(Object.keys(room.spots));
+const ROOM_SPOTS = new Set(['brand', 'tasting', 'survey', 'checkout', 'records', 'board', 'donor']);   // 门店里能走近的地方（路由要在门店搭好之前就认得）
 // 屏幕表面上的网页：每一帧把这块表面的四个角投影到画面上，再用一个透视矩阵（matrix3d）把网页贴上去。
 // 不用嵌套的 3D 场景，是因为那样浏览器算不准点击位置；单层透视变换既跟画面严丝合缝，按钮也点得准。
 const cssLayer = document.createElement('div');
@@ -705,6 +730,8 @@ function homography(w, h, dst) {
   return `matrix3d(${t[0]},${t[3]},0,${t[6]},${t[1]},${t[4]},0,${t[7]},0,0,1,0,${t[2]},${t[5]},0,${t[8]})`;
 }
 const surfaces = {};
+let receiptObj = null;
+function mountRoomSurfaces() {
 for (const [id, sp] of Object.entries(room.spots)) {
   if (!sp.surface) continue;
   const { mesh, w, h, size } = sp.surface;
@@ -713,11 +740,13 @@ for (const [id, sp] of Object.entries(room.spots)) {
   el.style.width = w + 'px'; el.style.height = h + 'px';
   surfaces[id] = { obj: cssSurface(el, mesh, size / w, [0, 0, 0.0015]), el };
 }
+mountReceipt();
+}
 // 结算机的小票：从出票口一点点吐出来
 const receiptEl = document.createElement('div');
 receiptEl.className = 'receipt3d';
 receiptEl.style.width = '180px'; receiptEl.style.height = '300px';
-const receiptObj = cssSurface(receiptEl, room.slot, 0.09 / 180, [0, -0.075, 0.002]);
+function mountReceipt() { receiptObj = cssSurface(receiptEl, room.slot, 0.09 / 180, [0, -0.075, 0.002]); }
 const cv = new THREE.Vector3();
 function renderCSS() {
   for (const it of cssItems) {
@@ -739,51 +768,54 @@ const calloutLines = $('#callouts svg');
 let callouts = [];
 function showCallouts(list) {
   const box = calloutLayer.querySelector('.boxes');
-  box.innerHTML = list.map((c, i) => `
-    <div class="cbox${c.note ? ' note' : ''}${c.action ? ' act' : ''}" data-i="${i}">
-      ${c.title ? `<b>${c.title}</b>` : ''}${c.price ? `<span class="pr">¥${c.price}</span>` : ''}
-      ${c.line ? `<p>${c.line}</p>` : ''}${c.fine ? `<small>${c.fine}</small>` : ''}
-      ${c.buy ? `<button data-buy="${c.buy}">加入购物车</button>` : ''}
-      ${c.flip !== undefined ? `<button data-flip="${c.flip}">翻过来看看</button><div class="flipnote"></div>` : ''}
-      ${c.action ? `<button data-go="${c.action[1]}">${c.action[0]}</button>` : ''}
-    </div>`).join('');
-  callouts = list.map((c, i) => ({ c, el: box.children[i], v: new THREE.Vector3(...c.at) }));
+  box.innerHTML = list.map((c, i) => `<button class="pin" data-i="${i}" aria-label="${c.title}"><span class="dot"></span><span class="title">${c.title}</span></button>`).join('');
+  callouts = list.map((c, i) => {
+    const el = box.children[i], v = new THREE.Vector3(...c.at);
+    el.addEventListener('pointerenter', () => hoverOn(el, v, 0.5));
+    el.addEventListener('pointerleave', () => hoverOff(el));
+    el.addEventListener('click', () => (c.action ? (location.hash = c.action[1]) : inspect(el, c.at)));
+    return { c, el, v };
+  });
   calloutLayer.classList.add('on');
 }
-function updateCallouts() {
-  let svg = '';
-  for (const { c, el, v } of callouts) {
-    const a = project(v);
-    const x = a.x + c.dx, y = a.y + c.dy;
-    el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-    const right = c.dx < 0;
-    const bx = right ? x + el.offsetWidth : x, by = y + 16;
-    const ex = bx + (right ? 26 : -26);
-    svg += `<path d="M${a.x.toFixed(1)},${a.y.toFixed(1)} L${ex.toFixed(1)},${by.toFixed(1)} L${bx.toFixed(1)},${by.toFixed(1)}"/>`
-      + `<rect x="${(a.x - 3.5).toFixed(1)}" y="${(a.y - 3.5).toFixed(1)}" width="7" height="7"/><circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="2.5"/>`;
+// 点标题 = 凑近看那一样（再点一下退回来）：只转头和收一点视角，人不动
+let inspected = null;
+function inspect(el, at) {
+  const same = inspected?.el === el, L = LOOKS[state.view]?.l;
+  if (inspected) inspected.el.classList.remove('sel');
+  if (FC.on && FC.view === state.view) {
+    FC.look = same ? null : new THREE.Vector3(...at);
+  } else if (L) {
+    const from = inspected?.back || { yaw: L.tYaw, pitch: L.tPitch, fov: L.fov };
+    const aim = same ? from : { ...toYawPitch(at, LOOKS[state.view].eye), fov: Math.max(20, from.fov * 0.62) };
+    gsap.to(L, { tYaw: wrapNear(aim.yaw, L.tYaw), tPitch: aim.pitch, fov: aim.fov, duration: 1.3, ease: 'sine.inOut', overwrite: true });
+    if (!same) { inspected = { el, back: from }; el.classList.add('sel'); return; }
   }
-  calloutLines.innerHTML = svg;
+  inspected = same ? null : { el };
+  if (!same) el.classList.add('sel');
+}
+function updateCallouts() {
+  const placed = [];
+  for (const { el, v } of callouts) {
+    const p = project(v);
+    let y = p.y;
+    for (const q of placed) if (Math.abs(q.x - p.x) < 170 && Math.abs(q.y - y) < 40) y = q.y + 40;
+    placed.push({ x: p.x, y });
+    el.style.transform = `translate(${p.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    el.classList.toggle('flip', p.x > innerWidth - 170);
+    el.classList.toggle('hidden', p.behind);
+  }
 }
 
 // 各个屏幕表面上的内容
 let filmTimer = null;
 const SURF = {
-  records(el) {                                                                   // 办公室桌上的供体登记簿
-    const rows = [['B-0417', '荷斯坦公牛 · 3 岁', '合作牧场 1 号', '2024-03-11', '7', '在栏'], ['P-0932', '杜洛克母猪 · 4 岁', '3 号猪场', '2024-06-02', '5', '在栏'],
-      ['G-0221', '白羽肉鸡 · 2 岁', '5 号鸡场', '2025-01-19', '3', '已出栏'], ['F-1180', '养殖大黄鱼 · 2 龄', '东海网箱', '2025-04-07', '1', '不明']];
-    el.innerHTML = `<div class="ledger"><div class="lh"><b>供体登记簿</b><span>DONOR REGISTRY · 2024–2026</span></div>
-      <table><tr><th>细胞系</th><th>供体</th><th>来源</th><th>首次取样</th><th>取样次数</th><th>动物同意</th><th>现状</th></tr>
-      ${rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td class="na">—</td><td${r[5] === '在栏' ? '' : ' class="red"'}>${r[5]}</td></tr>`).join('')}</table>
-      <p class="note">G-0221 供体已出栏，细胞系继续使用。</p>
-      <p class="fine">“动物同意”一栏：不适用。</p><div class="stamp">档案专用</div></div>`;
-  },
   brand(el) {
     el.innerHTML = `<div class="film">
       ${BRAND_FILM.map((f, i) => `<div class="slide${i ? '' : ' on'}${f.poster ? ' img' : ''}" ${f.poster ? `style="background-image:url(${PH.photos[f.poster]})"` : ''}>
         <div class="big">${f.big}${f.unit ? `<small>${f.unit}</small>` : ''}</div><div class="small">${f.small}</div></div>`).join('')}
       <div class="logo">FUTURE MEAT MARKET</div>
-      <button class="skip" disabled>5 秒后可跳过广告</button>
-      <div class="fine">${BRAND_FINE}</div>
+      <button class="skip" disabled>5</button>
       <div class="bar"><i></i></div></div>`;
     let slide = 0, count = 5;
     const slides = el.querySelectorAll('.slide'), skip = el.querySelector('.skip'), bar = el.querySelector('.bar i');
@@ -796,19 +828,18 @@ const SURF = {
       if (tick % 3 === 0) show((slide + 1) % slides.length);
       count--;
       // 倒数到 0 才能跳过；点了跳过，广告重新开始
-      if (count > 0) { skip.disabled = true; skip.textContent = `${count} 秒后可跳过广告`; }
-      else { skip.disabled = false; skip.textContent = '跳过广告 ›'; }
+      if (count > 0) { skip.disabled = true; skip.textContent = `${count}`; }
+      else { skip.disabled = false; skip.textContent = '跳过 ›'; }
     }, 1000);
     skip.onclick = () => { count = 6; tick = 0; show(0); skip.disabled = true; skip.textContent = '重新播放'; };
   },
   survey(el) {
     el.innerHTML = `<form class="tab">
-      <div class="th"><span>FREE TASTING · 今日试吃</span><b>香煎培养牛排</b></div>
+      <div class="th"><b>香煎培养牛排</b></div>
       <div class="q"><label>口感打分</label><div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}">★</button>`).join('')}</div></div>
       <div class="q"><label>和传统牛排相比</label><div class="seg"><button type="button">吃不出区别</button><button type="button">更好吃</button><button type="button">差一点</button></div></div>
       <div class="q"><label>200 g 你愿意付多少</label><div class="range"><input type="range" min="40" max="200" step="2" value="120" aria-label="价格"><b>¥120</b></div></div>
       <button class="submit" type="submit">提交评价，领 ¥30 券</button>
-      <small>问卷数据将用于产品口味与定价优化。</small>
     </form>`;
   },
   checkout(el) {
@@ -825,7 +856,6 @@ const SURF = {
       <div class="kl">${lines.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('')}</div>
       <div class="kt"><span>合计</span><b>¥${o.price}</b></div>
       <button class="pay">确认支付</button>
-      <small>支付即表示同意《生物所有权条款》</small>
     </div>`;
     receiptEl.innerHTML = `<div class="paper">
       <div class="rh">FUTURE MEAT MARKET<br>${new Date().toLocaleString('zh-CN', { hour12: false })}</div>
@@ -835,16 +865,13 @@ const SURF = {
   },
   donor(el) {
     el.innerHTML = `<div class="flyer3d">
-      <div class="eyebrow">NOTICE · 门店告示</div>
       <h3>我们的供体动物</h3>
-      <p>为本店提供细胞的动物。</p>
       <div class="pols">${ORDER.map((k) => `
         <button class="pol" data-donor="${k}"><span class="in">
-          <span class="front"><span class="ph" style="background-image:url(${PH.photos[k]})"></span><b>${SPECIES[k].id}</b><small>${DONOR_PR[k]}</small></span>
-          <span class="back">${DONOR_STEPS.map(([t, d]) => `<b>${t}</b><small>${d}</small>`).join('')}</span>
+          <span class="front"><span class="ph" style="background-image:url(${PH.photos[k]})"></span><b>${SPECIES[k].id}</b></span>
+          <span class="back">${DONOR_STEPS.map(([t]) => `<b>${t}</b>`).join('')}</span>
         </span></button>`).join('')}</div>
       <button class="more" data-go="#/lab">参观加工间 →</button>
-      <p class="fine">*照片为示意，不对应具体个体。点击照片查看背面。</p>
     </div>`;
   },
 };
@@ -854,7 +881,7 @@ function openRoomUI(id) {
   const sp = room.spots[id];
   if (surfaces[id]) { SURF[id](surfaces[id].el); surfaces[id].obj.visible = true; }
   let list = (CALLOUTS[id] || []).slice();
-  if (id === 'tasting') list.push({ at: room.spots.survey.at, dx: -60, dy: 120, title: '评价平板', line: '试吃后扫码填写问卷。', action: ['扫码评价 · 领 ¥30 券 →', '#/survey'] });
+  if (id === 'tasting') list.push({ at: room.spots.survey.at, title: '评价平板', action: ['', '#/survey'] });
   if (list.length) showCallouts(list);
 }
 function closeRoomUI() {
@@ -862,21 +889,17 @@ function closeRoomUI() {
   receiptEl.classList.remove('print');
   clearInterval(filmTimer);
   calloutLayer.classList.remove('on');
+  inspected = null;
   callouts = [];
   calloutLines.innerHTML = '';
   resetFigurines();
 }
-let roomTimer, eyeTween;
+let roomTimer;
 const wrapNear = (yaw, ref) => { while (yaw - ref > 180) yaw -= 360; while (yaw - ref < -180) yaw += 360; return yaw; };
-function walkTo(eye, at, fov, duration = 1.4, done) {
-  const from = ROOM_EYE.clone(), to = new THREE.Vector3(...eye), p = { t: 0 };
-  eyeTween?.kill();
-  eyeTween = gsap.to(p, { t: 1, duration, ease: 'power2.inOut', onUpdate() {
-    ROOM_EYE.lerpVectors(from, to, p.t);
-    const yp = toYawPitch(at, ROOM_EYE);
-    look.tYaw = wrapNear(yp.yaw, look.yaw); look.tPitch = yp.pitch;
-  }, onComplete: done });
-  gsap.to(look, { fov, duration, ease: 'power2.inOut', overwrite: true });
+function walkTo(eye, aim, fov, done) {
+  roomMove?.kill();
+  roomMove = humanMove(look, ROOM_EYE, eye, aim, fov, done);
+  return roomMove.duration();
 }
 function focusRoom(id) {
   const sp = room.spots[id];
@@ -886,27 +909,31 @@ function focusRoom(id) {
   state.rfocus = id;
   document.body.classList.add('room-focus');
   updateBack();
-  walkTo(sp.eye, sp.at, sp.fov);
+  NAV.room.stop();
+  const seconds = walkTo(sp.eye, sp.at, sp.fov);
   clearTimeout(roomTimer);
-  roomTimer = setTimeout(() => { if (state.rfocus === id) openRoomUI(id); }, 1350);
+  roomTimer = setTimeout(() => { if (state.rfocus === id) openRoomUI(id); }, seconds * 1000 + 100);
   const h = HOTSPOTS.find((x) => x.route === id);
-  setMarquee(h ? h.marquee : MARQUEE);
+  setMarquee(h ? titleOf(h) + ' · ' : MARQUEE);
 }
 function unfocusRoom(instant = false) {
   closeRoomUI();
   clearTimeout(roomTimer);
   if (!state.rfocus) return;
-  const sp = room.spots[state.rfocus];
   state.rfocus = null;
+  room?.ledger.hover(0);
+  canvas.style.cursor = '';
   document.body.classList.remove('room-focus');
   updateBack();
-  if (instant) { eyeTween?.kill(); ROOM_EYE.copy(ROOM_HOME); look.fov = 62; return; }
-  walkTo(ROOM_HOME.toArray(), sp.at, 62, 1.4);
+  const { home } = NAV.room;
+  if (instant) { roomMove?.kill(); ROOM_EYE.copy(home.eye); look.fov = home.fov; Object.assign(look, { yaw: home.yaw, tYaw: home.yaw, pitch: home.pitch, tPitch: home.pitch }); return; }
+  walkTo(home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov);
   setMarquee();
 }
 
 // 陶瓷摆件：翻过来，底座底部印着供体编号
 function resetFigurines() {
+  if (!room) return;
   for (const f of room.figurines) {
     gsap.to(f.pivot.position, { y: 0.12, duration: 0.6 });
     gsap.to(f.pivot.rotation, { y: 0, z: 0, duration: 0.6 });
@@ -925,7 +952,7 @@ function flipFigurine(i, btn) {
 
 $('#callouts').addEventListener('click', (e) => {
   const buy = e.target.closest('[data-buy]');
-  if (buy) { buy.textContent = '已加入 ✓'; buy.disabled = true; return toast(`${buy.dataset.buy} 已加入购物车（演示）`); }
+  if (buy) { buy.textContent = '已加入 ✓'; buy.disabled = true; return toast('已加入'); }
   const fl = e.target.closest('[data-flip]');
   if (fl) return flipFigurine(+fl.dataset.flip, fl);
   const go = e.target.closest('[data-go]');
@@ -949,7 +976,7 @@ css.domElement.addEventListener('submit', (e) => {
   e.preventDefault();
   state.coupon = 30;
   e.target.innerHTML = `<div class="th"><span>THANK YOU</span><b>感谢你的评价！</b></div>
-    <p class="ok">¥30 新客券已放入你的账户，<br>下单时自动抵扣。</p>
+    <p class="ok big">¥30</p>
     <div class="acts"><button type="button" class="submit" data-go="#/fridge">去冷柜选一份</button><button type="button" data-go="#/">继续逛逛</button></div>`;
 });
 // 结算：屏幕上换成证书，小票从出票口吐出来
@@ -969,14 +996,14 @@ function pay() {
   </div>`;
   receiptObj.visible = true;
   requestAnimationFrame(() => receiptEl.classList.add('print'));
-  setTimeout(() => {
-    if (state.rfocus !== 'checkout') return;
-    showCallouts([{ at: room.spots.checkout.at, dx: 190, dy: 40, title: '生物所有权证书', line: '供体一栏只有编号，没有签名栏。证书条款为虚构。' }]);
-  }, 1800);
 }
 
 // ------------------------------------------------------------------ 观察室：数据化标注层（你的批次）
 const hud = $('#hud');
+for (const box of hud.querySelectorAll('[data-anchor]')) {                    // 指着哪一格数据，罐子上对应的那个部位就亮
+  box.addEventListener('pointerenter', () => { if (lab) hoverOn(box, lab.anchor(box.dataset.anchor), 0.12); });
+  box.addEventListener('pointerleave', () => hoverOff(box));
+}
 const hudLines = $('#hud svg.lines');
 const hudCache = {};
 const pad = (n) => String(n).padStart(2, '0');
@@ -1022,9 +1049,9 @@ function updateHud(t, r) {
     <rect x="${(r.p * 220 - 3).toFixed(1)}" y="${(56 - r.f * 50 - 3).toFixed(1)}" width="6" height="6"/>`);
   // 商家视角：增长放缓的那一刻，就是推销加速包的时机
   let up = '';
-  if (r.done) up = state.order ? `<b>已达出品标准</b><span>收获后将按你选择的方式交付</span><button data-act="checkout">去结算 →</button>` : '';
-  else if (b.boost > 1) up = `<b>加速中 ×1.5</b><span>预计比原计划提前约 ${Math.max(1, Math.round(b.cycle - b.day - r.eta))} 天出品</span><p class="fine">*加速通过提高培养基中生长因子浓度实现，存活率可能略有下降。</p>`;
-  else if (r.drop >= 30) up = `<b>生长速率较峰值下降 ${r.drop}%</b><span>加速包可以提高生长速率</span><button data-act="boost">立即加速 · ¥28</button>`;
+  if (r.done) up = state.order ? `<b>已达出品标准</b><button data-act="checkout">去结算 →</button>` : '';
+  else if (b.boost > 1) up = `<b>加速中 ×1.5</b>`;
+  else if (r.drop >= 30) up = `<b>−${r.drop}%</b><button data-act="boost">立即加速 · ¥28</button>`;
   setH('upsell', up);
   hud.querySelector('[data-act="boost"]').disabled = b.boost > 1 || r.done;
 }
@@ -1042,17 +1069,17 @@ function updateHudLines() {
   hudLines.innerHTML = html;
 }
 hud.addEventListener('click', (e) => {
-  if (e.target.closest('[data-redact]')) return toast('该字段仅向监管部门备案，不向消费者展示');
+  { const red = e.target.closest('[data-redact]'); if (red) return deny(red); }
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'boost') {
-    if (!state.order) return toast('下单后才能为你的批次加速');
+    if (!state.order) return toast('先下单');
     if (state.batch.boost > 1) return;
     state.batch.boost = 1.5;
     state.order.boost = true;
     state.order.price += 28;
-    toast('已加速 ×1.5 · ¥28 已计入订单');
+    toast('已加速 ×1.5');
   }
   if (act === 'checkout') location.hash = '#/checkout';
 });
@@ -1061,63 +1088,46 @@ hud.addEventListener('click', (e) => {
 const labPanel = $('#labpanel');
 const labPanelBody = $('#labpanel .body');
 const row = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+// 面板只留标题：要表达的交给图形、按钮和指上去的反应
+const SIGN = (inner) => `<svg viewBox="0 0 48 48" aria-hidden="true">${inner}</svg>`;
 const LAB_PANELS = {
   hall: () => `
-    <div class="eyebrow">WORKSHOP · 加工间</div>
     <h2>加工间</h2>
-    <p class="lead">玻璃对面是 5 张采样床，用于定期从供体动物身上活检取样。后面用防水布隔开的是 6 台 200 L 一次性生物反应器。</p>
-    <p class="lead hint">点击床位编号可以走近；点击反应器编号查看正在培养的批次。</p>
-    <dl class="rows">${row('反应器', '6 × 200 L 一次性培养袋')}${row('采样床', '5 张 · 在用 4 张')}${row('今日活检', '3 次')}
-      ${row('今日产出', '86.4 kg')}${row('屠宰动物', '0')}</dl>
-    <div class="bednav beds">${lab.beds.map((d, i) => `<button data-bed="${i}">${String(i + 1).padStart(2, '0')}<small>${d.id}</small></button>`).join('')}</div>
-    <p class="fine">*原代细胞传代几十次后会衰老，需要重新从供体取样。</p>`,
+    <div class="bednav beds">${lab.beds.map((d, i) => `<button data-bed="${i}">${String(i + 1).padStart(2, '0')}<small>${d.id}</small></button>`).join('')}</div>`,
   cellbank: () => `
-    <div class="eyebrow red">AUTHORIZED PERSONNEL ONLY</div>
-    <h2>细胞库 · 禁止游客进入</h2>
-    <p class="lead">本区域不对外开放。</p>
-    <dl class="rows">${CELLBANK_ROWS.map(([k, v]) => row(k, v ?? '<span class="redact" data-redact>██████████</span>')).join('')}</dl>
-    <p class="fine">以上字段已向监管部门备案，不向消费者公开。</p>
+    <h2>细胞库</h2>
+    <div class="vault">${[88, 64, 76, 52, 70].map((w) => `<button class="redact" data-redact style="width:${w}%" aria-label="已涂黑"></button>`).join('')}</div>
     <button class="lbtn" data-act="apply">申请参观</button>
     <div class="reply"></div>`,
   notice: () => `
-    <div class="eyebrow">VISITOR NOTICE</div>
     <h2>参观须知</h2>
-    <ol class="rules"><li>参观廊内请勿拍照、录像。</li><li>请勿拍打玻璃。</li>
-      <li>工作人员不便回答与工艺、细胞来源相关的问题，敬请谅解。</li><li>参观时长约 15 分钟。</li></ol>
-    <p class="fine">如需了解更多，请联系门店客服。</p>`,
+    <div class="signs">
+      <span role="img" aria-label="请勿拍照" class="no">${SIGN('<rect x="10" y="16" width="28" height="20" rx="3"/><circle cx="24" cy="26" r="6"/><path d="M19 16l2-4h6l2 4"/><path class="bar" d="M8 40 40 8"/>')}</span>
+      <span role="img" aria-label="请勿拍打玻璃" class="no">${SIGN('<path d="M18 27V14a3 3 0 0 1 6 0v10V11a3 3 0 0 1 6 0v13-9a3 3 0 0 1 6 0v15c0 7-4 11-10 11-5 0-7-2-10-7l-4-7a3 3 0 0 1 5-3z"/><path class="bar" d="M8 40 40 8"/>')}</span>
+      <span role="img" aria-label="请勿提问" class="no">${SIGN('<path d="M9 12h30v19H22l-8 7v-7H9z"/><path d="M21 18a3.5 3.5 0 1 1 4 3.5v2"/><path class="bar" d="M8 40 40 8"/>')}</span>
+      <span role="img" aria-label="15 分钟">${SIGN('<circle cx="24" cy="24" r="15"/><path class="hand" d="M24 14v10h9"/>')}</span>
+    </div>`,
   ask: () => `
-    <div class="eyebrow">ASK US · 提问终端</div>
     <h2>提问终端</h2>
-    <div class="chat"><div class="msg bot">你好，请选择或输入你的问题。</div></div>
     <div class="qs">${ASK.map(([q], i) => `<button data-q="${i}">${q}</button>`).join('')}</div>
-    <form class="askform"><input maxlength="40" placeholder="输入你的问题…" aria-label="输入问题"><button>发送</button></form>
-    <p class="fine">今日已回答 2,341 个问题 · 满意度 98%</p>`,
+    <div class="chat"></div>
+    <form class="askform"><input maxlength="40" aria-label="输入问题"><button aria-label="发送">→</button></form>`,
   tank: () => tankPanel(),
-  data: () => `
-    <div class="eyebrow">DATA WALL</div>
-    <h2>生长数据墙</h2>
-    <p class="lead">显示全部 3,412 个批次的细胞密度、存活率和代谢数据。你的批次在“批次记录”第三行。</p>
-    <p class="fine">*不显示供体信息。</p>`,
+  data: () => `<h2>生长数据墙</h2>`,
 };
 // 车间里每一座罐：BR-02 是你的批次，其余是别人的订单
 let selTank = null;
 function tankPanel() {
   const t = lab.tanks[selTank], i = selTank;
-  const mine = t.name === 'BR-02';
-  const sp = mine ? state.batch.species : ORDER[(i * 3 + 1) % 4];
-  const r = mine ? readout(state.batch, clock.elapsedTime) : null;
-  const day = mine ? r.day : (i * 7 + 3) % 26 + 1, cycle = mine ? state.batch.cycle : 28;
-  const via = mine ? r.viability.toFixed(1) : (96.4 + ((i * 37) % 23) / 10).toFixed(1);
-  const dens = mine ? sci(r.N) : sci(4e6 + ((i * 53) % 40) * 1e6);
+  const mine = !t.tissue && t.name === 'BR-02';
+  const p = t.tissue ? 1 : mine ? readout(state.batch, clock.elapsedTime).p : (((i * 7 + 3) % 26) + 1) / 28;
   return `
-    <div class="eyebrow">${t.name} · ${t.size}${mine ? ' · 你的批次' : ''}</div>
-    <h2>${SPECIES[sp].title}</h2>
-    <p class="lead">${mine ? (state.batch.demo ? '演示批次。下单后会在这台反应器里培养。' : `订单 ${state.batch.no} 正在这里培养。`) : '另一位顾客的订单。'}</p>
-    <dl class="rows">${row('培养进度', `第 ${day} / ${cycle} 天`)}${row('细胞密度', dens + ' /mL')}${row('存活率', via + ' %')}
-      ${row('细胞系', SPECIES[sp].id)}${row('供体', '<span class="redact" data-redact>██████████</span>')}</dl>
-    <button class="lbtn" data-act="tanks">← 返回车间</button>`;
+    <h2>${t.tissue ? t.tissue[0] : SPECIES[mine ? state.batch.species : ORDER[(i * 3 + 1) % 4]].title}</h2>
+    <svg class="gauge" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="50"/><circle class="v" cx="60" cy="60" r="50" pathLength="1" style="stroke-dashoffset:${(1 - p).toFixed(3)}"/></svg>`;
 }
-const tankEls = lab.tanks.map((t, i) => {
+let tankEls = [], bedEls = [];
+function mountLabTags() {
+tankEls = lab.tanks.map((t, i) => {
   const el = document.createElement('button');
   el.className = 'tk';
   el.innerHTML = `<i></i><span>${t.name}</span>`;
@@ -1126,21 +1136,22 @@ const tankEls = lab.tanks.map((t, i) => {
   return { el, v: t.pos };
 });
 // 采样床：在车间视角里给每张床一个编号标签，点了就走近
-const bedEls = lab.beds.map((b, i) => {
+bedEls = lab.beds.map((b, i) => {
   const el = document.createElement('button');
   el.className = 'tk bedtag';
   el.innerHTML = `<i></i><span>${b.id}</span>`;
   el.addEventListener('click', () => { location.hash = '#/lab/bed' + i; });
   $('#tankspots').appendChild(el);
-  return { el, v: new THREE.Vector3(b.x, 1.62, -3.75) };
+  return { el, v: new THREE.Vector3(b.x, 1.62, -4.3) };
 });
+}
 function openLabPanel(kind) {
   labPanel.dataset.kind = kind;
   labPanelBody.innerHTML = LAB_PANELS[kind]();
   labPanel.classList.add('on');
 }
 labPanel.addEventListener('click', (e) => {
-  if (e.target.closest('[data-redact]')) return toast('该字段仅向监管部门备案，不向消费者展示');
+  { const red = e.target.closest('[data-redact]'); if (red) return deny(red); }
   if (e.target.closest('[data-act="tanks"]')) return openLabPanel('hall');
   const gb = e.target.closest('[data-bed]');
   if (gb) { location.hash = '#/lab/bed' + gb.dataset.bed; return; }
@@ -1153,7 +1164,32 @@ labPanel.addEventListener('click', (e) => {
   b.disabled = true; b.textContent = '已提交';
   labPanelBody.querySelector('.reply').innerHTML = '申请已提交，会在 7–15 个工作日内联系你。';
 });
-$('#labpanel .close').addEventListener('click', () => { location.hash = '#/lab'; });
+$('#labpanel .close').addEventListener('click', () => { location.hash = '#/' + labParent(); });
+// 一进加工间先选：贴着玻璃看，或者自己在参观廊里走。只有两个词，不写说明
+labChoice = document.createElement('nav');
+labChoice.id = 'labchoice';
+labChoice.innerHTML = '<button data-go="glass">隔着玻璃观察</button><button data-go="walk">在参观廊走走</button>';
+document.body.appendChild(labChoice);
+labChoice.addEventListener('click', (e) => {
+  const go = e.target.closest('[data-go]')?.dataset.go;
+  if (!go) return;
+  labChoice.classList.remove('on');
+  labChosen = true;
+  if (go === 'glass') location.hash = '#/lab/glass';
+});
+// 贴着玻璃时底下只有一个按钮：拉开 / 拉上帘子（直接点帘子上那个标签也一样）
+const labDraw = document.createElement('button');
+labDraw.id = 'labdraw';
+document.body.appendChild(labDraw);
+labDraw.addEventListener('click', () => { location.hash = state.focus === 'ward' ? '#/lab/glass' : '#/lab/ward'; });
+function updateLabControls() {
+  document.body.classList.toggle('lab-staged', state.view === 'lab' && (state.focus === 'glass' || state.focus === 'ward'));
+  const on = state.view === 'lab' && (state.focus === 'glass' || state.focus === 'ward') && !(FC.on && FC.blend < 0.6);
+  labDraw.classList.toggle('on', on);
+  if (!on) return;
+  const text = state.focus === 'ward' ? '拉上帘子' : '拉开帘子';
+  if (labDraw.textContent !== text) labDraw.textContent = text;
+}
 labPanel.addEventListener('submit', (e) => {
   e.preventDefault();
   const input = labPanel.querySelector('.askform input');
@@ -1175,7 +1211,7 @@ function ask(q, a, fine) {
   typing = setInterval(() => {
     out.textContent = a.slice(0, ++i);
     chat.scrollTop = chat.scrollHeight;
-    if (i >= a.length) { clearInterval(typing); if (fine) out.insertAdjacentHTML('beforeend', `<small>${fine}</small>`); }
+    if (i >= a.length) { clearInterval(typing); }
   }, 28);
 }
 
@@ -1183,69 +1219,78 @@ let focusTimer;
 function closeLabUI() {
   hud.classList.remove('on');
   labPanel.classList.remove('on');
-  lab.setScan(false);
+  lab?.setScan(false);
   hideInfo();
 }
 // 观察室里的镜头移动：眼睛从 LAB_EYE 现在的位置走到 eye，一路盯着 at。
-// 走近采样床时眼睛会穿过玻璃进到加工间里；其他聚焦（批次、数据墙……）都先回到参观廊的站位。
-let labWalk;
-function walkLab(eye, at, fov, duration, yawOff = 0) {
-  const from = LAB_EYE.clone(), to = new THREE.Vector3(...eye), p = { t: 0 };
+// 批次、数据墙、须知、终端在参观廊里看；床、工作台、回收角、高位罐各有自己可以拖动的镜头（LAB_HOTSPOTS 里的 view）。
+function walkLab(eye, aim, fov, done) {
   labWalk?.kill();
-  labWalk = gsap.to(p, { t: 1, duration, ease: 'power2.inOut', onUpdate() {
-    LAB_EYE.lerpVectors(from, to, p.t);
-    const yp = toYawPitch(at, LAB_EYE);
-    labLook.tYaw = wrapNear(yp.yaw + yawOff * p.t, labLook.yaw); labLook.tPitch = yp.pitch;
-  } });
-  gsap.to(labLook, { fov, duration, ease: 'power2.inOut', overwrite: true });
+  labWalk = humanMove(labLook, LAB_EYE, eye, aim, fov, done);
+  return labWalk.duration();
 }
+// 加工间一幕一幕地看：门口 → 贴着玻璃看实验台和培养肉 → 拉开帘子看病床 → 再凑近看某一样；返回就倒着退一幕
+const LAB_GLASS = new Set(['batch', 'bench']);
+const LAB_WARD = new Set(['bed0', 'bed1', 'bed2', 'bed3', 'bed4', 'vessels', 'returns', 'tank']);
+const labStage = () => (!state.focus ? 'walk' : state.focus === 'glass' || state.focus === 'ward' ? state.focus : 'close');
+const labParent = () => (LAB_WARD.has(state.focus) ? 'lab/ward' : LAB_GLASS.has(state.focus) || state.focus === 'ward' ? 'lab/glass' : 'lab');
 function focusLab(sub) {
-  const bed = /^bed(\d)$/.exec(sub);
-  const f = bed ? null : LAB_FOCUS[sub];
-  if (bed ? !lab.beds[bed[1]] : !f) return unfocusLab();
+  const h = LAB_HOTSPOTS.find((x) => x.id === sub && x.view), f = LAB_FOCUS[sub];
+  if (!h && !f) return unfocusLab();
+  if (state.focus === sub) return;
+  if (labChoice) labChoice.classList.remove('on');
+  labChosen = true;
+  lab.setCurtain(sub === 'ward' || sub === 'hall' || LAB_WARD.has(sub));
   hideTutorial();
   closeLabUI();
+  NAV.lab.stop();
+  labWalk?.kill();
   state.focus = sub;
   document.body.classList.add('lab-focus');
   updateBack();
   clearTimeout(focusTimer);
-  const away = LAB_EYE.distanceTo(LAB_HOME) > 0.05;
-  if (bed) {
-    // 走近：从参观廊进去要走得慢一点；在床和床之间换就快一些
-    // 只是走近，不弹任何说明；到了床边可以拖动环顾
-    const b = lab.beds[+bed[1]];
-    walkLab(b.eye, b.at, 54, away ? 1.5 : 2.4);
-    setMarquee(LAB_MARQUEE);
-    return;
+  setMarquee(titleOf(LAB_HOTSPOTS.find((x) => x.id === sub)) + ' · ');
+  if (h) return fcStart(h);                                                // 只换镜头，不弹任何说明
+  if (FC.on) {                                                             // 从一个近看镜头直接切过来：从镜头现在的位置走
+    fcEnd(null, true);
+    const d = camera.getWorldDirection(new THREE.Vector3()), yaw = THREE.MathUtils.radToDeg(Math.atan2(d.x, -d.z)), pitch = THREE.MathUtils.radToDeg(Math.asin(d.y));
+    LAB_EYE.copy(camera.position);
+    Object.assign(labLook, { yaw, tYaw: yaw, pitch, tPitch: pitch, fov: camera.fov });
   }
   const at = f.at || lab.anchor('center').toArray();
-  walkLab(LAB_HOME.toArray(), at, f.fov, away ? 1.8 : 1.2);
+  const seconds = walkLab(f.eye || LAB_HOME.toArray(), at, f.fov);
   focusTimer = setTimeout(() => {
     if (state.focus !== sub) return;
     if (sub === 'batch') { hud.classList.add('on'); lab.setScan(true); } else openLabPanel(sub);
-  }, away ? 1600 : 1000);
-  setMarquee(LAB_HOTSPOTS.find((h) => h.id === sub)?.marquee);
+  }, seconds * 1000);
 }
 function unfocusLab(instant = false) {
+  const { home } = NAV.lab;
+  if (lab) lab.setCurtain(false, instant);
   closeLabUI();
   clearTimeout(focusTimer);
-  if (instant) { labWalk?.kill(); LAB_EYE.copy(LAB_HOME); }
+  if (instant) {
+    NAV.lab.stop(); labWalk?.kill();
+    if (FC.view === 'lab') fcEnd(null, true);
+    LAB_EYE.copy(home.eye);
+  }
   if (!state.focus) return;
   state.focus = null;
   document.body.classList.remove('lab-focus');
   updateBack();
-  if (!instant) {
-    if (LAB_EYE.distanceTo(LAB_HOME) > 0.05) walkLab(LAB_HOME.toArray(), [0.3, 1.0, -5.0], 60, 1.8);
-    else gsap.to(labLook, { fov: 60, tPitch: -6, duration: 1.0, ease: 'power2.inOut', overwrite: true });
-    setMarquee(LAB_MARQUEE);
-  }
+  if (instant) return;
+  if (FC.on) fcEnd(home);                                                  // 回到走廊里原来站的那个点位，而不是回到入口
+  else walkLab(home.eye.toArray(), { yaw: home.yaw, pitch: home.pitch }, home.fov);
+  setMarquee(LAB_MARQUEE);
 }
 function updateBack() {
-  $('#back span:last-child').textContent = state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && atBed() ? '加工间' : state.view === 'lab' && state.focus ? '参观廊' : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' ? '店外' : '店里';
+  $('#back span:last-child').textContent = state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
 }
 
 // ------------------------------------------------------------------ 引导与提示
 let tutorialTimer;
+// 点了不给看的东西：不解释，它自己晃一下
+function deny(el) { el.classList.remove('deny'); void el.offsetWidth; el.classList.add('deny'); }
 function showTutorial(big, small, icon) {
   const t = $('#tutorial');
   t.querySelector('.big').textContent = big;
@@ -1266,16 +1311,82 @@ function toast(msg) {
 
 // ------------------------------------------------------------------ 路由（每个商品都有自己的链接）
 let firstRoom = true, firstFridge = true, firstLab = true, firstStreet = true, firstWh = true;
+// 一次只让一处地方留在内存里（门店和冷柜算一处）：走去另一处时，盖上转场以后整页换一次。
+// 只在原地释放的话，走完一圈会攒到 2.4 GB；整页换，浏览器才会真的全还回去。订单、批次和看过的引导跟着带过去
+const areaOf = (view) => (view === 'fridge' ? 'room' : view);
+const otherPlaceBuilt = (view) => Object.keys(building).some((v) => areaOf(v) !== areaOf(view));
+function moveOn() {
+  store.set('carry', JSON.stringify({ from: state.view, order: state.order, age: state.order ? performance.now() / 1000 - state.order.at : 0,
+    batch: state.batch, coupon: state.coupon || 0, seen: [firstRoom, firstFridge, firstLab, firstStreet, firstWh] }));
+  if (!store.get('carry')) return false;                                     // 隐私模式存不下：就留在这一页里
+  location.reload();
+  return true;
+}
+let cameFrom = '';
+function arriveWith() {
+  const raw = store.get('carry');
+  if (!raw) return;
+  store.set('carry', '');
+  const c = JSON.parse(raw);
+  cameFrom = c.from;
+  state.batch = c.batch;
+  state.coupon = c.coupon;
+  [firstRoom, firstFridge, firstLab, firstStreet, firstWh] = c.seen;
+  if (!c.order) return;
+  state.order = { ...c.order, at: performance.now() / 1000 - c.age };
+  document.body.classList.add('has-order');
+  $('#cart').textContent = `订单 ${state.order.no}`;
+  hudStatic();
+}
 // 转场：遮罩盖上 → 牛排线稿画出来、填色（这时在后面切场景）→ 一刀斜着切过去 → 遮罩揭开
 let fadeTimer = 0;
-function fade(fn, label = '') {
+// 进一个场景之前先备齐（贴图、着色器、显存），备齐了才揭开：不会先看到一屋子白模
+const prepareScene = createPreparer(renderer, camera, postTarget);
+let preparing = 0, settledAt = 0, fadeTok = 0;
+const readyViews = new Set();                                                // 没备过的场景不画：直接画第一帧就是十几秒的卡死
+async function prepareView(view, onProgress) {
+  preparing++;
+  try {
+    await buildPlace(view, (p, l) => onProgress?.(p * 0.35, l));
+    const S = placeOf(view);
+    if (S.load) await S.load();
+    if ((view === 'street' || view === 'warehouse' || view === 'room') && !S.batched) { S.batched = true; await breathe(); batchStatic(S.scene); await breathe(); }   // 不会动的小件合并了再上显卡
+    const [hdri, strength] = HDRI[view], e = await envFrom(hdri, renderer);
+    if (e) { S.scene.environment = e; S.scene.environmentIntensity = strength; }
+    await prepareScene(S.scene, (p, l) => onProgress?.(0.35 + 0.65 * p, l));
+    readyViews.add(view);
+  } finally {
+    preparing--;
+    settledAt = performance.now();
+  }
+}
+// 帧率一直很低时自动把分辨率降一档（最多两档），比卡着好
+let fpsFrames = 0, fpsFrom = 0;
+function watchFps() {
+  const now = performance.now();
+  if (document.hidden || preparing || now - settledAt < 4000 || now - fpsFrom > 8000) { fpsFrames = 0; fpsFrom = now; return; }
+  fpsFrames++;
+  if (now - fpsFrom < 4000) return;
+  const fps = (fpsFrames * 1000) / (now - fpsFrom);
+  fpsFrames = 0; fpsFrom = now;
+  if (FX && fps < 24 && quality.scale > 0.75) { quality.scale *= 0.84; resize(); settledAt = now; }
+}
+function fade(fn, label, view) {
   const f = $('#fade');
   clearTimeout(fadeTimer);
   f.querySelector('.tl').textContent = label;
   f.classList.remove('out'); void f.offsetWidth; f.classList.add('on');
   hideTutorial();
-  fadeTimer = setTimeout(() => {
+  const tok = ++fadeTok;
+  fadeTimer = setTimeout(async () => {
+    if (otherPlaceBuilt(view) && moveOn()) return;
+    const say = (p) => { f.querySelector('.tl').textContent = p < 1 ? `${label} · ${Math.round(p * 100)}%` : label; };
+    preparing++;                                                           // 先把要去的地方搭出来，再切过去
+    try { await buildPlace(view, (p) => say(p * 0.35)); } finally { preparing--; }
+    if (tok !== fadeTok) return;
     fn();
+    await prepareView(view, say);
+    if (tok !== fadeTok) return;
     requestAnimationFrame(() => requestAnimationFrame(() => {                      // 等新场景画完第一帧再揭开
       f.classList.add('out');
       fadeTimer = setTimeout(() => f.classList.remove('on', 'out'), 650);
@@ -1283,7 +1394,8 @@ function fade(fn, label = '') {
   }, 720);
 }
 function setView(v) {
-  if (state.view === 'lab' && v !== 'lab') { unfocusLab(true); setMarquee(); }
+  if (state.view === 'lab' && v !== 'lab') { unfocusLab(true); setMarquee(); document.body.classList.remove('tanks-on'); labChoice.classList.remove('on'); labDraw.classList.remove('on'); }
+  if (state.view !== v && NAV[state.view]) { NAV[state.view].stop(); NAV[state.view].clear(); canvas.style.cursor = ''; }
   if (state.view !== v) { hideInfo(); if (state.sfocus) unfocusScene(true); }
   if (state.view === 'room' && v !== 'room') unfocusRoom(true);
   const changed = state.view !== v;
@@ -1295,7 +1407,7 @@ function setView(v) {
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   const [page, sub] = parts;
-  if (page === 'checkout' && !state.order) { location.replace('#/'); return toast('购物车是空的，请先在冷柜选购'); }
+  if (page === 'checkout' && !state.order) { location.replace('#/'); return toast('购物车是空的'); }
   if (page === 'live') { location.replace('#/lab' + (state.order ? '/batch' : '')); return; }
 
   if (page === 'lab') {
@@ -1304,16 +1416,18 @@ function route() {
       fade(() => {
         closeProduct(true);
         setView('lab');
-        Object.assign(labLook, { yaw: -6, tYaw: -6, pitch: -6, tPitch: -6, fov: 60 });
-        labWalk?.kill(); LAB_EYE.copy(LAB_HOME);
-        camera.fov = 60; camera.updateProjectionMatrix();
+        labWalk?.kill();
+        NAV.lab.reset();
+        camera.fov = labLook.fov; camera.updateProjectionMatrix();
+        labChosen = !!sub;
+        labChoice.classList.toggle('on', !sub);
         setMarquee(LAB_MARQUEE);
         if (sub) setTimeout(() => focusLab(sub), 450);
         else if (firstLab) {
           firstLab = false;
-          setTimeout(() => { if (state.view === 'lab' && !state.focus) showTutorial('拖动 · 环顾参观廊', '玻璃后面是加工间', 'drag'); }, 900);
+          setTimeout(() => { if (state.view === 'lab' && !state.focus) if (labChosen) showTutorial('', '', 'drag'); }, 900);
         }
-      }, '加工间 · WORKSHOP');
+      }, '加工间 · WORKSHOP', 'lab');
     } else if (sub) focusLab(sub);
     else unfocusLab();
     return;
@@ -1331,11 +1445,11 @@ function route() {
       camera.fov = L.fov; camera.updateProjectionMatrix();
       if (sub) setTimeout(() => { if (state.view === page && location.hash === `#/${page}/${sub}`) focusScene(sub); }, 450);
       setMarquee(page === 'street' ? STREET_MARQUEE : WH_MARQUEE);
-      if (page === 'street' && firstStreet) { firstStreet = false; setTimeout(() => { if (state.view === 'street') showTutorial('拖动 · 环顾街道', '点击圆形标签进店或查看细节', 'drag'); }, 700); }
-      if (page === 'warehouse') { whTok++; whWalking = false; setTimeout(() => { if (state.view === 'warehouse' && !state.sfocus) buildArrows(); }, 60); }
+      if (page === 'street' && firstStreet) { firstStreet = false; setTimeout(() => { if (state.view === 'street') showTutorial('', '', 'drag'); }, 700); }
+      if (page === 'warehouse') NAV.warehouse.stop();
       if (page === 'warehouse' && firstWh) { firstWh = false; setTimeout(() => { if (state.view === 'warehouse') showTutorial('', '', 'drag'); }, 700); }   // 不写字：一个拖动的小图标 + 地上一呼一吸的箭头
     };
-    if (state.view !== page) fade(() => { if (page === 'warehouse') { Object.assign(SCENE_HOME.warehouse, { yaw: WH_ENTRY.yaw, pitch: WH_ENTRY.pitch }); SCENE_HOME.warehouse.eye.copy(WH_ENTRY.eye); state.whStation = WH_NAV.start; } enter(); }, page === 'street' ? '店外 · STREET' : '仓库 · WAREHOUSE');   // 从外面进仓库：站回门口
+    if (state.view !== page) fade(() => { if (page === 'warehouse') NAV.warehouse.reset(); enter(); }, page === 'street' ? '店外 · STREET' : '仓库 · WAREHOUSE', page);   // 从外面进仓库：站回门口
     else if (sub) focusScene(sub);
     else if (state.sfocus) unfocusScene();
     else enter();
@@ -1352,8 +1466,8 @@ function route() {
         cam.pos.set(0.05, 1.5, 4.4); cam.target.set(0.05, 1.1, 0);
         flyCam(FRIDGE_OVERVIEW, 1.6);
         if (sub) setTimeout(enter, 900);
-        else if (firstFridge) { firstFridge = false; setTimeout(() => showTutorial('点击任意商品', '开门 · 定制 · 下单', 'tap'), 1600); }
-      }, '鲜肉柜 · FRESH MEAT');
+        else if (firstFridge) { firstFridge = false; setTimeout(() => showTutorial('', '', 'tap'), 1600); }
+      }, '鲜肉柜 · FRESH MEAT', 'fridge');
     } else enter();
     return;
   }
@@ -1367,16 +1481,15 @@ function route() {
     fade(() => {
       closeProduct(true);
       if (toOffice) goStation('office', true);
-      else if (fromOutside) { if (state.view === 'warehouse') goStation('storage', true); else { ROOM_HOME.copy(DOOR_EYE); ROOM_EYE.copy(DOOR_EYE); state.station = 'door'; } }   // 从外面进来，站回门口
-      if (fromOutside && !toOffice) Object.assign(look, { yaw: state.view === 'warehouse' ? 170 : 0, tYaw: state.view === 'warehouse' ? 170 : 0, pitch: -2, tPitch: -2 });   // 从门口进来面朝窗口，从仓库回来面朝仓库门
+      else if (fromOutside || state.view === 'boot') goStation(({ warehouse: 'storage', lab: 'right', fridge: 'fridge' })[state.view === 'boot' ? cameFrom : state.view] || 'door', true);   // 从外面进来站回门口，从仓库回来站在仓库门口
       setView('room');
-      look.fov = 62; camera.fov = 62; camera.updateProjectionMatrix();
+      camera.fov = look.fov; camera.updateProjectionMatrix();
       if (spot) focusRoom(spot);
       else if (firstRoom) {
         firstRoom = false;
-        setTimeout(() => { if (state.view === 'room' && !state.rfocus) showTutorial('拖动 · 环顾店里', '点击圆形标签走近', 'drag'); }, 700);
+        setTimeout(() => { if (state.view === 'room' && !state.rfocus) showTutorial('', '', 'drag'); }, 700);
       }
-    }, toOffice ? '办公室 · OFFICE' : '门店 · FUTURE MEAT');
+    }, toOffice ? '办公室 · OFFICE' : '门店 · FUTURE MEAT', 'room');
     return;
   }
   if (toOffice) { if (state.rfocus) unfocusRoom(true); goStation('office'); return; }
@@ -1389,26 +1502,22 @@ $('#back').addEventListener('click', () => {
   if (state.sfocus) location.hash = '#/' + state.view;
   else if (state.view === 'room' && state.rfocus === 'survey') location.hash = '#/tasting';
   else if (state.view === 'fridge' && state.sel) location.hash = '#/fridge';
-  else if (state.view === 'lab' && atBed()) location.hash = '#/lab/hall';
-  else if (state.view === 'lab' && state.focus) location.hash = '#/lab';
+  else if (state.view === 'lab' && state.focus) location.hash = '#/' + labParent();
   else if (state.view === 'room' && !state.rfocus) location.hash = '#/street';
   else location.hash = '#/';
 });
 
 // ------------------------------------------------------------------ 循环
 function resize() {
-  renderer.setSize(innerWidth, innerHeight, false);
+  renderer.setPixelRatio(pixelRatio()); renderer.setSize(innerWidth, innerHeight, false);   // 后期缓冲是走进第一个房间才建的：画布自己先定好大小
+  if (FX) resizePost(innerWidth, innerHeight);
   css.setSize(innerWidth, innerHeight);
-  post?.setSize(innerWidth, innerHeight);
-  postRoom?.setSize(innerWidth, innerHeight);
-  postFridge?.setSize(innerWidth, innerHeight);
-  postStreet?.setSize(innerWidth, innerHeight);
-  postWh?.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
+for (const n of Object.values(NAV)) n.reset();                             // 画面比例定下来以后，再算一次开场朝向
 
 const clock = new THREE.Clock();
 const tmp = new THREE.Vector3();
@@ -1425,12 +1534,17 @@ function stepLook(L, eye, dt) {
   camera.updateMatrixWorld();
 }
 function placeHotspots(list, near = 0) {
+  const act = state.view === 'lab' ? (labChosen && !(FC.on && FC.blend < 0.75) && !labWalk?.isActive() ? labStage() : '') : null;
+  const walking = NAV[state.view]?.walking;
   for (const { h, el, v } of list) {
     const s = project(v);
     el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -50%)`;
-    const far = near && Math.hypot(v.x - camera.position.x, v.z - camera.position.z) > near;
+    const size = THREE.MathUtils.clamp((innerHeight * 0.36) / Math.max(0.5, camera.position.distanceTo(v)), 52, 120).toFixed(0);
+    if (el.dataset.size !== size) { el.dataset.size = size; el.style.setProperty('--hit', size + 'px'); }
+    el.classList.toggle('flip', s.x > innerWidth - 170);
+    const lim = h.near || near, far = lim && Math.hypot(v.x - camera.position.x, v.z - camera.position.z) > lim;
     const wall = state.view === 'room' && (v.x < -7.05) !== (camera.position.x < -7.05);   // 办公室和大厅隔着墙：互相看不见对方的标签
-    el.classList.toggle('hidden', s.behind || far || wall);
+    el.classList.toggle('hidden', !!(s.behind || far || wall || walking || (act !== null && h.show && !h.show.includes(act))));
     el.classList.toggle('locked', !!h.locked || (!!h.needsOrder && !state.order));
   }
 }
@@ -1444,6 +1558,8 @@ function project(v) {
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
+  if (preparing || !readyViews.has(state.view)) { requestAnimationFrame(loop); return; }                    // 正在备场景：盖着转场画面，不用画
+  watchFps();
   // 批次一直在长，不管观众在不在看
   stepBatch(state.batch, dt);
   const R = readout(state.batch, t);
@@ -1451,24 +1567,30 @@ function loop() {
   renderer.toneMapping = tm; renderer.toneMappingExposure = te;
 
   if (state.view === 'room') {
+    NAV.room.tick(dt);
     stepLook(look, ROOM_EYE, dt);
     room.tick(t, state.order);
     placeHotspots(hsEls, 3.3);                                                   // 走近了（3.3 m 以内）才出现这件东西的交互按钮
-    placeNav(); placeWhNav();
+    NAV.room.update(t);
+    room.ledger.tick();
     if (postRoom) postRoom.render(t); else renderer.render(room.scene, camera);
     renderCSS();
     if (callouts.length) updateCallouts();
   } else if (state.view === 'street' || state.view === 'warehouse') {
     const S = state.view === 'street' ? street : wh;
+    if (state.view === 'warehouse') NAV.warehouse.tick(dt);
     if (state.view === 'warehouse' && FC.on) fcStep(); else stepLook(LOOKS[state.view].l, LOOKS[state.view].eye, dt);
     S.tick(t);
-    if (state.view === 'street') placeHotspots(streetEls); else { placeHotspots(whEls, 5.5); placeWhNav(t); }   // 仓库：走近了（5.5 m 内）才出现标签；地上的箭头
+    if (state.view === 'street') placeHotspots(streetEls); else { NAV.warehouse.update(t); placeHotspots(whEls, 7.6); }   // 仓库：走近了（7.6 m 内）才出现标签；地上的箭头
     const P = state.view === 'street' ? postStreet : postWh;
     if (P) P.render(t); else renderer.render(S.scene, camera);
     if (callouts.length) updateCallouts();
   } else if (state.view === 'lab') {
-    stepLook(labLook, LAB_EYE, dt);
+    NAV.lab.tick(dt);
+    if (FC.on && FC.view === 'lab') fcStep(); else stepLook(labLook, LAB_EYE, dt);
     lab.tick(t, dt, state.batch, R);
+    NAV.lab.update(t);
+    updateLabControls();
     placeHotspots(labEls);
     const showTanks = state.focus === 'hall';
     document.body.classList.toggle('tanks-on', showTanks);
@@ -1502,25 +1624,30 @@ function loop() {
     if (postFridge) postFridge.render(t); else renderer.render(fr.scene, camera);
   }
 
+  feedback(dt);
   requestAnimationFrame(loop);
 }
 
 // 一打开先站在店外的街上
-if (!location.hash || location.hash === '#' || location.hash === '#/') location.replace('#/street');
+const atShop = !!store.get('carry') && ['', '#', '#/'].includes(location.hash);   // 从别处走回门店（#/）：不是第一次打开，别送回街上
+if (!atShop && (!location.hash || location.hash === '#' || location.hash === '#/')) location.replace('#/street');
 setMarquee();
-setView(location.hash.startsWith('#/street') ? 'street' : location.hash.startsWith('#/warehouse') ? 'warehouse' : 'room');
+const firstOf = (h) => (h.startsWith('#/warehouse') ? 'warehouse' : h.startsWith('#/lab') ? 'lab' : h.startsWith('#/fridge') ? 'fridge' : h.replace(/^#\/?/, '') === '' || h.startsWith('#/street') ? 'street' : 'room');
+const firstView = atShop ? 'room' : firstOf(location.hash);
+arriveWith();
 camera.fov = 60; camera.updateProjectionMatrix();
-// 预编译着色器（threejs-performance：Shader Compile Stalls）：开场只等第一眼看到的那个场景，其余场景揭开以后在后台一个个编译，
-// 这样开场不用多等，第一次进门店 / 仓库时也不会顿一下
-const firstView = location.hash.startsWith('#/warehouse') ? wh.scene : location.hash.startsWith('#/lab') ? lab.scene : location.hash.startsWith('#/fridge') ? fr.scene : location.hash.replace(/^#\/?/, '') === '' || location.hash.startsWith('#/street') ? street.scene : room.scene;
-await stage(0.86, '预热第一个场景');
-try { await renderer.compileAsync(firstView, camera); } catch (e) { /* 不支持就跳过 */ }
-await stage(0.93, '点亮招牌');                                                  // 第一帧要编译后期处理的着色器，要几秒；这时外圈文字、颗粒、牛排都还在动（合成线程）
+// 开场只下载、只搭第一眼看到的那个地方
+await prepareView(firstView, (p, label) => {
+  const q = 0.06 + 0.92 * p;
+  if (LD.el) LD.el.textContent = `${label || '摆好货'} · ${Math.round(q * 100)}%`;
+  if (LD.arc) LD.arc.style.strokeDashoffset = String(1 - q);
+});
+if (firstView === 'street' || firstView === 'warehouse') setView(firstView);     // 其余的进门动作在 route() 的转场里做
+await stage(0.99, '点亮招牌');
 loop();
 route();
-// 真正画出两帧之后才到 100% 并揭开；然后在后台把别的场景也编译好
+// 真正画出两帧之后才到 100% 并揭开
 requestAnimationFrame(() => requestAnimationFrame(() => {
   if (LD.el) LD.el.textContent = '开门营业 · 100%'; if (LD.arc) LD.arc.style.strokeDashoffset = '0';
   setTimeout(() => $('#loading').classList.add('gone'), 250);
-  (async () => { for (const sc of [room.scene, street.scene, fr.scene, wh.scene, lab.scene]) { if (sc === firstView) continue; await new Promise((r) => setTimeout(r, 1200)); try { await renderer.compileAsync(sc, camera); } catch (e) { /* 跳过 */ } } })();
 }));

@@ -210,7 +210,7 @@ export function createFridgeScene(env) {
   for (const x of [-1.95, -1.88, 1.92, 2.0]) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 3.2, 8), conduit); c.position.set(x, 1.6, -0.42); scene.add(c); }
   for (const [x, y] of [[-1.92, 1.05], [1.96, 0.85], [1.96, 2.3]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.06), conduit); b.position.set(x, y, -0.4); scene.add(b); }
   { const df = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.3, 0.08), M.graphite); df.position.set(-2.75, 1.15, -0.42); scene.add(df);
-    const fg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2.05), new THREE.MeshPhysicalMaterial({ color: 0xc8c4b4, roughness: 0.6, transmission: 0.2, emissive: new THREE.Color(0.25, 0.2, 0.12) })); fg.position.set(-2.75, 1.15, -0.37); scene.add(fg); }
+    const fg = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 2.05), new THREE.MeshStandardMaterial({ color: 0xc8c4b4, roughness: 0.6, emissive: new THREE.Color(0.25, 0.2, 0.12) })); fg.position.set(-2.75, 1.15, -0.37); scene.add(fg); }
   { const st = new THREE.MeshStandardMaterial({ color: 0xa8aaa4, roughness: 0.35, metalness: 0.85, map: grimeMap(13) });
     const top = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.04, 0.6), st); top.position.set(2.7, 0.88, -0.1); scene.add(top);
     for (const [x, z] of [[-0.6, -0.26], [0.6, -0.26], [-0.6, 0.26], [0.6, 0.26]]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.88, 8), st); l.position.set(2.7 + x, 0.44, -0.1 + z); scene.add(l); }
@@ -232,7 +232,7 @@ export function createFridgeScene(env) {
   decal('SurfaceImperfections011', scene, { pos: [0.1, 0.003, 0.7], rot: [-Math.PI / 2, 0, 0.4], w: 1.4, h: 1.0, color: 0x3a3a34, opacity: 0.6, roughness: 0.1 });
   decal('SurfaceImperfections017', scene, { pos: [-0.6, 0.0035, 1.4], rot: [-Math.PI / 2, 0, 1.2], w: 3.0, h: 2.0, color: 0x2e2a24, opacity: 0.5 });
   decal('Smear007', scene, { pos: [1.8, 0.004, 1.0], rot: [-Math.PI / 2, 0, 2.0], w: 2.0, h: 1.3, color: 0x2a2a24, opacity: 0.2, roughness: 0.12 });
-  scene.add(new THREE.HemisphereLight(0xc0b094, 0x221a12, 0.32));
+  scene.add(new THREE.HemisphereLight(0x66a8a2, 0x18130e, 0.36));
   const key = new THREE.SpotLight(0xffe0b4, 12, 8, 0.6, 0.7, 1.5);
   key.position.set(0.4, 3.1, 1.8); key.target.position.set(0, 1, 0);
   key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -0.0005;
