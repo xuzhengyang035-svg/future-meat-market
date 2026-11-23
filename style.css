@@ -18,7 +18,7 @@ html, body { height: 100%; overflow: hidden; background: #121412; color: var(--i
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 body.grabbing canvas#c { cursor: grabbing; }
-body[data-view="fridge"] canvas#c { cursor: default; }
+body.at-fridge canvas#c { cursor: default; }
 
 /* 顶栏 */
 .top { position: fixed; top: 0; left: 0; right: 0; height: 64px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 20; }
@@ -63,7 +63,7 @@ body:not([data-view="lab"]) #labspots, body.lab-focus:not(.lab-staged) #labspots
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.7); } 70% { box-shadow: 0 0 0 14px rgba(255,255,255,0); } 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } }
 
 /* 冷柜商品点 */
-body:not([data-view="fridge"]) #products, body.product-open #products { display: none; }
+body:not(.at-fridge) #products, body.product-open #products { display: none; }
 .ps { position: absolute; left: 0; top: 0; pointer-events: auto; display: flex; align-items: center; gap: 8px; transform-origin: 0 0; }
 .ps .dot { width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 0 rgba(255,255,255,.8); animation: pulse 2s infinite; position: relative; }
 .ps .dot::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--red); }
@@ -656,3 +656,21 @@ body.modal-open .ways { display: none; }
 #back > span:last-child { color: #f2f7f5; text-shadow: 0 1px 5px rgba(0,0,0,.55); }
 #screen .ptitle.head { margin-top: 0; border-top: 0; align-items: center; }
 #screen .ptitle.head h2 { margin: 0; }
+
+/* 拿起来看：周围暗下去，拖动翻转，点空白放回去（inspect.js） */
+#inspect { position: fixed; inset: 0; z-index: 8; pointer-events: none; opacity: 0; transition: opacity .35s ease; cursor: grab; }
+#inspect.on { pointer-events: auto; opacity: 1; }
+#inspect.grab { cursor: grabbing; }
+#inspect .shade { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(1,10,9,0) 0, rgba(1,10,9,.18) 16vmin, rgba(1,10,9,.72) 42vmin); }
+#inspect .name { position: absolute; left: 50%; bottom: 66px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; border: 1px solid rgba(236,250,246,.3); background: rgba(4,20,19,.55); color: #f2fbf8; font: 500 13px/1 "Inter", "Noto Sans SC", sans-serif; letter-spacing: .12em; white-space: nowrap; }
+#inspect .turn { position: absolute; left: 50%; bottom: 108px; width: 34px; height: 34px; margin-left: -17px; opacity: .7; animation: turnHint 2.4s ease-in-out infinite; }
+#inspect .turn svg { width: 100%; height: 100%; fill: none; stroke: #f2f7f5; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#inspect.grab .turn, #inspect.turned .turn { opacity: 0; transition: opacity .3s; }
+@keyframes turnHint { 0%, 100% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } }
+body.inspecting #callouts, body.inspecting .ways, body.inspecting #hotspots, body.inspecting .spots { opacity: 0 !important; pointer-events: none !important; }
+
+/* 广告播完的小动画：低分辨率放大，像店里那台便宜电视 */
+.film .promo { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; transition: opacity .4s; background: #0d0b0a; }
+.film.promoing .promo { opacity: 1; }
+.film.promoing .slide, .film.promoing .logo, .film.promoing .bar, .film.promoing .skip { opacity: 0 !important; }
+.film .big small { font-size: 34px; }

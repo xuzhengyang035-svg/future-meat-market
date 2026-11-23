@@ -100,6 +100,13 @@ async function fetchTextures(textures, onProgress) {
   await Promise.race([Promise.all(Array.from({ length: 24 }, worker)), new Promise((r) => setTimeout(r, 90000))]);
 }
 
+// 场景备好以后才建的东西（拿在手里看的物件）：把它用到的贴图补下载
+export async function loadTexturesOf(root) {
+  const list = new Set();
+  root.traverse((o) => { for (const m of [o.material].flat()) if (m) for (const v of Object.values(m)) if (v?.isTexture && bySource.has(v.source)) list.add(v); });
+  await fetchTextures(list, () => {});
+}
+
 // 让出一帧。页面在后台时没有 rAF、计时器也被压到一秒一次：改用消息排队，不然后台标签页里要加载好几分钟
 export const breathe = () => new Promise((res) => {
   let done = false;
@@ -216,24 +223,24 @@ export function createPreparer(renderer, camera, getTarget) {
   }
 
   async function prepare(scene, onProgress = () => {}) {
-    if (current === scene) return onProgress(1, '开门营业');
+    if (current === scene) return onProgress(1, 'Open for business');
     if (current) { release(current, scene); await breathe(); }
     current = scene;
-    await fetchTextures(contentsOf(scene).textures, (p) => onProgress(0.4 * p, '贴图到货'));
+    await fetchTextures(contentsOf(scene).textures, (p) => onProgress(0.4 * p, 'Extracting cells'));
 
     const all = [], shown = [];
     const drawable = (o) => (o.isMesh || o.isPoints || o.isLine || o.isSprite) && o.material;
     scene.traverse((o) => { if (drawable(o)) all.push(o); });
     scene.traverseVisible((o) => { if (drawable(o)) shown.push(o); });
     if (!warmed.has(scene)) {
-      await compile(scene, all, (p) => onProgress(0.4 + 0.25 * p, '调配材质'));   // 现在藏着的（帘子后面的）也一起编译
+      await compile(scene, all, (p) => onProgress(0.4 + 0.25 * p, 'Feeding the cultures'));   // 现在藏着的（帘子后面的）也一起编译
       warmed.add(scene);
     }
     const { textures } = contentsOf(scene);
-    await fetchTextures(textures, (p) => onProgress(0.65 + 0.05 * p, '贴图到货'));
-    await inSlices([...textures].filter((t) => t.version > 0 && t.image && !t.isCubeTexture), (t) => renderer.initTexture(t), (p) => onProgress(0.7 + 0.15 * p, '铺贴图'), flush);
-    await drawOnce(scene, shown, (p) => onProgress(0.85 + 0.15 * p, '摆好货'));
-    onProgress(1, '开门营业');
+    await fetchTextures(textures, (p) => onProgress(0.65 + 0.05 * p, 'Checking cell counts'));
+    await inSlices([...textures].filter((t) => t.version > 0 && t.image && !t.isCubeTexture), (t) => renderer.initTexture(t), (p) => onProgress(0.7 + 0.15 * p, 'Harvesting tissue'), flush);
+    await drawOnce(scene, shown, (p) => onProgress(0.85 + 0.15 * p, 'Stocking the counter'));
+    onProgress(1, 'Open for business');
   }
 
   let chain = Promise.resolve();

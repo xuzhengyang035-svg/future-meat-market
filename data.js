@@ -73,7 +73,7 @@ export const ROOM_NAV = {
   // 门店的八个点位；路线都走在桌子、吧台和肉柜之间的空地上
   eye: 1.62, fov: 62, pitch: -8, start: 'door',
   path: { mark: 1.7, width: 0.2, radius: 0.6 },
-  pace: { speed: 1.5, accel: 1.1, turn: 58 },
+  pace: { speed: 1.85, accel: 1.35, turn: 70 },
   nodes: {
     door:    { name: '门口', at: [0.4, 3.3], face: -6 },
     counter: { name: '吧台', at: [0.4, -0.45] },
@@ -86,6 +86,7 @@ export const ROOM_NAV = {
   },
   routes: [
     { a: 'door', b: 'counter' },
+    { a: 'door', b: 'fridge', via: [[0.0, 1.3], [-0.55, -0.6], [-1.75, -1.15]], markA: 1.0 },                            // 进门直接去鲜肉柜
     { a: 'door', b: 'right', via: [[1.9, 2.8], [2.6, 1.9]] },
     { a: 'door', b: 'dining', via: [[-1.0, 2.75]] },
     { a: 'counter', b: 'right' },
@@ -126,20 +127,8 @@ export const STREET_MARQUEE = '鲜肉 · 冻品 · 熟食 · ';
 export const STREET_HOTSPOTS = [
   { id: 'enter', label: 'ENTER · 进店 · ', pos: [-1.1, 1.6, 0.4], route: '',
     marquee: '进店 · ' },
-  { id: 'window', label: 'WINDOW · 橱窗 · ', pos: [-4.1, 1.6, 0.3], subtle: true, eye: [-2.6, 1.65, 4.2], at: [-3.0, 1.3, -0.6], fov: 54,
-    marquee: '橱窗 · ',
-    info: [
-      { at: [-4.6, 1.0, -0.6], title: '冷藏肉柜' },
-      { at: [1.0, 2.4, -0.35], title: '挂着的香肠和火腿' },
-    ] },
   { id: 'side', label: '02 号门 · 仓库 · ', pos: [6.4, 1.0, 0.4], route: 'warehouse',
     marquee: '02 号门 · 收货 · 仓库 · ' },
-  { id: 'gas', label: 'CYLINDERS · 气瓶 · ', pos: [3.75, 1.3, 0.5], subtle: true, eye: [5.2, 1.8, 4.0], at: [4.4, 1.8, 0.2], fov: 58,
-    marquee: 'CO₂ 气瓶 · 排风口 · ',
-    info: [
-      { at: [3.75, 1.3, 0.4], title: 'CO₂ 气瓶 × 2' },
-      { at: [6.4, 4.1, 0.3], title: '排风口' },
-    ] },
 ];
 
 // ------------------------------------------------------------------ 仓库（交互文字用中文；场景里的牌子、印字保持英文）
@@ -150,7 +139,7 @@ export const WH_NAV = {
   // 七个固定点位。routes = 点位之间画好的路：via 是拐点 [x, z, 地面高度]；markA / markB = 两个方向的路标放在路上第几米（不写就用 path.mark）
   eye: 1.65, fov: 64, pitch: -9, start: 'door',
   path: { mark: 3.2, width: 0.36 },
-  pace: { speed: 3.1, stairs: 1.5, accel: 1.6, turn: 62 },                  // 仓库大：走得快一点，但还是人的起步和停步
+  pace: { speed: 3.7, stairs: 1.8, accel: 1.9, turn: 74 },                  // 仓库大：走得快一点，但还是人的起步和停步
   nodes: {
     door:  { name: '门口', at: [-1.3, 2.0], face: -22 },   // 门口
     mid:   { name: '主通道', at: [-1.6, -11.6] },            // 主通道中间，两排货架之间
@@ -177,60 +166,32 @@ export const WH_HOTSPOTS = [
   { id: 'fbs', view: { mode: 'orbit', az: 55, el: [12, 60] }, label: '冷链收货 · ', pos: [-7.5, 1.15, -1.0], eye: [-5.0, 1.75, 0.7], at: [-7.6, 0.55, -1.15], fov: 50,
     marquee: '冷链收货 · 胎牛血清 · −20 ℃ · ',
     info: [
-      { at: [-7.3, 0.5, -0.9], title: '拆开的泡沫箱' },
-      { at: [-7.9, 0.95, -1.4], title: '卧式冷柜 · 样品收货' },
+      { at: [-7.3, 0.55, -0.9], title: '胎牛血清', item: 'fbs' },
     ] },
   { id: 'packing', view: { mode: 'orbit', az: 45, el: [10, 55] }, label: '配货台 · ', pos: [2.0, 1.45, 3.35], eye: [2.9, 1.75, 1.3], at: [2.6, 1.0, 3.5], fov: 50,
     marquee: '订单配货 · 包装耗材 · ',
     info: [
-      { at: [1.95, 0.95, 3.5], title: '订单配货台' },
-      { at: [4.7, 1.2, 3.6], title: '包装耗材架' },
-    ] },
-  { id: 'media', view: { mode: 'track', a: [1.25, 1.7, -0.4], b: [1.25, 1.7, -16.9], look: [1, 0, 0], u0: 0.19, tilt: 35, fov: 60 }, label: '原料货架 · ', pos: [2.1, 2.5, -3.5], eye: [-0.2, 1.75, -1.6], at: [2.4, 1.3, -3.7], fov: 50,
-    marquee: '培养原料 · 支架原料 · 回收纸箱 · ',
-    info: [
-      { at: [2.35, 0.45, -3.3], title: '大豆分离蛋白 · 25 kg 编织袋' },
-      { at: [2.35, 1.9, -3.7], title: '回收纸箱和杂物' },
+      { at: [1.95, 0.98, 3.5], title: '待发的订单', item: 'order' },
     ] },
   { id: 'cold', view: { mode: 'orbit', az: 40, el: [5, 40] }, label: '细胞库 · ', pos: [-1.5, 2.6, -24.2], eye: [-0.6, 1.75, -18.6], at: [-1.6, 1.6, -24.3], fov: 56,
     marquee: '冷库 · 细胞库 · −196 ℃ · ',
     info: [
-      { at: [-0.6, 3.3, -24.15], title: '细胞库 MCB-07' },
-      { at: [-4.4, 1.2, -23.3], title: '液氮罐' },
-      { at: [-1.3, 1.0, -23.4], title: '交接推车' },
+      { at: [-1.3, 1.05, -23.4], title: '冻存管', item: 'vial' },
     ] },
   { id: 'freezer', view: { mode: 'track', a: [10.5, 2.1, -16.5], b: [10.5, 2.1, -23.0], look: [0.62, -1.5, 0], u0: 0.3, tilt: 14, fov: 60 }, label: '冷冻区 · ', pos: [11.0, 1.25, -19.3], eye: [8.9, 1.7, -17.4], at: [11.0, 0.7, -19.6], fov: 56,
     marquee: '冷冻区 · −25 ℃ · 冻品 · ',
     info: [
-      { at: [11.2, 0.6, -18.5], title: '开着盖的冷冻柜' },
-      { at: [10.94, 0.75, -20.1], title: '用了很多年的旧冷柜' },
-      { at: [9.3, 0.9, -20.5], title: '刚出库的冻品托盘' },
+      { at: [11.2, 0.62, -18.5], title: '冻肉', item: 'frozen' },
     ] },
   { id: 'crates', view: { mode: 'orbit', az: 50, el: [10, 45] }, label: '运输笼 · ', pos: [-10.0, 2.9, -15.9], eye: [-8.6, 2.85, -12.8], at: [-10.1, 1.6, -16.2], fov: 54,
     marquee: '卸货月台 · 动物运输笼 · ',
     info: [
-      { at: [-9.8, 1.8, -15.2], title: '空运输笼' },
+      { at: [-9.8, 1.25, -15.2], title: '笼里的耳标', item: 'eartag' },
     ] },
   { id: 'desk', view: { mode: 'orbit', az: 50, el: [15, 60] }, label: '点验台 · ', pos: [-7.9, 1.3, -11.6], eye: [-6.0, 1.75, -10.8], at: [-7.9, 0.8, -11.6], fov: 46, subtle: true,
     marquee: '值班点验台 · 三联收货单 · ',
     info: [
-      { at: [-7.9, 0.8, -11.6], title: '三联收货单' },
-    ] },
-  { id: 'returns', view: { mode: 'orbit', az: 30, el: [10, 50] }, label: '返箱区 · ', pos: [-6.0, 1.6, -27.5], eye: [-7.4, 1.75, -23.6], at: [-6.1, 0.9, -27.5], fov: 52, subtle: true,
-    marquee: '牧场送样 · 返箱 · 冷链交接 · ',
-    info: [
-      { at: [-6.0, 0.9, -27.4], title: '牧场送样返箱' },
-      { at: [-9.0, 2.6, -29.9], title: '02 号门' },
-    ] },
-  { id: 'break', view: { mode: 'orbit', az: 45, el: [10, 55] }, label: '休息角 · ', pos: [11.3, 1.3, -13.4], eye: [9.2, 1.7, -15.2], at: [11.3, 0.85, -13.4], fov: 50, subtle: true,
-    marquee: '员工休息角 · ',
-    info: [
-      { at: [11.3, 0.82, -13.3], title: '休息角' },
-    ] },
-  { id: 'charging', view: { mode: 'orbit', az: 40, el: [8, 40] }, label: '充电区 · ', pos: [11.2, 1.8, -4.3], eye: [8.4, 1.75, -6.6], at: [10.8, 1.0, -4.3], fov: 52, subtle: true,
-    marquee: '叉车充电 · ',
-    info: [
-      { at: [11.8, 1.4, -3.2], title: '充电位' },
+      { at: [-7.9, 0.82, -11.6], title: '收货单', item: 'grn' },
     ] },
   { id: 'office', label: '办公室 · ', pos: [-4.8, 1.5, 3.9], route: 'office',
     marquee: '办公室 · 供体登记簿 · ' },
@@ -268,7 +229,7 @@ export const LAB_HOTSPOTS = [
   { id: 'batch', label: '你的批次 · ', pos: [0.55, 1.36, -1.72], route: 'lab/batch', show: ['glass'],
     marquee: '你的批次 · 细胞密度 · 存活率 · 倍增时间 · ' },
   { id: 'bench', label: '培养肉留样 · ', pos: [-1.3, 1.08, -1.78], route: 'lab/bench', show: ['glass'],
-    marquee: '显微镜 · 切片架 · 留样托盘 · 交班单 · ', view: peek(-0.42, [-0.78, 0.98, -1.8], 44, { reach: 1.2, tilt: 20, y: 1.72 }) },
+    marquee: '显微镜 · 切片架 · 留样托盘 · 交班单 · ', info: [{ at: [-0.55, 0.95, -1.7], title: '交班单', item: 'handover' }], view: peek(-0.42, [-0.78, 0.98, -1.8], 44, { reach: 1.2, tilt: 20, y: 1.72 }) },
   { id: 'ward', label: '拉开帘子 · ', pos: [-0.1, 1.72, -2.4], route: 'lab/ward', show: ['glass'],
     marquee: '帘子后面 · 5 张采样床 · ',
     view: { mode: 'track', a: [-2.6, 1.78, -0.15], b: [4.2, 1.78, -0.15], look: [0, -0.15, -1], u0: 0.353, tilt: 26, fov: 64, zoomFov: [30, 68] } },
@@ -295,7 +256,7 @@ export const LAB_HOTSPOTS = [
 export const LAB_NAV = {
   eye: 1.62, fov: 62, pitch: -12, start: 'entry',
   path: { mark: 1.8, width: 0.2, radius: 0.7 },
-  pace: { speed: 1.45, accel: 1.1, turn: 58 },
+  pace: { speed: 1.8, accel: 1.35, turn: 70 },
   nodes: {
     entry: { name: '入口', at: [1.3, 3.05], views: [-7], pitch: -12 },                      // 一进门正对着整面玻璃
     west:  { name: '显微镜台', at: [-2.6, 0.75], views: [59] },
@@ -347,8 +308,7 @@ export const ASK_ANIMAL = /供体|动物|屠宰|牛|猪|鸡|鱼|活检|取样|�
 // at 是三维锚点，dx/dy 是标注框相对锚点的屏幕偏移（像素）
 export const CALLOUTS = {
   tasting: [
-    { at: [0.1, 1.0, -3.7], title: '香煎培养牛排' },
-    { at: [0.45, 1.07, -1.95], title: '试吃块' },
+    { at: [0.45, 1.07, -1.95], title: '试吃块', item: 'sample' },
   ],
   checkout: [],
   records: [],
@@ -366,9 +326,9 @@ export const CERAMIC_BASE = [
 
 // 广告屏：品牌片，一页一页播放
 export const BRAND_FILM = [
-  { big: 'GROWN,<br>NOT RAISED.', small: '无需饲养 · 无需屠宰' },
-  { big: '0', unit: '头', small: '动物因你的晚餐被屠宰' },
-  { big: '24', unit: 'h', small: '加工间全天开放参观' },
-  { big: '细胞来自<br>合作牧场', small: '供体动物在牧场饲养。', poster: 'beef' },
+  { big: 'GROWN,<br>NOT RAISED.', small: 'No farming · No slaughter' },
+  { big: '0', unit: 'animals', small: 'slaughtered for your dinner' },
+  { big: '24', unit: 'h', small: 'Our processing hall is open to visitors' },
+  { big: 'Cells from<br>partner farms', small: 'Donor animals live on the farm.', poster: 'beef' },
 ];
 export const BRAND_FINE = '*1 指培养生产环节不涉及屠宰，不包括供体动物的选育、取样与饲养。 *2 参观范围为细胞培养车间。';

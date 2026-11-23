@@ -438,7 +438,7 @@ export function createLab(env) {
   // 真实模型：右头的试剂套装、台灯、记录夹；参观廊里一张铁凳和地上的提示牌
   model('chemistry_set', { pos: [4.15, 0.936, FZ - 0.06], rot: -0.1, scale: 0.72, parent: root });
   model('clipboard', { pos: [3.86, 0.937, FZ + 0.16], rot: 0.35, parent: root });
-  model('desk_lamp_arm_01', { pos: [2.62, 0.936, FZ - 0.22], rot: -0.6, scale: 0.85, parent: root });
+  model('desk_lamp_arm_01', { pos: [2.66, 0.936 + 0.088 * 0.85, FZ - 0.12], rot: 1.77, scale: 0.85, parent: root });   // 底座坐在台面上，灯头照着台面（原来陷进台面 7 cm、灯头朝墙）
   model('metal_stool_01', { pos: [-2.2, 0, 3.6], rot: 0.6, tilt: 0.04, parent: root });
   model('WetFloorSign_01', { pos: [-3.6, 0, 3.4], rot: -0.4, scale: 1.25, parent: root });
   // 参观廊：门口到玻璃前踩出来的脏印、拖地的湿痕；墙角返潮

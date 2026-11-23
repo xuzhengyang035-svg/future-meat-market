@@ -146,8 +146,9 @@ export function buildOffice(ctx) {
   ledgerG.position.set(DX + 0.12, T, DZc + 0.12); ledgerG.rotation.y = Math.PI / 2 - 0.08; g.add(ledgerG);
   { const pn = pencil(); pn.position.set(DX - 0.15, T + 0.006, DZc + 0.12); pn.rotation.y = 0.5; g.add(pn); }   // 铅笔搁在登记簿旁边（不压着书页）
   // 台灯
-  model('desk_lamp_arm_01', { pos: [DX - 0.25, T, DZc + 0.66], rot: 2.4, parent: g });
-  const lampL = new THREE.PointLight(0xffa450, 1.1, 2.6, 1.5); lampL.position.set(DX - 0.07, T + 0.5, DZc + 0.48); g.add(lampL);
+  // 台灯：底座坐在桌面上（模型原点在底座中间，底座底面比原点低 8.8 cm），灯头探到登记簿上方
+  model('desk_lamp_arm_01', { pos: [DX - 0.11, T + 0.088, DZc + 0.42], rot: -0.69, parent: g });
+  const lampL = new THREE.PointLight(0xffa450, 1.1, 2.6, 1.5); lampL.position.set(DX, T + 0.62, DZc + 0.28); g.add(lampL);
   // 电话：米色按键座机，听筒架在上面，卷线
   { const ph = new THREE.Group(); ph.position.set(DX + 0.2, T, DZc + 0.58); ph.rotation.y = Math.PI / 2 + 0.3; g.add(ph);
     const pm = pbr('Plastic013B', 0.21, 0.22, { size: 0.25, color: 0xd6cdb4, roughness: 0.5 });
@@ -180,7 +181,7 @@ export function buildOffice(ctx) {
     RB(0.06, 0.016, 0.03, 0.003, railM, sx, T + 0.015, sz).rotation.y = 0.5;
     box(0.056, 0.007, 0.026, pbr('Rubber004', 0.056, 0.026, { size: 0.1, color: 0x6a2420 }), sx, T + 0.0035, sz, g).rotation.y = 0.5;
 
-    const calc = new THREE.Group(); calc.position.set(DX - 0.07, T, DZc + 0.47); calc.rotation.y = Math.PI / 2 - 0.3; g.add(calc);
+    const calc = new THREE.Group(); calc.position.set(DX - 0.2, T, DZc + 0.62); calc.rotation.y = Math.PI / 2 - 0.3; g.add(calc);
     const side = new THREE.Shape([[-0.0735, 0.002], [0.0735, 0.002], [0.0735, 0.012], [-0.0735, 0.027]].map(([a, b]) => new THREE.Vector2(a, b)));
     const shellGeo = new THREE.ExtrudeGeometry(side, { depth: 0.103, bevelEnabled: false }); shellGeo.rotateY(-Math.PI / 2); shellGeo.translate(0.0515, 0, 0);
     { const uv = shellGeo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 0.147, uv.getY(i) / 0.103); }

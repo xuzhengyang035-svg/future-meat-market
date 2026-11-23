@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRoom } from './room.js';
-import { createFridgeScene } from './fridge.js';
 import { createLab } from './lab.js';
 import { createNav } from './nav.js';
 import { batchStatic } from './batch.js';
@@ -9,8 +8,10 @@ import { focusLight } from './atmosphere.js';
 import { createStreet } from './street.js';
 import { createWarehouse } from './warehouse.js';
 import './lightcull.js';
+import { createInspector } from './inspect.js';
+import { playPromo } from './promo.js';
 import { createPost, resizePost, postTarget, pixelRatio, quality } from './post.js';
-import { initAssets, createPreparer, breathe } from './gfx.js';
+import { loadTexturesOf, initAssets, createPreparer, breathe } from './gfx.js';
 import { preloadModels, SCENE_MODELS, envFrom, loadManifest } from './assets.js';
 import { renderPosters, posterTexture } from './posters.js';
 import { paperHTML } from './papers.js';
@@ -33,7 +34,7 @@ canvas.addEventListener('webglcontextlost', (e) => {
   e.preventDefault();
   const box = document.getElementById('loading'), again = !store.get('lowgfx');
   box.classList.remove('gone');
-  box.querySelector('.lt').textContent = again ? '显存不够 · 正在用省内存模式重新打开' : '显存不够 · 请关掉别的 3D 页面后刷新';
+  box.querySelector('.lt').textContent = again ? 'Out of graphics memory · reopening in low-memory mode' : 'Out of graphics memory · close other 3D pages and reload';
   if (again) { store.set('lowgfx', '1'); setTimeout(() => location.reload(), 1500); }
 });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -50,7 +51,7 @@ async function stage(p, label) {
   if (LD.arc) LD.arc.style.strokeDashoffset = String(1 - p);
   await breathe();
 }
-await stage(0.02, '准备招牌');
+await stage(0.02, 'Unlocking the shutters');
 await initAssets();
 // 画布上的文字（海报、标牌）要等字体加载好再画
 await Promise.race([
@@ -59,14 +60,16 @@ await Promise.race([
   new Promise((r) => setTimeout(r, 3000)),
 ]).catch(() => {});
 
-await stage(0.05, '进货'); await loadManifest();
+await stage(0.05, 'Receiving deliveries'); await loadManifest();
 
 // 五个地方都是走到了才下载、才搭：街道、门店、冷柜、加工间、仓库
 let room = null, fr = null, fridge = null, lab = null, street = null, wh = null;
 let PH = null, POSTER = null;
 let post = null, postRoom = null, postFridge = null, postStreet = null, postWh = null;
 let originalScreenMap = null, screenTint = null;
-const placeOf = (view) => ({ room, fridge: fr, lab, street, warehouse: wh })[view];
+const placeOf = (view) => ({ room, fridge: room, lab, street, warehouse: wh })[view];
+const atFridge = () => state.view === 'room' && state.rfocus === 'fridge' && !!fridge;   // 站在门店的鲜肉柜前面
+let pendingProduct = null;                                                   // 走到柜前以后要打开的那件
 // “快乐动物”广告海报：第一次要用的时候离屏拍好，贴到门店灯箱、冷柜两侧灯箱、告示栏照片上
 function ensurePosters() {
   if (PH) return;
@@ -74,6 +77,7 @@ function ensurePosters() {
   POSTER = Object.fromEntries(ORDER.map((k) => [k, posterTexture(PH.posters[k])]));
 }
 function setFridgePosters(k = 'beef') {
+  if (!fr) return;                                                             // 灯箱只在原来单独的冷柜场景里有
   const next = ORDER[(ORDER.indexOf(k) + 2) % ORDER.length];
   fr.posters[0].material.map = POSTER[k];
   fr.posters[1].material.map = POSTER[next];
@@ -86,16 +90,14 @@ const PLACES = {
     room = createRoom(env);
     room.setPosters(['beef', 'pork', 'chicken', 'fish'].map((k) => POSTER[k]), PH.photos);
     mountRoomSurfaces();
-    postRoom = grade(room.scene, { uSat: 0.96, uShadow: [-0.012, 0.01, 0.012], uHigh: [0.035, 0.015, -0.035], uContrast: 1.09, uVignette: 0.62 });   // 门店：暗处偏青，灯泡底下暖黄
-  },
-  async fridge() {
-    ensurePosters(); await breathe();
-    fr = createFridgeScene(env);
-    fridge = fr.fridge;
+    fridge = room.smart;                                                       // 鲜肉柜就是门店里这台
     originalScreenMap = fridge.screen.material.map;
     screenTint = fridge.screen.material.color.clone();
-    setFridgePosters('beef');
-    postFridge = grade(fr.scene, { uSat: 0.96, uShadow: [-0.01, 0.01, 0.012], uHigh: [0.03, 0.014, -0.025], uVignette: 0.62 });
+    fridge.group.updateWorldMatrix(true, true);
+    const W = (v) => fridge.group.localToWorld(new THREE.Vector3(...v)).toArray();
+    room.spots.fridge = { eye: W(FRIDGE_OVERVIEW.pos), at: W(FRIDGE_OVERVIEW.target), fov: 40 };
+    FRIDGE_PRODUCT.eye = W(FRIDGE_PRODUCT.pos); FRIDGE_PRODUCT.at = W(FRIDGE_PRODUCT.target);
+    postRoom = grade(room.scene, { uSat: 0.96, uShadow: [-0.012, 0.01, 0.012], uHigh: [0.035, 0.015, -0.035], uContrast: 1.09, uVignette: 0.62 });   // 门店：暗处偏青，灯泡底下暖黄
   },
   async lab() {
     lab = createLab(env);
@@ -115,13 +117,13 @@ const PLACES = {
 const building = {}, FOCUS_LIGHT = {};
 function buildPlace(view, onProgress = () => {}) {
   return building[view] ??= (async () => {
-    await preloadModels(SCENE_MODELS[view], (p) => onProgress(p * 0.8, '进货'));
-    onProgress(0.85, '布置');
+    await preloadModels(SCENE_MODELS[view], (p) => onProgress(p * 0.8, 'Receiving deliveries'));
+    onProgress(0.85, 'Thawing cell lines');
     await breathe();
     await PLACES[view]();
     FOCUS_LIGHT[view] = focusLight(placeOf(view).scene, view === 'warehouse' || view === 'street' ? 6 : 3.2);   // 先备着，强度 0
     await breathe();
-    onProgress(1, '布置');
+    onProgress(1, 'Thawing cell lines');
   })();
 }
 const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned_factory_canteen_01', 0.55],
@@ -183,7 +185,7 @@ canvas.addEventListener('pointerup', endDrag);
 // 点培养肉那几行 → 在冷柜里打开这件商品下单；点堂食 → 去吧台试吃；划掉的那行今天没有
 const menuRay = new THREE.Raycaster(), menuNdc = new THREE.Vector2();
 function menuRow(e) {
-  if (state.view !== 'fridge' || state.sel || state.busy) return null;
+  if (!atFridge() || state.sel || state.busy) return null;
   const r = canvas.getBoundingClientRect();
   menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   menuRay.setFromCamera(menuNdc, camera);
@@ -191,7 +193,7 @@ function menuRow(e) {
   return h ? fridge.menu.pick(h.uv) : null;
 }
 canvas.addEventListener('pointermove', (e) => {
-  if (state.view !== 'fridge') return;
+  if (!atFridge()) return;
   const row = menuRow(e);
   fridge.menu.setHover(row ? row.i : -1);
   canvas.style.cursor = row && !row.out ? 'pointer' : '';
@@ -235,7 +237,7 @@ function feedback(dt) {
   const light = FOCUS_LIGHT[state.view];
   if (hovered && (!hovered.el.isConnected || !hovered.el.getClientRects().length || hovered.el.classList.contains('hidden'))) hovered = null;
   spotShade.classList.toggle('on', !!hovered);
-  light?.show(hovered?.v, camera);
+  if (!inspector.active) light?.show(hovered?.v, camera);
   light?.tick(dt);
   if (!hovered) return;
   const p = project(hovered.v), focal = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
@@ -273,14 +275,14 @@ function sceneSpot(h) {
   showCallouts(h.info);
   setMarquee(titleOf(h) + ' · ');
 }
-function hideInfo() { infoOpen = null; calloutLayer.classList.remove('on'); callouts = []; calloutLines.innerHTML = ''; FC.look = null; inspected = null; }
+function hideInfo() { inspector.close(); infoOpen = null; calloutLayer.classList.remove('on'); callouts = []; calloutLines.innerHTML = ''; FC.look = null; inspected = null; }
 // 店外 / 仓库里的走近：眼睛从现在的位置走到 h.eye，一路看着 h.at；到了再出引线标注
 const SCENE_HOME = { street: { eye: STREET_EYE.clone(), yaw: 0, pitch: 11, fov: 62 }, warehouse: { eye: WH_EYE.clone(), yaw: -12, pitch: -6, fov: 64 } };
 let sceneWalk, sceneTimer;
 // 人走近一样东西、转头看它：时间按“走多远、转多少度”算，起和停都是软的，不甩镜头。所有镜头移动都走这里
 function moveSeconds(eyeV, to, L, yaw, pitch) {
   const dist = eyeV.distanceTo(to), turn = Math.abs(wrapNear(yaw, L.yaw) - L.yaw) + Math.abs(pitch - L.pitch) * 0.6;
-  return THREE.MathUtils.clamp(Math.max(0.7 + dist / 1.7, 0.5 + turn / 55), 1.2, 4.6);
+  return THREE.MathUtils.clamp(Math.max(0.6 + dist / 2.05, 0.45 + turn / 66), 1.0, 3.9);
 }
 function humanMove(L, eyeV, to, aim, fov, done) {
   const from = eyeV.clone(), target = new THREE.Vector3(...to), y0 = L.yaw, p0 = L.pitch, p = { t: 0 };
@@ -378,7 +380,7 @@ addEventListener('keydown', (e) => {
   if (state.view === 'room' && state.rfocus === 'records' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { e.preventDefault(); return room.ledger.turn(e.code === 'ArrowRight' ? 1 : -1); }
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'Enter' && e.target.closest?.('button')) return;            // 焦点在按钮上：回车就是按那个按钮
-  if (NAV[state.view]?.key(e.code)) { e.preventDefault(); hideTutorial(); }
+  if (!inspector.active && NAV[state.view]?.key(e.code)) { e.preventDefault(); hideTutorial(); }
 });
 
 // ---- 点进一样东西以后的镜头：每个点按东西的样子给不同的看法，拖动就能换角度
@@ -497,6 +499,20 @@ function defaults() {
   return { fat: 'mid', form: 'fillet', firm: 'tender', aroma: 'base', shade: 'light', cycle: 28, plan: 'std', qty: 1, delivery: 'std' };
 }
 function heroOf(k) { return fridge.shelves[k].hero; }
+function fridgeOverlay(t) {
+  if (state.sel) {
+    const hero = heroOf(state.sel);
+    if (hero.scale.x > 1.45) hero.rotation.y = 0.25 + Math.sin(t * 0.6) * 0.25;
+    const pts = corners.map((c) => project(fridge.screen.localToWorld(c.clone())));
+    const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
+    const l = Math.min(...xs), r = Math.max(...xs), tp = Math.min(...ys), b = Math.max(...ys);
+    Object.assign(screenEl.style, { left: l + 'px', top: tp + 'px', width: (r - l) + 'px', height: (b - tp) + 'px' });
+  }
+  for (const { k, el } of psEls) {
+    const s = project(fridge.group.localToWorld(fridge.shelves[k].anchor.clone()));
+    el.style.transform = `translate(${s.x}px, ${s.y}px)`;
+  }
+}
 
 function openProduct(k) {
   fridge.menu.setCurrent(k); room?.smart.menu?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
@@ -509,7 +525,8 @@ function openProduct(k) {
   document.body.classList.add('product-open');
   hideTutorial();
   gsap.to(fridge.door.rotation, { y: -1.8, duration: 1.0, ease: 'power2.inOut' });
-  flyCam(FRIDGE_PRODUCT, 1.3);
+  walkTo(FRIDGE_PRODUCT.eye, FRIDGE_PRODUCT.at, 40);
+  updateBack();
   gsap.timeline()
     .to(hero.position, { z: 0.55, duration: 0.5, ease: 'power2.out', delay: 0.5 })
     .to(hero.position, { x: -0.22, y: 1.16, z: 0.62, duration: 0.9, ease: 'power3.inOut' })
@@ -535,8 +552,9 @@ function closeProduct(instant = false) {
   gsap.to(fridge.door.rotation, { y: 0, duration: instant ? 0 : 0.9, delay: instant ? 0 : 0.6, ease: 'power2.inOut' });
   fridge.screen.material.map = originalScreenMap;
   fridge.screen.material = new THREE.MeshBasicMaterial({ map: originalScreenMap, toneMapped: false, color: screenTint });
-  if (!instant) flyCam(FRIDGE_OVERVIEW, 1.2);
   state.sel = null;
+  if (!instant && atFridge()) { const sp = room.spots.fridge; walkTo(sp.eye, sp.at, sp.fov); }
+  updateBack();
   setMarquee();
 }
 
@@ -694,9 +712,9 @@ function goStation(id, instant = false) {
   if (NAV.room.station === id) return;
   const link = NAV.room.links().find((l) => l.to === id);
   if (link) NAV.room.step(link);
-  else fade(() => NAV.room.place(id), id === 'office' ? '办公室 · OFFICE' : '门店 · FUTURE MEAT', 'room');   // 隔着几道弯：不穿墙，转场过去
+  else fade(() => NAV.room.place(id), id === 'office' ? 'BACK OFFICE' : 'SHOP FLOOR', 'room');   // 隔着几道弯：不穿墙，转场过去
 }
-const ROOM_SPOTS = new Set(['brand', 'tasting', 'survey', 'checkout', 'records', 'board', 'donor']);   // 门店里能走近的地方（路由要在门店搭好之前就认得）
+const ROOM_SPOTS = new Set(['brand', 'tasting', 'survey', 'checkout', 'records', 'board', 'donor', 'fridge']);   // 门店里能走近的地方（路由要在门店搭好之前就认得）
 // 屏幕表面上的网页：每一帧把这块表面的四个角投影到画面上，再用一个透视矩阵（matrix3d）把网页贴上去。
 // 不用嵌套的 3D 场景，是因为那样浏览器算不准点击位置；单层透视变换既跟画面严丝合缝，按钮也点得准。
 const cssLayer = document.createElement('div');
@@ -767,14 +785,25 @@ function renderCSS() {
 const calloutLayer = $('#callouts');
 const calloutLines = $('#callouts svg');
 let callouts = [];
+// 拿起来看
+const inspector = createInspector({
+  camera,
+  getScene: () => placeOf(state.view)?.scene,
+  getLight: () => FOCUS_LIGHT[state.view],
+  loadTextures: loadTexturesOf,
+  compile: (o) => { const sc = placeOf(state.view)?.scene; return sc ? renderer.compileAsync(o, camera, sc).catch(() => {}) : null; },
+  onOpen: () => { document.body.classList.add('inspecting'); hoverOff(); },
+  onClose: () => document.body.classList.remove('inspecting'),
+});
 function showCallouts(list) {
   const box = calloutLayer.querySelector('.boxes');
+  inspector.prepare(list.filter((c) => c.item).map((c) => c.item), { order: state.order });
   box.innerHTML = list.map((c, i) => `<button class="pin" data-i="${i}" aria-label="${c.title}"><span class="dot"></span><span class="title">${c.title}</span></button>`).join('');
   callouts = list.map((c, i) => {
     const el = box.children[i], v = new THREE.Vector3(...c.at);
     el.addEventListener('pointerenter', () => hoverOn(el, v, 0.5));
     el.addEventListener('pointerleave', () => hoverOff(el));
-    el.addEventListener('click', () => (c.action ? (location.hash = c.action[1]) : inspect(el, c.at)));
+    el.addEventListener('click', () => { if (c.action) location.hash = c.action[1]; else if (c.item) { hoverOff(el); inspector.open(c.item, v, c.title, { order: state.order }); } });
     return { c, el, v };
   });
   calloutLayer.classList.add('on');
@@ -809,30 +838,40 @@ function updateCallouts() {
 }
 
 // 各个屏幕表面上的内容
-let filmTimer = null;
+let filmTimer = null, stopPromo = null;
 const SURF = {
   brand(el) {
     el.innerHTML = `<div class="film">
       ${BRAND_FILM.map((f, i) => `<div class="slide${i ? '' : ' on'}${f.poster ? ' img' : ''}" ${f.poster ? `style="background-image:url(${PH.photos[f.poster]})"` : ''}>
         <div class="big">${f.big}${f.unit ? `<small>${f.unit}</small>` : ''}</div><div class="small">${f.small}</div></div>`).join('')}
       <div class="logo">FUTURE MEAT MARKET</div>
+      <canvas class="promo"></canvas>
       <button class="skip" disabled>5</button>
       <div class="bar"><i></i></div></div>`;
     let slide = 0, count = 5;
+    const film = el.querySelector('.film'), promo = el.querySelector('.promo');
     const slides = el.querySelectorAll('.slide'), skip = el.querySelector('.skip'), bar = el.querySelector('.bar i');
     const show = (n) => { slide = n; slides.forEach((s, i) => s.classList.toggle('on', i === n)); bar.style.width = ((n + 1) / slides.length * 100) + '%'; };
     show(0);
     clearInterval(filmTimer);
-    let tick = 0;
+    let tick = 0, inPromo = false;
+    // 广告四页播完（或者点了跳过）→ 播那段小动画 → 再从头放广告
+    const restart = () => { inPromo = false; film.classList.remove('promoing'); count = 5; tick = 0; show(0); skip.disabled = true; skip.textContent = '5'; };
+    const toPromo = () => {
+      if (inPromo) return;
+      inPromo = true; film.classList.add('promoing'); skip.disabled = true; skip.textContent = '';
+      stopPromo?.(); stopPromo = playPromo(promo, { onEnd: () => { if (promo.isConnected) restart(); } });
+    };
     filmTimer = setInterval(() => {
+      if (inPromo) return;
       tick++;
-      if (tick % 3 === 0) show((slide + 1) % slides.length);
+      if (tick % 3 === 0) { if (slide === slides.length - 1) return toPromo(); show(slide + 1); }
       count--;
-      // 倒数到 0 才能跳过；点了跳过，广告重新开始
+      // 倒数到 0 才能跳过
       if (count > 0) { skip.disabled = true; skip.textContent = `${count}`; }
-      else { skip.disabled = false; skip.textContent = '跳过 ›'; }
+      else { skip.disabled = false; skip.textContent = 'Skip ›'; }
     }, 1000);
-    skip.onclick = () => { count = 6; tick = 0; show(0); skip.disabled = true; skip.textContent = '重新播放'; };
+    skip.onclick = () => toPromo();
   },
   survey(el) {
     el.innerHTML = `<form class="tab">
@@ -880,15 +919,25 @@ const SURF = {
 // 每个热点走近之后要显示什么
 function openRoomUI(id) {
   const sp = room.spots[id];
+  if (id === 'fridge') {
+    document.body.classList.add('at-fridge');
+    if (pendingProduct) { const k = pendingProduct; pendingProduct = null; openProduct(k); }
+    else if (firstFridge) { firstFridge = false; showTutorial('', '', 'tap'); }
+    return;
+  }
   if (surfaces[id]) { SURF[id](surfaces[id].el); surfaces[id].obj.visible = true; }
   let list = (CALLOUTS[id] || []).slice();
   if (id === 'tasting') list.push({ at: room.spots.survey.at, title: '评价平板', action: ['', '#/survey'] });
   if (list.length) showCallouts(list);
 }
 function closeRoomUI() {
+  inspector.close();
+  document.body.classList.remove('at-fridge');
+  if (state.sel) closeProduct(true);
   for (const it of cssItems) { it.visible = false; it.el.style.display = 'none'; }
   receiptEl.classList.remove('print');
   clearInterval(filmTimer);
+  stopPromo?.(); stopPromo = null;
   calloutLayer.classList.remove('on');
   inspected = null;
   callouts = [];
@@ -1218,6 +1267,7 @@ function ask(q, a, fine) {
 
 let focusTimer;
 function closeLabUI() {
+  hideInfo();
   hud.classList.remove('on');
   labPanel.classList.remove('on');
   lab?.setScan(false);
@@ -1251,7 +1301,7 @@ function focusLab(sub) {
   updateBack();
   clearTimeout(focusTimer);
   setMarquee(titleOf(LAB_HOTSPOTS.find((x) => x.id === sub)) + ' · ');
-  if (h) return fcStart(h);                                                // 只换镜头，不弹任何说明
+  if (h) { const d = fcStart(h); if (h.info) focusTimer = setTimeout(() => { if (state.focus === sub) showCallouts(h.info); }, d * 1000); return; }   // 换镜头；有能拿起来看的东西就标出来
   if (FC.on) {                                                             // 从一个近看镜头直接切过来：从镜头现在的位置走
     fcEnd(null, true);
     const d = camera.getWorldDirection(new THREE.Vector3()), yaw = THREE.MathUtils.radToDeg(Math.atan2(d.x, -d.z)), pitch = THREE.MathUtils.radToDeg(Math.asin(d.y));
@@ -1285,7 +1335,7 @@ function unfocusLab(instant = false) {
   setMarquee(LAB_MARQUEE);
 }
 function updateBack() {
-  $('#back span:last-child').textContent = state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
+  $('#back span:last-child').textContent = atFridge() && state.sel ? '鲜肉柜' : state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
 }
 
 // ------------------------------------------------------------------ 引导与提示
@@ -1438,7 +1488,7 @@ function route() {
           firstLab = false;
           setTimeout(() => { if (state.view === 'lab' && !state.focus) if (labChosen) showTutorial('', '', 'drag'); }, 900);
         }
-      }, '加工间 · WORKSHOP', 'lab');
+      }, 'PROCESSING HALL', 'lab');
     } else if (sub) focusLab(sub);
     else unfocusLab();
     return;
@@ -1460,26 +1510,10 @@ function route() {
       if (page === 'warehouse') NAV.warehouse.stop();
       if (page === 'warehouse' && firstWh) { firstWh = false; setTimeout(() => { if (state.view === 'warehouse') showTutorial('', '', 'drag'); }, 700); }   // 不写字：一个拖动的小图标 + 地上一呼一吸的箭头
     };
-    if (state.view !== page) fade(() => { if (page === 'warehouse') NAV.warehouse.reset(); enter(); }, page === 'street' ? '店外 · STREET' : '仓库 · WAREHOUSE', page);   // 从外面进仓库：站回门口
+    if (state.view !== page) fade(() => { if (page === 'warehouse') NAV.warehouse.reset(); enter(); }, page === 'street' ? 'STREET' : 'WAREHOUSE', page);   // 从外面进仓库：站回门口
     else if (sub) focusScene(sub);
     else if (state.sfocus) unfocusScene();
     else enter();
-    return;
-  }
-
-  if (page === 'fridge') {
-    const enter = () => {
-      if (sub && SPECIES[sub]) openProduct(sub); else closeProduct();
-    };
-    if (state.view !== 'fridge') {
-      fade(() => {
-        setView('fridge');
-        cam.pos.set(0.05, 1.5, 4.4); cam.target.set(0.05, 1.1, 0);
-        flyCam(FRIDGE_OVERVIEW, 1.6);
-        if (sub) setTimeout(enter, 900);
-        else if (firstFridge) { firstFridge = false; setTimeout(() => showTutorial('', '', 'tap'), 1600); }
-      }, '鲜肉柜 · FRESH MEAT', 'fridge');
-    } else enter();
     return;
   }
 
@@ -1495,24 +1529,28 @@ function route() {
       else if (fromOutside || state.view === 'boot') goStation(({ warehouse: 'storage', lab: 'right', fridge: 'fridge' })[state.view === 'boot' ? cameFrom : state.view] || 'door', true);   // 从外面进来站回门口，从仓库回来站在仓库门口
       setView('room');
       camera.fov = look.fov; camera.updateProjectionMatrix();
+      if (spot === 'fridge') pendingProduct = SPECIES[sub] ? sub : null;
       if (spot) focusRoom(spot);
       else if (firstRoom) {
         firstRoom = false;
         setTimeout(() => { if (state.view === 'room' && !state.rfocus) showTutorial('', '', 'drag'); }, 700);
       }
-    }, toOffice ? '办公室 · OFFICE' : '门店 · FUTURE MEAT', 'room');
+    }, toOffice ? 'BACK OFFICE' : 'SHOP FLOOR', 'room');
     return;
   }
   if (toOffice) { if (state.rfocus) unfocusRoom(true); goStation('office'); return; }
+  if (spot === 'fridge' && state.rfocus === 'fridge') { if (SPECIES[sub]) openProduct(sub); else closeProduct(); return; }
+  if (spot === 'fridge') pendingProduct = SPECIES[sub] ? sub : null;
   if (spot) focusRoom(spot);
   else if (state.rfocus) unfocusRoom();
 }
 addEventListener('hashchange', route);
 $('#back').addEventListener('click', () => {
+  if (inspector.active) { inspector.close(); return; }
   if (paperEl.classList.contains('on')) { paperEl.classList.remove('on'); return; }
   if (state.sfocus) location.hash = '#/' + state.view;
   else if (state.view === 'room' && state.rfocus === 'survey') location.hash = '#/tasting';
-  else if (state.view === 'fridge' && state.sel) location.hash = '#/fridge';
+  else if (atFridge() && state.sel) location.hash = '#/fridge';
   else if (state.view === 'lab' && state.focus) location.hash = '#/' + labParent();
   else if (state.view === 'room' && !state.rfocus) location.hash = '#/street';
   else location.hash = '#/';
@@ -1571,6 +1609,7 @@ function loop() {
   const t = clock.elapsedTime;
   if (preparing || !readyViews.has(state.view)) { requestAnimationFrame(loop); return; }                    // 正在备场景：盖着转场画面，不用画
   watchFps();
+  inspector.update(dt);
   // 批次一直在长，不管观众在不在看
   stepBatch(state.batch, dt);
   const R = readout(state.batch, t);
@@ -1587,6 +1626,7 @@ function loop() {
     if (postRoom) postRoom.render(t); else renderer.render(room.scene, camera);
     renderCSS();
     if (callouts.length) updateCallouts();
+    if (atFridge()) fridgeOverlay(t);
   } else if (state.view === 'street' || state.view === 'warehouse') {
     const S = state.view === 'street' ? street : wh;
     if (state.view === 'warehouse') NAV.warehouse.tick(dt);
@@ -1613,26 +1653,6 @@ function loop() {
     if (callouts.length) updateCallouts();
     if (state.focus === 'batch') { updateHud(t, R); updateHudLines(); }
     if (post) post.render(t); else renderer.render(lab.scene, camera);
-  } else {
-    if (Math.abs(camera.fov - 40) > 0.01) { camera.fov = 40; camera.updateProjectionMatrix(); }
-    camera.position.copy(cam.pos);
-    camera.lookAt(cam.target);
-    camera.updateMatrixWorld();
-    if (state.sel) {
-      const hero = heroOf(state.sel);
-      if (hero.scale.x > 1.45) hero.rotation.y = 0.25 + Math.sin(t * 0.6) * 0.25;
-      if (innerWidth > 760) {
-        const pts = corners.map((c) => project(fridge.screen.localToWorld(c.clone())));
-        const xs = pts.map((q) => q.x), ys = pts.map((q) => q.y);
-        const l = Math.min(...xs), r = Math.max(...xs), tp = Math.min(...ys), b = Math.max(...ys);
-        Object.assign(screenEl.style, { left: l + 'px', top: tp + 'px', width: (r - l) + 'px', height: (b - tp) + 'px' });
-      } else screenEl.removeAttribute('style');
-    }
-    for (const { k, el } of psEls) {
-      const s = project(fridge.group.localToWorld(fridge.shelves[k].anchor.clone()));
-      el.style.transform = `translate(${s.x}px, ${s.y}px)`;
-    }
-    if (postFridge) postFridge.render(t); else renderer.render(fr.scene, camera);
   }
 
   feedback(dt);
@@ -1643,22 +1663,22 @@ function loop() {
 const atShop = !!store.get('carry') && ['', '#', '#/'].includes(location.hash);   // 从别处走回门店（#/）：不是第一次打开，别送回街上
 if (!atShop && (!location.hash || location.hash === '#' || location.hash === '#/')) location.replace('#/street');
 setMarquee();
-const firstOf = (h) => (h.startsWith('#/warehouse') ? 'warehouse' : h.startsWith('#/lab') ? 'lab' : h.startsWith('#/fridge') ? 'fridge' : h.replace(/^#\/?/, '') === '' || h.startsWith('#/street') ? 'street' : 'room');
+const firstOf = (h) => (h.startsWith('#/warehouse') ? 'warehouse' : h.startsWith('#/lab') ? 'lab' : h.replace(/^#\/?/, '') === '' || h.startsWith('#/street') ? 'street' : 'room');
 const firstView = atShop ? 'room' : firstOf(location.hash);
 arriveWith();
 camera.fov = 60; camera.updateProjectionMatrix();
 // 开场只下载、只搭第一眼看到的那个地方
 await prepareView(firstView, (p, label) => {
   const q = 0.06 + 0.92 * p;
-  if (LD.el) LD.el.textContent = `${label || '摆好货'} · ${Math.round(q * 100)}%`;
+  if (LD.el) LD.el.textContent = `${label || 'Stocking the counter'} · ${Math.round(q * 100)}%`;
   if (LD.arc) LD.arc.style.strokeDashoffset = String(1 - q);
 });
 if (firstView === 'street' || firstView === 'warehouse') setView(firstView);     // 其余的进门动作在 route() 的转场里做
-await stage(0.99, '点亮招牌');
+await stage(0.99, 'Switching on the sign');
 loop();
 route();
 // 真正画出两帧之后才到 100% 并揭开
 requestAnimationFrame(() => requestAnimationFrame(() => {
-  if (LD.el) LD.el.textContent = '开门营业 · 100%'; if (LD.arc) LD.arc.style.strokeDashoffset = '0';
+  if (LD.el) LD.el.textContent = 'Open for business · 100%'; if (LD.arc) LD.arc.style.strokeDashoffset = '0';
   setTimeout(() => $('#loading').classList.add('gone'), 250);
 }));

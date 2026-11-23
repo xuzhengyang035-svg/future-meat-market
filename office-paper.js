@@ -8,13 +8,13 @@ const INK = '#1c2f66', RED = '#a3221e', BLACK = '#23262b';
 const pen = (px) => `400 ${px}px "Nanum Pen Script", "Caveat", cursive`;
 const marker = (px, w = 600) => `${w} ${px}px "Caveat Brush", "Caveat", cursive`;
 
-function scan(src) {
+export function scan(src) {
   return new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 }
-const fontsReady = () => Promise.all(['24px "Nanum Pen Script"', '24px "Caveat Brush"', '600 24px "Caveat"', '600 24px "Inter"', '500 24px "IBM Plex Mono"']
+export const fontsReady = () => Promise.all(['24px "Nanum Pen Script"', '24px "Caveat Brush"', '600 24px "Caveat"', '600 24px "Inter"', '500 24px "IBM Plex Mono"']
   .map((f) => document.fonts.load(f).catch(() => null)));
 
-function surface(w, h, aniso = 8) {
+export function surface(w, h, aniso = 8) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const t = new THREE.CanvasTexture(c);
@@ -24,7 +24,7 @@ function surface(w, h, aniso = 8) {
 }
 
 // 一笔一笔的手写：每个词的高低、斜度都差一点
-function write(g, text, x, y, { size = 30, color = INK, font = pen, tilt = 0, strike = false } = {}) {
+export function write(g, text, x, y, { size = 30, color = INK, font = pen, tilt = 0, strike = false } = {}) {
   g.save();
   g.translate(x, y);
   g.rotate(tilt);
@@ -46,7 +46,7 @@ function write(g, text, x, y, { size = 30, color = INK, font = pen, tilt = 0, st
   g.restore();
   return cx;
 }
-function circled(g, x, y, w, h, color = RED) {
+export function circled(g, x, y, w, h, color = RED) {
   g.save();
   g.strokeStyle = color; g.lineWidth = 2.6; g.beginPath();
   for (let i = 0; i <= 44; i++) {
@@ -180,7 +180,7 @@ export function makeLedger({ pbr, RB }) {
       group.add(b);
     }
   }
-  const pages = PAGES.map(() => surface(PW, PH, 12));
+  const pages = PAGES.map(() => surface(PW, PH, 12)), blank = surface(PW, PH, 4);
   Promise.all([scan('assets/ph/tex/Paper005/diff.jpg'), fontsReady()]).then(([paper]) => {
     pages.forEach(({ t, g }, i) => {
       g.fillStyle = '#e9e2cf'; g.fillRect(0, 0, PW, PH);
@@ -197,6 +197,10 @@ export function makeLedger({ pbr, RB }) {
       PAGES[i](g);
       t.needsUpdate = true;
     });
+    blank.g.drawImage(pages[1].g.canvas, 0, 0); blank.g.fillStyle = '#e9e2cf'; blank.g.globalAlpha = 1;
+    blank.g.fillRect(0, 0, PW, PH);
+    if (paper) { blank.g.save(); blank.g.filter = 'grayscale(.78) brightness(1.2) contrast(1.35)'; blank.g.globalAlpha = 0.85; blank.g.drawImage(paper, -40, -20, PW * 1.55, PH * 1.3); blank.g.restore(); }
+    blank.t.needsUpdate = true;
   });
 
   // 一页纸：amount 0 = 摊在右边，1 = 翻到左边；中间是弯着立起来的
@@ -243,10 +247,11 @@ export function makeLedger({ pbr, RB }) {
   function turn(dir) {
     if (flip || spread + dir < 0 || spread + dir > LAST) return;
     const low = dir > 0 ? spread : spread - 1;                               // 翻动的是 low 这一摊的右页 / 下一摊的左页
-    front.material.map = pages[low * 2 + 1].t;
-    back.material.map = pages[low * 2 + 2].t;
-    left.material.map = pages[low * 2].t;
-    right.material.map = pages[low * 2 + 3].t;
+    // 只看得见现在这一摊上的字：翻起来的那页背面、露出来的下一页先是空白，翻到底才换成内容
+    front.material.map = dir > 0 ? pages[low * 2 + 1].t : blank.t;
+    back.material.map = dir > 0 ? blank.t : pages[low * 2 + 2].t;
+    left.material.map = dir > 0 ? pages[low * 2].t : blank.t;
+    right.material.map = dir > 0 ? blank.t : pages[low * 2 + 3].t;
     front.visible = back.visible = true;
     corner = wanted = 0;
     state.v = dir > 0 ? 0 : 1;

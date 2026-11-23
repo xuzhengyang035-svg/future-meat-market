@@ -95,8 +95,9 @@ export function focusLight(scene, strength = 3.5) {
   scene.add(light);
   let want = 0;
   return {
-    show(at, camera) {
-      want = at ? strength : 0;
+    strength,
+    show(at, camera, k = 1) {
+      want = at ? strength * k : 0;
       if (!at) return;
       dir.copy(camera.position).sub(at).normalize().multiplyScalar(0.6);
       dir.y += 0.35;

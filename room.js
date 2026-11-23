@@ -808,7 +808,6 @@ export function createRoom(env) {
   box(1.08, 0.64, 0.16, M.ink, -2.5, 2.62, -3.99, room);
   box(0.3, 0.04, 0.3, M.steelDark, -2.5, 2.28, -3.9, room);
   hose([[-2.1, 3.0, -3.95], [-2.05, 2.7, -3.98], [-2.1, 2.4, -3.99]], 0.008, M.ink);
-  hose([[-2.8, 3.0, -3.8], [-2.85, 2.5, -3.92], [-2.7, 2.06, -3.75]], 0.025);    // 冷柜顶上接下来的软管
 
   // ================================================================ 后墙右角：告示栏（熟客须知 / 供体介绍）
   const NBX = 4.25;
@@ -1208,8 +1207,8 @@ export function createRoom(env) {
     }
     return g;
   };
-  // 冷柜顶上一盆：真实的盆栽模型（原来用小球拼的绿萝去掉了）
-  potPlant(room, 'calathea_orbifolia_01', 'b', { pos: [-3.0, 2.05, -3.55], rot: 2.0, scale: 0.9, pot: { r: 0.1, h: 0.12, color: 0x7a3a2a } });
+  // 冷柜左边地上一盆（原来放在冷柜顶上，叶子挡在电视前面）
+  potPlant(room, 'calathea_orbifolia_01', 'b', { pos: [-3.52, 0, -3.5], rot: 2.0, scale: 1.35, pot: { r: 0.17, h: 0.3, color: 0x7a3a2a } });
   // 地上：门口和吧台前的积水、吧台后面地上几滴血、冷藏柜下面的一小滩水
   const floorDecal = (x, z, w, d, rot, dd, rough = true) => {
     const m = new THREE.MeshStandardMaterial({ map: dd.map, roughnessMap: rough ? dd.roughnessMap : null, roughness: rough ? 0.15 : 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
