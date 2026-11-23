@@ -108,6 +108,49 @@ const textTex = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
     for (let i = 0; i < 200 * o.age; i++) { g.fillStyle = `rgba(0,0,0,${0.3 + r() * 0.7})`; g.beginPath(); g.ellipse(r() * W, r() * H, 1 + r() * 6, 1 + r() * 3, r() * 3, 0, 7); g.fill(); }
     for (let i = 0; i < 4; i++) { g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(r() * W, 0, 10 + r() * 30, H); } g.globalCompositeOperation = 'source-over'; }
 });
+// 月台边沿的黄黑斜纹：整条边一张图（30 m 不重复）。不是一次刷好的——一段段补刷过：黄有新有旧、斜纹方向和间距对不上、
+//   接缝处错位；托盘和推车磕的地方一簇簇掉漆露出锈和钢，锈水往下淌；底边被轮子蹭黑，中间有一块焊补的钢板只刷了红底漆
+function dockEdgeTex(len, seed = 17) {
+  let n = seed; const R = () => (n = (n * 16807) % 2147483647) / 2147483647, rr = (a, b) => a + R() * (b - a);
+  const W = 8192, H = 64, ppm = W / len, ppv = H / 0.22;                  // 横向每米像素、竖向每米像素
+  return canvasTexture(W, H, (g) => {
+    let x = 0;
+    while (x < W) {                                                        // 一段一段刷
+      const w = rr(1.4, 4.8) * ppm, kind = R();
+      const yel = kind < 0.25 ? '#dcae24' : kind < 0.6 ? '#c09c3e' : kind < 0.85 ? '#a88e46' : '#b8a060';
+      const blk = R() < 0.7 ? '#1d1c19' : '#34312b', pitch = rr(0.18, 0.23) * ppm, dir = R() < 0.8 ? 1 : -1, ph = R() * pitch, slant = 0.22 * ppm * dir;
+      g.save(); g.beginPath(); g.rect(x, 0, w, H); g.clip();
+      g.fillStyle = yel; g.fillRect(x, 0, w, H);
+      if (R() < 0.12) { g.fillStyle = '#6e3a28'; g.fillRect(x, 0, w, H); }       // 焊补过的一块：只有红底漆
+      else {
+        g.fillStyle = blk;
+        for (let s0 = x - pitch * 3 + ph; s0 < x + w + pitch * 2; s0 += pitch) { g.beginPath(); g.moveTo(s0, H); g.lineTo(s0 + pitch / 2, H); g.lineTo(s0 + pitch / 2 + slant, 0); g.lineTo(s0 + slant, 0); g.fill(); }
+      }
+      const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.7, `rgba(20,16,10,${rr(0.05, 0.2)})`); gr.addColorStop(1, `rgba(20,16,10,${rr(0.35, 0.6)})`);
+      g.fillStyle = gr; g.fillRect(x, 0, w, H);                            // 底边被轮子、拖把蹭黑
+      g.restore();
+      g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + w - 1, 0, 1.5, H);  // 两次刷漆的接缝
+      x += w;
+    }
+    const chip = (cx, cy, s) => { g.beginPath(); const k = 5 + Math.floor(R() * 4); for (let i = 0; i < k; i++) { const a = (i / k) * Math.PI * 2, q = s * rr(0.5, 1.2); g.lineTo(cx + Math.cos(a) * q * 1.6, cy + Math.sin(a) * q); } g.closePath(); g.fill(); };
+    for (let k = 0; k < 6; k++) {                                          // 几段被叉车货叉、托盘反复刮过：漆几乎磨光，露出锈和钢
+      const cx = R() * W, w = rr(0.4, 1.8) * ppm;
+      for (let i = 0; i < w * 6; i++) { const t = (R() - 0.5), px = cx + t * w, py = Math.pow(R(), 1.4) * H; if (R() > 1 - Math.abs(t) * 1.6) continue; g.fillStyle = R() < 0.7 ? `rgba(${76 + R() * 30},${44 + R() * 16},${22 + R() * 10},${rr(0.5, 0.9)})` : `rgba(${88 + R() * 26},${84 + R() * 24},${76 + R() * 20},${rr(0.4, 0.8)})`; g.fillRect(px, py, rr(1, 6), rr(1, 4)); }
+    }
+    for (let k = 0; k < 64; k++) {                                         // 磕过的地方：一簇簇掉漆，多在上沿；有的地方一簇很密，有的就零星几点
+      const cx = R() * W, spread = rr(0.05, 0.5) * ppm, cnt = 4 + Math.floor(Math.pow(R(), 2) * 70), top = R() < 0.65;
+      for (let i = 0; i < cnt; i++) {
+        const px = cx + (R() - 0.5) * spread, py = top ? Math.pow(R(), 2.2) * H * 0.7 : R() * H, sz = rr(0.8, 4.5) * (R() < 0.1 ? 2.6 : 1);
+        g.fillStyle = R() < 0.6 ? `rgb(${74 + R() * 30},${42 + R() * 14},${22 + R() * 10})` : `rgb(${78 + R() * 24},${76 + R() * 22},${70 + R() * 20})`;
+        chip(px, py, sz);
+        if (R() < 0.25) { const len2 = rr(6, 40); const gg = g.createLinearGradient(0, py, 0, py + len2); gg.addColorStop(0, 'rgba(110,58,22,.45)'); gg.addColorStop(1, 'rgba(110,58,22,0)'); g.fillStyle = gg; g.fillRect(px - 0.8, py, rr(1, 2.5), len2); }   // 锈水往下淌
+      }
+    }
+    for (let k = 0; k < 70; k++) { const cx = R() * W, cy = rr(0.2, 1) * H, rad = rr(0.15, 0.9) * ppm, gg = g.createRadialGradient(cx, cy, 0, cx, cy, rad); gg.addColorStop(0, `rgba(${R() < 0.5 ? '150,130,90' : '60,48,30'},${rr(0.12, 0.35)})`); gg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gg; g.fillRect(cx - rad, 0, rad * 2, H); }   // 积灰、油污，一片片的
+    for (let k = 0; k < 220; k++) { const y = R() * H, x0 = R() * W, l = rr(0.05, 0.9) * ppm; g.strokeStyle = R() < 0.5 ? 'rgba(255,240,200,.14)' : 'rgba(10,8,6,.25)'; g.lineWidth = rr(0.4, 1.4); g.beginPath(); g.moveTo(x0, y); g.lineTo(x0 + l, y + rr(-3, 3)); g.stroke(); }   // 横着的刮痕
+    for (let k = 0; k < 30; k++) { g.fillStyle = `rgba(14,12,10,${rr(0.15, 0.4)})`; g.fillRect(R() * W, H * rr(0.55, 0.85), rr(0.1, 0.8) * ppm, rr(2, 6)); }   // 轮胎蹭上去的黑道
+  });
+}
 // 黄黑斜纹
 const hazardTex = (rep = 4) => { const t = canvasTexture(256, 64, (g, W, H) => { g.fillStyle = '#c8a028'; g.fillRect(0, 0, W, H); g.fillStyle = '#1a1a18'; for (let x = -H; x < W + H; x += 48) { g.beginPath(); g.moveTo(x, H); g.lineTo(x + 24, H); g.lineTo(x + 24 + H, 0); g.lineTo(x + H, 0); g.fill(); } ageCanvas(g, W, H, { amount: 1.4, seed: 5, drips: false }); }); t.wrapS = THREE.RepeatWrapping; t.repeat.set(rep, 1); return t; };
 
@@ -578,7 +621,10 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const PX = -8.5, PH = 1.1, PZ0 = Z0, PZ1 = -26;                          // 高台一直做到墙根（原来只到 z = 2，离墙空着两米）
   box(PX - X0, PH, PZ0 - PZ1, M.concrete, (X0 + PX) / 2, PH / 2, (PZ0 + PZ1) / 2, root);
   { const pt = new THREE.Mesh(new THREE.PlaneGeometry(PX - X0, PZ0 - PZ1), pbr('garage_floor', PX - X0, PZ0 - PZ1, { size: 3.0, roughness: 0.7, color: 0xa8a49c })); pt.rotation.x = -Math.PI / 2; pt.position.set((X0 + PX) / 2, PH + 0.002, (PZ0 + PZ1) / 2); pt.userData.walk = true; root.add(pt); }   // 平台面：带油渍的旧水泥
-  box(0.012, 0.22, PZ0 - PZ1, M.yellow, PX + 0.006, PH - 0.11, (PZ0 + PZ1) / 2, root);   // 月台边沿的黄黑斜纹（真实扫描的旧斜纹钢板）
+  box(0.012, 0.22, PZ0 - PZ1, M.rackDark, PX + 0.006, PH - 0.11, (PZ0 + PZ1) / 2, root);
+  { const L = PZ0 - PZ1, nr = pbr('PaintedMetal016', L, 0.22, { size: 0.9 });   // 月台边沿的黄黑斜纹：整条一张不重复的图（dockEdgeTex），凹凸和粗糙度用真实扫描的旧漆钢板
+    const em = new THREE.Mesh(new THREE.PlaneGeometry(L, 0.22), new THREE.MeshStandardMaterial({ map: dockEdgeTex(L), normalMap: nr.normalMap, roughnessMap: nr.roughnessMap, roughness: 1, metalness: 0.2 }));
+    em.material.normalScale.set(0.8, 0.8); em.position.set(PX + 0.0128, PH - 0.11, (PZ0 + PZ1) / 2); em.rotation.y = Math.PI / 2; root.add(em); }
   box(0.045, 0.008, PZ0 - PZ1, M.steel, PX - 0.0225, PH + 0.001, (PZ0 + PZ1) / 2, root).userData.walk = true;   // 护边角钢：一肢平贴在台面上，一肢贴着台边（不再凸出来一条）
   box(0.008, 0.06, PZ0 - PZ1, M.steel, PX + 0.016, PH - 0.025, (PZ0 + PZ1) / 2, root);
   const STZ = -4.2;                                                       // 台阶位置
