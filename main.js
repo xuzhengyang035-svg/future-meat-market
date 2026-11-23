@@ -316,7 +316,8 @@ function focusScene(id) {
   updateBack();
   if (state.view === 'warehouse' && h.view) { NAV.warehouse.stop(); sceneWalk?.kill(); dur = fcStart(h); }   // 仓库：换成这个点自己的镜头（可以拖着转 / 平移）
   else dur = walkLook(l, eye, h.eye, h.at, h.fov || 52);
-  sceneTimer = setTimeout(() => { if (state.sfocus === id && location.hash.endsWith('/' + id)) showCallouts(h.info); }, dur * 1000 - 100);
+  placeOf(state.view)?.onFocus?.(id, true);                                // 走到档案桌前，书自己翻开
+  sceneTimer = setTimeout(() => { if (state.sfocus === id && location.hash.endsWith('/' + id) && h.info) showCallouts(h.info); }, dur * 1000 - 100);
   setMarquee(titleOf(h) + ' · ');
 }
 function unfocusScene(instant = false) {
@@ -325,6 +326,7 @@ function unfocusScene(instant = false) {
   if (instant) { sceneWalk?.kill(); for (const [k, v] of Object.entries(SCENE_HOME)) LOOKS[k].eye.copy(v.eye); fcEnd(null, true); }
   if (!state.sfocus) return;
   hideInfo();
+  placeOf(state.view)?.onFocus?.(state.sfocus, false);
   state.sfocus = null;
   document.body.classList.remove('scene-focus');
   updateBack();

@@ -3,17 +3,19 @@
 //   右边     三排重型货架：无菌耗材、包装、消毒液、一次性培养袋、大豆蛋白、硅胶管
 //   左边     沿墙一条 1.1 m 高的卸货平台，两扇卷帘门通后街；平台上是空的动物运输笼
 //   左前     −20 ℃ 冷柜和刚到的胎牛血清（干冰运输箱）
-//   最里面   冷库（细胞库，液氮），门口几只液氮罐；右后角是 CO₂ 气瓶笼
+//   最里面   冷库（细胞库，液氮），门口几只液氮罐
+//   右后角   04 冷藏货架（猪肉按口感分三层）、05 自动出库（滚筒线、机械臂、扫码门、托盘车）、06 档案区（登记册、图谱、退货桶）
 import * as THREE from 'three';
 import { canvasTexture } from './textures.js';
 import { createCartonKit } from './cartons.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { deferImages } from './gfx.js';
 import { lightCone, glowColumn, hazeLayer } from './atmosphere.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { pbr, model, decal, userDecal, paintedText } from './assets.js';
-import { ageCanvas, blobShadow } from './materials.js';
+import { ageCanvas, blobShadow, puddleDecal } from './materials.js';
 
 const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
 const MONO = '"IBM Plex Mono", Consolas, monospace';
@@ -187,7 +189,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const kit = createCartonKit({ normalMap: M.carton.normalMap });
   // ---- 仓库道具包（Blender 做的 8 个 GLB，地面为原点、单位米、正面朝 +z）。贴图事先压到 512（带字的到 1024）并按内容哈希命名，
   //      这里跨文件共用同一张贴图——同一张旧钢板、旧木头不会重复上传显存（three-best-practices：material-reuse / 显存）
-  const loader = deferImages(new GLTFLoader()), texCache = new Map();
+  const loader = deferImages(new GLTFLoader()).setDRACOLoader(new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/')), texCache = new Map();   // 04–06 三个区是 Draco 压缩的
   const waiting = [];                                                      // 第一次走进仓库才下载这些模型
   const gltf = { load: (url, ok, progress, fail) => waiting.push(() => new Promise((res) => {
     loader.load(url, (g) => { try { ok(g); } finally { res(); } }, progress, (e) => { fail?.(e); res(); });
@@ -198,7 +200,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     const key = t.name + '|' + t.colorSpace, c = texCache.get(key); if (c) mat[k] = c; else { t.anisotropy = 8; texCache.set(key, t); } } };
   const placeKit = (file, x, y, z, ry = 0, after, sc = 1) => gltf.load('assets/kit/' + file, (g) => {
     const o = g.scene; o.traverse((m) => { if (m.isMesh) { shareTex(m.material); m.material.envMapIntensity = 0.9; } });
-    o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(sc); o.updateMatrixWorld(true); o.matrixAutoUpdate = false; root.add(o); after?.(o);
+    o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(sc); o.updateMatrixWorld(true); o.matrixAutoUpdate = false; root.add(o); after?.(o, g);
   }, undefined, (e) => console.warn('kit', file, e));                // 纸箱：贴图集 + 合并网格（cartons.js）
   const blobMat = new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false, opacity: 0.6 });
   const blob = (x, z, sx, sz = sx, y = 0.005) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), blobMat); p.rotation.x = -Math.PI / 2; p.position.set(x, y, z); root.add(p); return p; };
@@ -603,12 +605,19 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   // 栏杆（OSHA 1910.29：上横杆 1.07 m、中横杆 0.53 m、踢脚板 ≥ 90 mm、所有临空的边都要围上）；Ø 42.4 横杆、Ø 48.3 立柱
   //   台面上：150 × 150 × 12 底板、四颗膨胀螺栓。楼梯上：立柱用侧装板栓在斜梁外侧，最下面一根落在地上
   const rg = new THREE.Group(); root.add(rg);
-  const rail = (a, b, r = 0.0212) => { const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), d = vb.clone().sub(va), L = d.length(); const m = new THREE.Mesh(uvTube(new THREE.CylinderGeometry(r, r, L, 12), r, L, M.railY.userData.meters), M.railY); m.position.copy(va).add(vb).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); rg.add(m); return m; };
-  const elbow = (p, r = 0.027) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), M.railY); m.position.set(...p); rg.add(m); };
-  const post = (x, y, z, h = 1.07) => {                                    // 落地的立柱
-    const top = y + 0.012;
-    box(0.15, 0.012, 0.15, M.railY, x, y + 0.006, z, rg);
-    rail([x, top, z], [x, y + h, z], 0.0242);
+  // 栏杆不是一次装好的：有原装的（黄漆磨花）、补焊过重新刷的（漆新、颜色偏橙）、锈得最厉害的一段（靠卸货门、淋过雨），管子粗细也不一样（Ø 38–54）
+  const railMats = [M.railY,
+    real('PaintedMetal004', 0.7, { metalness: 1, color: 0xe8c47a, clean: 0xe0a62a, age: 0.22 }),
+    real('PaintedMetal008', 1.1, { metalness: 1, color: 0xf4dc96, clean: 0xf0c23a, age: -0.16 }),
+    real('rusty_painted_metal', 0.8, { metalness: 0.5, color: 0xd6ae6c, clean: 0xd89a2a, age: 0.4 })];
+  let railM = M.railY, railK = 1;
+  const pickRail = () => { railM = railMats[Math.floor(rnd() * railMats.length)]; railK = 0.85 + rnd() * 0.42; };
+  const rail = (a, b, r = 0.0212 * railK, mat = railM) => { const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b), d = vb.clone().sub(va), L = d.length(); const m = new THREE.Mesh(uvTube(new THREE.CylinderGeometry(r, r, L, 12), r, L, mat.userData.meters), mat); m.position.copy(va).add(vb).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); rg.add(m); return m; };
+  const elbow = (p, r = 0.027 * railK) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 8), railM); m.position.set(...p); rg.add(m); };
+  const post = (x, y, z, h = 1.07) => {                                    // 落地的立柱：每根自己的漆、自己的粗细
+    const top = y + 0.012, pm = railMats[Math.floor(rnd() * railMats.length)], pr = 0.0242 * (0.85 + rnd() * 0.35);
+    box(0.15, 0.012, 0.15, pm, x, y + 0.006, z, rg);
+    rail([x, top, z], [x, y + h, z], pr, pm);
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
       cyl(0.015, 0.015, 0.003, M.steel, x + sx * 0.052, top + 0.0015, z + sz * 0.052, rg, 10);                  // 垫圈
       cyl(0.0105, 0.0105, 0.011, M.steel, x + sx * 0.052, top + 0.0085, z + sz * 0.052, rg, 6);                 // 螺母
@@ -620,18 +629,18 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     box(0.11, 0.17, 0.012, M.railY, x, y - 0.11, face - s * 0.004, rg);
     for (const dx of [-0.036, 0.036]) for (const dy of [-0.05, 0.05]) cyl(0.011, 0.011, 0.014, M.steel, x + dx, y - 0.11 + dy, face + s * 0.006, rg, 6).rotation.x = Math.PI / 2;
   };
-  const span = (a, b, max = 1.5) => { const n = Math.max(1, Math.ceil(Math.abs(b - a) / max)); return Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n); };
+  const span = (a, b, max = 1.5) => { const n = Math.max(1, Math.ceil(Math.abs(b - a) / max)); return Array.from({ length: n + 1 }, (_, i) => a + ((b - a) * i) / n + (i && i < n ? (rnd() - 0.5) * Math.abs(b - a) / n * 0.45 : 0)); };   // 立柱间距不等：补过、挪过
   { const F = PH + 0.002, zN = STZ + 0.645, zS = STZ - 0.645, zEnd = PZ1 + 0.125, xW = X0 + 0.16, zW = PZ0 - 0.03;
     for (const h of [1.07, 0.53]) {
       const y = F + h, nx = XB - run * 5, low = rise + h, fx = XB + 0.15;
-      rail([RX, y, zW], [RX, y, zN]);                                        // 北段：一直顶到墙
-      rail([RX, y, zS], [RX, y, zEnd]);                                      // 南段
-      rail([RX, y, zEnd], [xW, y, zEnd]);                                    // 南头横着封到墙
+      pickRail(); rail([RX, y, zW], [RX, y, zN]);                            // 北段：一直顶到墙
+      { const zm = zS + (zEnd - zS) * (0.35 + rnd() * 0.3); pickRail(); rail([RX, y, zS], [RX, y, zm]); pickRail(); rail([RX, y, zm], [RX, y, zEnd]); elbow([RX, y, zm], 0.03); }   // 南段：中间接过一次，两截不是同一批管子
+      pickRail(); rail([RX, y, zEnd], [xW, y, zEnd]);                        // 南头横着封到墙
       elbow([RX, y, zEnd]);
       cyl(0.05, 0.05, 0.008, M.railY, RX, y, PZ0 - 0.012, rg, 14).rotation.x = Math.PI / 2;                    // 两头的墙上法兰
       cyl(0.05, 0.05, 0.008, M.railY, xW, y, zEnd, rg, 14).rotation.z = Math.PI / 2;
       for (const z of [zN, zS]) {
-        rail([RX, y, z], [nx, y, z]); rail([nx, y, z], [XB, low, z]); rail([XB, low, z], [fx, low, z]);
+        pickRail(); rail([RX, y, z], [nx, y, z]); rail([nx, y, z], [XB, low, z]); rail([XB, low, z], [fx, low, z]);
         for (const p of [[RX, y, z], [nx, y, z], [XB, low, z], [fx, low, z]]) elbow(p);
       }
     }
@@ -720,14 +729,28 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const mist = [];
   for (let i = 0; i < 10; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: fogTex, transparent: true, depthWrite: false, opacity: 0.3 })); s.userData.ph = i / 10; root.add(s); mist.push(s); }
 
-  // ---------------------------------------------------------------- 右后角：CO₂ 气瓶笼；地上几垛培养袋
-  const cage = new THREE.Group(); cage.position.set(9.6, 0, -25.8); root.add(cage);
-  for (let i = 0; i < 8; i++) { cyl(0.11, 0.11, 1.4, M.co2, -0.6 + (i % 4) * 0.3, 0.7, (Math.floor(i / 4) - 0.5) * 0.32, cage, 14); cyl(0.04, 0.04, 0.12, M.steel, -0.6 + (i % 4) * 0.3, 1.46, (Math.floor(i / 4) - 0.5) * 0.32, cage, 8); }
-  for (const x of [-0.85, 0.65]) for (const z of [-0.45, 0.45]) box(0.04, 1.9, 0.04, M.rackDark, x, 0.95, z, cage);
-  for (const y of [0.4, 1.0, 1.6]) { box(1.5, 0.03, 0.03, M.rackDark, -0.1, y, -0.45, cage); box(1.5, 0.03, 0.03, M.rackDark, -0.1, y, 0.45, cage); box(0.03, 0.03, 0.9, M.rackDark, -0.85, y, 0, cage); }
-  plane(0.6, 0.3, lit(textTex([['CO₂', 60, '#fff', 0.6, 800], ['COMPRESSED GAS', 22, 'rgba(255,255,255,.8)', 0.9, 500]], 240, 120, { bg: '#2a6a3a', age: 0.8 })), -0.1, 1.85, 0.47, 0, cage);
-  blob(9.6, -25.8, 2, 1.4);
-  for (const [x, z] of [[5.6, -21.0], [7.2, -21.4], [6.4, -22.8]]) { const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rnd(); root.add(g); pallet(0, 0, 0, g); loads.bags(g, 0, 0.15); blob(x, z, 1.5); }
+  // ---------------------------------------------------------------- 右后角：04 冷藏货架 / 05 自动出库 / 06 档案区（Warehouse 04–06 道具包，tools/blender/wh_zones.py）
+  //   06 贴后墙、两根红柱之间；04 转过来贴右墙（冷冻柜和墙角柱子之间）；05 在前面，滚筒线朝着主通道。三者之间留一条 3 m 的过道
+  let atlas = null, dispatch = null;
+  placeKit('11_Archive.glb', 5.89, 0, -28.505, 0, (o, g) => {
+    const hinge = o.getObjectByName('Atlas_Hinge'); if (!hinge || !g.animations.length) return;
+    hinge.traverse((c) => { c.userData.keep = true; });                    // 翻开的封面和书页不能被 batchStatic 合进静态网格
+    const mixer = new THREE.AnimationMixer(o), act = mixer.clipAction(g.animations[0]); act.setLoop(THREE.LoopOnce); act.clampWhenFinished = true; act.play(); act.paused = true;
+    atlas = { mixer, act, k: 0, to: 0, len: g.animations[0].duration }; mixer.setTime(0);
+  }); blob(5.9, -28.6, 4.2, 2.6);
+  placeKit('09_Cold_Store.glb', 10.5, 0, -25.76, -Math.PI / 2); blob(10.6, -26.0, 2.6, 4.2);
+  placeKit('10_Dispatch.glb', 5.6, 0, -22.6, 0, (o) => {
+    const box = o.getObjectByName('Dispatch_carton'); if (!box) return;
+    box.matrixAutoUpdate = true; box.userData.keep = true; dispatch = { box, x0: box.position.x, t: 0 };
+  }); blob(5.8, -22.6, 4.0, 3.0);
+  // 扫码门的红色扫描线（纸箱经过时亮）
+  const scanLine = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.78), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 0.25, 0.2), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+  scanLine.rotation.x = -Math.PI / 2; scanLine.position.set(5.6 + 1.18, 0.8, -22.6 + 0.18); root.add(scanLine);
+  // 三个区各自的灯：档案桌上一盏暖的、冷藏架前一盏冷的、出库线上一盏白的
+  for (const [c, i, x, y, z] of [[0xffc48a, 6, 5.8, 2.7, -27.6], [0xcfe6ff, 7, 9.0, 2.9, -26.0], [0xf2f0e6, 6, 5.6, 3.2, -22.2]]) { const l = new THREE.PointLight(c, i, 6, 1.6); l.position.set(x, y, z); root.add(l); }
+  model('caged_hanging_light', { pos: [5.8, HT - 1.3, -27.6], parent: root });
+  { const s = new THREE.SpotLight(0xffc48a, 22, 9, 0.42, 0.6, 1.5); s.position.set(5.8, HT - 1.6, -27.6); s.target.position.set(5.8, 0.9, -27.9); root.add(s, s.target);
+    lightCone(root, [5.8, HT - 1.6, -27.6], [0, -1, -0.04], { length: HT - 2.4, radius: 1.6, top: 0.12, color: 0xffc48a, strength: 0.09 }); }
 
   // ---------------------------------------------------------------- 前墙：回门店的门、消防栓、配电箱
   box(1.3, 2.4, 0.1, M.rackDark, -1.3, 1.2, Z0 - 0.02, root);
@@ -758,12 +781,9 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   for (let i = 0; i < 3; i++) tote(-11.3 + (rnd() - 0.5) * 0.04, PH + i * TOTE_H, -12.6, i === 2 ? M.crateBlue : M.crateGrey);   // 平台上一摞周转箱
 
   // 真实模型：随手堆放的东西（桶、周转箱、手推车、油桶、发电机、吨桶、扫把、旧轮胎、纸箱、湿地警示牌、吊灯）
-  model('Barrel_01', { pos: [8.2, 0, -23.4], jitter: 0.3, parent: root }); model('barrel_03', { pos: [8.9, 0, -23.0], jitter: 0.3, parent: root }); model('Barrel_01', { pos: [8.5, 0, -22.4], tilt: 0.05, jitter: 0.3, parent: root });
   for (let i = 0; i < 4; i++) model('plastic_crate_03', { pos: [-3.3 + (i % 2) * 0.5, Math.floor(i / 2) * 0.27, -6.2], rot: (i % 2) * 0.2, jitter: 0.2, parent: root });
   for (let i = 0; i < 3; i++) model('plastic_crate_01', { pos: [-10.6 + i * 0.35, PH, -10.9], rot: 0.1 * i, jitter: 0.3, parent: root });
   model('hand_truck', { pos: [-7.9, 0, -2.6], rot: 1.2, tilt: 0.06, parent: root });
-  model('metal_jerrycan', { pos: [7.8, 0, -24.6], rot: 0.4, parent: root }); model('metal_jerrycan', { pos: [8.15, 0, -24.7], rot: 1.1, parent: root });
-  model('portable_generator', { pos: [5.0, 0, -24.4], rot: -0.6, parent: root });
   model('industrial_pastic_container', { pos: [-3.5, 0, -19.9], rot: 0.3, parent: root }); model('industrial_pastic_container', { pos: [-4.1, 0, -20.4], rot: 1.2, parent: root });   // 让开去 02 号门的路
   { const b = model('plastic_broom', { pos: [-7.95, 0, -8.6], rot: Math.PI / 2, parent: root }); b.rotation.z = 0.25; }
   model('old_tyre', { pos: [-9.5, PH + 0.3, -20.0], rot: 0.4, parent: root });
@@ -783,8 +803,6 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   placeKit('02_Order_Packing_Bench.glb', 1.95, 0, 3.58, Math.PI); blob(1.95, 3.55, 1.9, 0.9);
   placeKit('01_Packaging_Pick_Rack.glb', 4.7, 0, 3.6, Math.PI); blob(4.7, 3.6, 2.0, 0.9);
   { const pl = new THREE.PointLight(0xffe0b0, 5, 5, 1.6); pl.position.set(3.3, 2.6, 2.6); root.add(pl); }   // 配货台上方一盏暖灯
-  model('propane_tank', { pos: [5.7, 0, -25.1], rot: 0.3, parent: root }); model('propane_tank', { pos: [6.1, 0, -25.25], rot: 1.7, parent: root });
-  model('metal_jerrycan_green', { pos: [7.4, 0, -24.9], rot: 0.2, parent: root }); model('plastic_jerrycan', { pos: [4.5, 0, -24.9], rot: 2.2, parent: root });
   model('security_camera_01', { pos: [X0 + 0.15, PH + 5.0, -12.5], rot: Math.PI / 2, parent: root });
   model('power_box_01', { pos: [7.4, 1.5, Z0 - 0.05], rot: Math.PI, parent: root });
   model('drawer_cabinet', { pos: [PX + 0.27, 0, -13.05], rot: Math.PI / 2, parent: root });          // 值班桌旁的档案柜
@@ -798,13 +816,12 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   decal('SurfaceImperfections017', root, { pos: [-1.3, 0.0065, -12], rot: [-Math.PI / 2, 0, Math.PI / 2], w: 26, h: 4, color: 0x24201a, opacity: 0.55 });
   decal('SurfaceImperfections018', root, { pos: [4.0, 0.0065, -20], rot: [-Math.PI / 2, 0, 0.6], w: 6, h: 5, color: 0x24201a, opacity: 0.5 });
   decal('Smear007', root, { pos: [-1.5, 0.0068, -15.5], rot: [-Math.PI / 2, 0, 1.2], w: 3.0, h: 1.8, color: 0x1e1e1a, opacity: 0.25, roughness: 0.1 });
-  for (const [x, z, s] of [[8.5, -23.0, 1.8], [9.6, -25.8, 1.6], [5.0, -24.4, 1.2], [-5.3, -22.0, 1.6]]) decal('Rust001', root, { pos: [x, 0.0072, z], rot: [-Math.PI / 2, 0, x], w: s, h: s, opacity: 0.85 });
+  for (const [x, z, s] of [[-5.3, -22.0, 1.6]]) decal('Rust001', root, { pos: [x, 0.0072, z], rot: [-Math.PI / 2, 0, x], w: s, h: s, opacity: 0.85 });
   for (const [x, k] of [[-7.5, 'Leaking004'], [-1.0, 'Leaking003'], [5.5, 'Leaking005']]) decal(k, root, { pos: [x, 6.4, Z1 + 0.014], w: 2.6, h: 4.0, color: 0x3a3022, opacity: 0.7 });
   for (const [z, k] of [[-3.5, 'Leaking008'], [-14.5, 'Leaking009'], [-22.0, 'Leaking007']]) decal(k, root, { pos: [X1 - 0.002, 0.8, z], rot: [0, -Math.PI / 2, 0], w: 5, h: 1.6, color: 0x2a2620, opacity: 0.7 });
   userDecal('blood_smear.webp', root, { pos: [-10.2, PH + 0.007, -14.3], rot: [-Math.PI / 2, 0, Math.PI / 2 + 0.2], w: 1.8, h: 0.6, color: 0x7a4a46, roughness: 0.55 });   // 运输笼拖到卸货门的血痕
   userDecal('poster_residue.webp', root, { pos: [-3.4, 2.3, Z0 - 0.005], rot: [0, Math.PI, 0], w: 0.9, h: 0.6, mode: 'cut' });
   userDecal('drips.webp', root, { pos: [3.0, 7.3, Z1 + 0.02], w: 3.2, h: 1.6 });
-  decal('Tape001', root, { pos: [9.6, 0.0075, -24.6], rot: [-Math.PI / 2, 0, 0], w: 2.2, h: 0.1, opacity: 0.9, roughness: 0.6 });   // 气瓶笼前地上的黄黑警示胶带
 
   // ---------------------------------------------------------------- 前墙：通办公室的门（门店办公室后墙那扇铁门的另一面）
   { const OX = -4.8;
@@ -1188,8 +1205,44 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 2.9, color: 0xffb668, strength: 0.1 }); }
   hazeLayer(root, [0, 3.2, -23.2], { width: 24, height: 7, color: 0x1c6a6e, strength: 0.07 });
 
+  // ---- 血和脏（第二遍）：运输笼拖到卸货门、月台边上甩的、叉车压过血再带走的胎印、红柱上一只血手印；出库线末端滴的血水、冷藏架底下的化冻血水、退货桶边的一圈
+  const bloodMat = (seed, o = {}) => { const { map, roughnessMap } = puddleDecal(seed, { kind: 'blood', size: 256 }); return new THREE.MeshStandardMaterial({ map, roughnessMap, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 1, ...o }); };
+  const blood = (x, y, z, sz, seed, rot = [-Math.PI / 2, 0, rnd() * 6], o) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz), bloodMat(seed, o)); m.position.set(x, y, z); m.rotation.set(...rot); m.renderOrder = 3; root.add(m); return m; };
+  for (const [x, z, sz, sd] of [[-8.1, -16.2, 1.3, 31], [-9.9, -12.6, 0.7, 32], [-10.6, -19.4, 0.9, 33], [-0.9, -22.0, 0.8, 34], [7.7, -22.3, 0.55, 35], [7.9, -21.6, 0.35, 36], [10.0, -25.2, 1.1, 37], [7.4, -28.9, 0.7, 38], [10.7, -21.2, 0.45, 39], [3.6, -10.2, 0.4, 40], [-4.6, -6.8, 0.5, 41]])
+    blood(x, (x < -8.5 && x > -12 ? PH : 0) + 0.0078, z, sz, sd, undefined, { opacity: 0.85 });
+  for (const z of [-15.6, -16.5, -17.3]) blood(PX + 0.014, PH - 0.32 - rnd() * 0.25, z, 0.42, 50 + Math.round(-z * 3), [0, Math.PI / 2, rnd() * 6]);   // 月台边沿上甩的
+  for (const [x, z, r, w] of [[-9.0, -12.9, 0.3, 2.2], [-8.9, -17.7, -0.2, 1.6], [-10.9, -20.2, 1.3, 1.4]]) userDecal('blood_smear.webp', root, { pos: [x, PH + 0.0072, z], rot: [-Math.PI / 2, 0, Math.PI / 2 + r], w, h: 0.55, color: 0x6a3a36, roughness: 0.5, opacity: 0.85 });   // 拖过去的
+  decal('TireTracks001', root, { pos: [-6.0, 0.0076, -16.4], rot: [-Math.PI / 2, 0, Math.PI / 2], w: 4.2, h: 0.5, color: 0x5a1a14, opacity: 0.55 });   // 叉车压过地上的血，带着往主通道走
+  decal('TireTracks001', root, { pos: [-3.4, 0.0076, -16.7], rot: [-Math.PI / 2, 0, Math.PI / 2 + 0.12], w: 2.6, h: 0.5, color: 0x3a1a14, opacity: 0.35 });
+  { const hand = canvasTexture(256, 384, (g, W, H) => {                    // 红柱上一只血手印（撑了一下、往下滑了一截）
+      g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(96,14,12,.85)';
+      g.beginPath(); g.ellipse(128, 210, 62, 70, 0, 0, 7); g.fill();
+      for (const [x, y, h, a] of [[70, 120, 70, -0.35], [100, 92, 86, -0.12], [134, 86, 90, 0.03], [166, 100, 80, 0.18], [196, 176, 58, 0.75]]) { g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.ellipse(0, 0, 14, h / 2, 0, 0, 7); g.fill(); g.restore(); }
+      g.globalAlpha = 0.5; for (let i = 0; i < 4; i++) g.fillRect(84 + i * 26, 260, 10, 60 + i * 18); g.globalAlpha = 1;
+      g.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(0,0,0,${0.3 + Math.random() * 0.6})`; g.fillRect(Math.random() * W, Math.random() * H, 2, 2); } });
+    const hm = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.26), new THREE.MeshStandardMaterial({ map: hand, transparent: true, depthWrite: false, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -4 }));
+    hm.position.set(X0 + 0.302, PH + 1.22, -17.08); hm.rotation.set(0, Math.PI / 2, 0.08); hm.renderOrder = 3; root.add(hm); }
+  for (const [x, k] of [[5.4, 'Leaking006'], [7.6, 'Leaking004'], [10.6, 'Leaking011A']]) decal(k, root, { pos: [x, 4.6, Z1 + 0.015], w: 1.6, h: 3.4, color: 0x3a3022, opacity: 0.7 });   // 档案区、冷藏架上方的水痕
+  decal('SurfaceImperfections003', root, { pos: [7.5, 0.4, Z1 + 0.016], w: 9, h: 0.8, color: 0x1e1a14, opacity: 0.75 });
+  decal('Leaking009', root, { pos: [X1 - 0.003, 3.4, -26.0], rot: [0, -Math.PI / 2, 0], w: 3.2, h: 2.6, color: 0x2a2620, opacity: 0.7 });
+  decal('SurfaceImperfections017', root, { pos: [6.8, 0.0067, -25.2], rot: [-Math.PI / 2, 0, 0.4], w: 7, h: 4, color: 0x221e18, opacity: 0.5 });   // 三个区之间的过道：踩出来的灰
+  for (const [x, z] of [[6.4, -21.0], [4.6, -23.0]]) decal('decal_17', root, { pos: [x, 0.0071, z], rot: [-Math.PI / 2, 0, x], w: 0.7, h: 0.5, color: 0x1a1612, opacity: 0.35, roughness: 0.25 });   // 托盘车漏的液压油
+
   kit.flush();                                                                     // 所有纸箱按父节点合并成一个个网格
+  let lastT = 0;
   function tick(t) {
+    const dt = Math.min(0.05, Math.max(0, t - lastT)); lastT = t;
+    if (atlas) {                                                           // 走到档案桌前书才翻开，离开时合上
+      const k0 = atlas.k; atlas.k = THREE.MathUtils.clamp(atlas.k + Math.sign(atlas.to - atlas.k) * dt / atlas.len, 0, 1);
+      if (atlas.k !== k0) { atlas.act.time = atlas.k * atlas.len; atlas.mixer.update(0); }
+    }
+    if (dispatch) {                                                        // 机械臂放下一箱 → 沿滚筒线走过扫码门 → 停在末端，过一会儿下一箱
+      const d = dispatch; d.t += dt;
+      const run = Math.min(d.t, 8) * 0.18, x = d.x0 - 0.62 + run;
+      d.box.position.x = x; d.box.visible = d.t < 10.5;
+      if (d.t > 11) d.t = 0;
+      scanLine.material.opacity = Math.abs(x + 5.6 - 6.78) < 0.3 ? 0.55 + 0.45 * Math.sin(t * 40) : 0;
+    }
     for (const s of mist) {                                                // 液氮罐口飘出来的冷雾
       const p = (t * 0.12 + s.userData.ph) % 1;
       s.position.set(-4.4 + Math.sin(p * 5) * 0.2, 1.75 + p * 0.8, -23.3 + p * 0.3);
@@ -1199,5 +1252,5 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     warnL.intensity = 2 * (0.5 + 0.5 * Math.sign(Math.sin(t * 3)));        // 警示灯一闪一闪
     if (rainTex) rainTex.offset.y = (t * 1.6) % 1;                            // 02 号门外的雨
   }
-  return { scene, tick, load };
+  return { scene, tick, load, onFocus(id, on) { if (id === 'atlas' && atlas) atlas.to = on ? 1 : 0; } };
 }
