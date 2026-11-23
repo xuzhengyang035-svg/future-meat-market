@@ -8,12 +8,15 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { deferImages } from './gfx.js';
 import { canvasTexture } from './textures.js';
 import { meatGeometry, meatMaterial, meatHeight, kindFor } from './meat.js';
-import { SPECIES } from './data.js';
+import { SPECIES, LAB_DEEP } from './data.js';
 import { pbr, model, decal, userDecal } from './assets.js';
 import { ITEM } from './dress.js';
 import { curve } from './growth.js';
 import { createCurtain } from './curtain.js';
-import { lightCone, glowColumn, hazeLayer } from './atmosphere.js';
+import { lightCone, glowColumn, hazeLayer, dustMotes } from './atmosphere.js';
+import { dressWard, dirtyCorridor, glassStickers, paperStack, dirtyHall } from './lab-dress.js';
+import { createSigns, screenGlass } from './lab-signs.js';
+import { columnVessel, jacketVessel, wearVessel, benchStain } from './lab-vessels.js';
 import { grimeWallMaps, grimeFloorMaps, grimeMap, ageCanvas, puddleDecal, bloodSplatter } from './materials.js';
 import { steelMaps, concreteMaps, epoxyMaps, wallMaps, slatMaps, smudgeMap, gratingAlpha, blobShadow, graduationMap, tapeLabel, gaugeMap } from './materials.js';
 
@@ -123,7 +126,7 @@ function frostedTexture() {
     g.fillStyle = 'rgba(255,255,255,.45)'; g.fillRect(0, 0, W, H);
     g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(0, H * 0.46, W, 70);
     g.fillStyle = '#c4262e'; g.font = `600 30px ${SANS}`; g.textAlign = 'center';
-    g.fillText('禁止游客进入 NO VISITORS', W / 2, H * 0.46 + 46);
+    g.fillText('STAFF ONLY · NO VISITORS', W / 2, H * 0.46 + 46);
   });
 }
 
@@ -169,16 +172,16 @@ export function drawDataWall(g, W, H, t, b, r) {
   g.font = `500 22px ${MONO}`; g.fillStyle = '#dfe8e0';
   g.fillText('FUTURE MEAT · CULTIVATION MONITOR · HALL 02', 40, 52);
   g.textAlign = 'right'; g.fillStyle = GREEN;
-  g.fillText(`${Math.floor(t * 2) % 2 ? '●' : '○'} LIVE  ${new Date().toLocaleString('zh-CN', { hour12: false })}`, W - 40, 52);
+  g.fillText(`${Math.floor(t * 2) % 2 ? '●' : '○'} LIVE  ${new Date().toLocaleString('en-GB', { hour12: false })}`, W - 40, 52);
   g.textAlign = 'left';
   g.fillStyle = 'rgba(184,255,106,.35)'; g.fillRect(40, 70, W - 80, 1);
 
   // 左：关键数字
   const kpi = [
-    ['在培批次 ACTIVE BATCHES', (3412 + Math.floor(t / 6) % 9).toLocaleString()],
-    ['今日产出 OUTPUT TODAY', (1284.6 + t * 0.03).toFixed(1) + ' kg'],
-    ['平均倍增时间 DOUBLING', '21.8 h'],
-    ['屠宰动物 SLAUGHTERED', '0'],
+    ['ACTIVE BATCHES', (3412 + Math.floor(t / 6) % 9).toLocaleString('en-GB')],
+    ['OUTPUT TODAY', (1284.6 + t * 0.03).toFixed(1) + ' kg'],
+    ['MEAN DOUBLING TIME', '21.8 h'],
+    ['ANIMALS SLAUGHTERED', '0'],
   ];
   kpi.forEach(([l, v], i) => {
     const y = 150 + i * 168;
@@ -191,7 +194,7 @@ export function drawDataWall(g, W, H, t, b, r) {
   const cx = W * 0.5, cy = H * 0.4, R = 200;
   corner(cx - 330, cy - 250, 660, 500);
   g.font = `400 15px ${MONO}`; g.fillStyle = '#8fa592';
-  g.fillText(`SPECIMEN · ${b.cell} · ${b.reactor} · ${b.name ? '「' + b.name + '」' : b.no}`, cx - 314, cy - 222);
+  g.fillText(`SPECIMEN · ${b.cell} · ${b.reactor} · ${b.name ? '"' + b.name + '"' : b.no}`, cx - 314, cy - 222);
   const n = Math.floor(60 + r.f * (CELLS.length - 60));
   for (let i = 0; i < n; i++) {
     const c = CELLS[i];
@@ -211,8 +214,8 @@ export function drawDataWall(g, W, H, t, b, r) {
     g.restore();
   }
   const callouts = [
-    [CELLS[3], -1, '肌管 MYOTUBE'], [CELLS[40], 1, '成肌细胞 MYOBLAST'],
-    [CELLS.find((c) => c.type === 'fat'), 1, '脂肪细胞 ADIPOCYTE'], [CELLS[22], -1, '支架 SCAFFOLD'],
+    [CELLS[3], -1, 'MYOTUBE'], [CELLS[40], 1, 'MYOBLAST'],
+    [CELLS.find((c) => c.type === 'fat'), 1, 'ADIPOCYTE'], [CELLS[22], -1, 'SCAFFOLD'],
   ];
   callouts.forEach(([c, side, text], i) => {
     const x = cx + c.x * R, y = cy + c.y * R;
@@ -228,7 +231,7 @@ export function drawDataWall(g, W, H, t, b, r) {
   // 中下：你的批次的生长曲线
   const gx = cx - 300, gy = H * 0.74, gw = 600, gh = 150;
   g.font = `400 15px ${MONO}`; g.fillStyle = GREEN;
-  g.fillText(`BATCH ${b.no} · 生长曲线 N/K · DAY ${String(r.day).padStart(2, '0')}/${b.cycle}`, gx, gy - 16);
+  g.fillText(`BATCH ${b.no} · GROWTH N/K · DAY ${String(r.day).padStart(2, '0')}/${b.cycle}`, gx, gy - 16);
   g.strokeStyle = 'rgba(255,255,255,.18)';
   g.strokeRect(gx, gy, gw, gh);
   const cv = curve(b, 60);
@@ -244,8 +247,8 @@ export function drawDataWall(g, W, H, t, b, r) {
 
   // 右：批次记录（供体一栏永远是空的）
   const tx = W - 470;
-  g.font = `400 17px ${MONO}`; g.fillStyle = GREEN; g.fillText('BATCH LOG · 批次记录', tx, 150);
-  const cols = [['批次', 0], ['细胞系', 110], ['天数', 220], ['存活率', 290], ['供体*', 380]];
+  g.font = `400 17px ${MONO}`; g.fillStyle = GREEN; g.fillText('BATCH LOG', tx, 150);
+  const cols = [['BATCH', 0], ['LINE', 110], ['DAY', 220], ['VIAB.', 290], ['DONOR*', 380]];
   g.font = `400 14px ${MONO}`; g.fillStyle = '#8fa592';
   cols.forEach(([c, x]) => g.fillText(c, tx + x, 184));
   const rows = LOG.slice();
@@ -255,7 +258,7 @@ export function drawDataWall(g, W, H, t, b, r) {
     if (row.mine) { g.fillStyle = 'rgba(184,255,106,.16)'; g.fillRect(tx - 10, y - 21, 460, 29); }
     g.fillStyle = row.mine ? GREEN : '#dfe8e0';
     g.font = `400 15px ${MONO}`;
-    g.fillText(row.mine && b.name ? `「${b.name}」` : row.no, tx, y);
+    g.fillText(row.mine && b.name ? `"${b.name}"` : row.no, tx, y);
     g.fillText(row.cell, tx + 110, y);
     g.fillText(String(row.day).padStart(2, '0'), tx + 220, y);
     g.fillText(row.via + '%', tx + 290, y);
@@ -273,9 +276,9 @@ export function drawDataWall(g, W, H, t, b, r) {
   // 底栏
   g.fillStyle = 'rgba(184,255,106,.35)'; g.fillRect(40, H - 52, W - 80, 1);
   g.font = `400 14px ${MONO}`; g.fillStyle = '#8fa592';
-  g.fillText('REFRESH 5s · 每个细胞都在记录之中', 40, H - 24);
+  g.fillText('REFRESH 5s · EVERY CELL ON RECORD', 40, H - 24);
   g.textAlign = 'right';
-  g.fillText('* 供体信息不在本系统显示范围内', W - 40, H - 24);
+  g.fillText('* DONOR DATA IS OUTSIDE THE SCOPE OF THIS SYSTEM', W - 40, H - 24);
   g.textAlign = 'left';
 }
 
@@ -330,6 +333,7 @@ function vessel(species, frac, parent, label) {
   g.add(new THREE.Mesh(new THREE.TubeGeometry(path, 40, 0.0055, 8), M.tube));
   box(0.13, 0.12, 0.15, M.white, 0.36, 0.06, 0, g);
   plane(0.1, 0.05, screenTex('PERFUSION', ['1.2 mL/min', 'O2  42%']), 0.36, 0.08, 0.0755, 0, g);
+  wearVessel(g, 0.1535, 0.395, 0.32, '176,92,84', 2);
   // 气泡
   const bubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }), 26);
   bubbles.renderOrder = 2;
@@ -353,7 +357,7 @@ export function createLab(env) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x041514);
   scene.environment = env;
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.3;
   const root = new THREE.Group();
   scene.add(root);
 
@@ -368,7 +372,7 @@ export function createLab(env) {
   // 发光体调到高于 1，后期辉光只会作用在灯上
   M.light.color.setRGB(1.5, 2.9, 2.6); M.warmLight.color.setRGB(0.5, 1.15, 0.98);
   M.sight.color.multiplyScalar(1.4); M.ledRed.color.setRGB(4, 0.3, 0.3);
-  scene.fog = new THREE.FogExp2(0x0a3240, 0.047);                          // 越往里越沉进青绿色的雾里
+  scene.fog = new THREE.FogExp2(0x051a21, 0.05);                          // 越往里越沉进青绿色的雾里
   // 墙：参观廊是发黄的旧瓷砖 + 绿漆墙裙；车间是刷漆的大墙，墙裙更高，满是锈水痕
   const wallMat = (w, h, o = {}) => pbr('long_white_tiles', w, h, { size: 2.6, rotate: Math.PI / 2, roughness: 0.75, color: 0xcfcac0 });   // 真实的旧白瓷砖
   const hallWallMat = (w, h) => new THREE.MeshStandardMaterial({ ...grimeWallMaps(w, h, { tile: false, dado: 1.6, ppm: 40, upper: [138, 142, 134], paint: [62, 76, 68], seed: 9, ao: 0.6 }) });
@@ -418,18 +422,20 @@ export function createLab(env) {
   box(4.5, 0.92, 0.62, wallMat(4.5, 0.92, { dado: 0, size: 0.1, ppm: 120 }), 2.4, 0.46, FZ, root);
   { const tt = new THREE.Mesh(new THREE.PlaneGeometry(4.54, 0.68), tileTop(4.54, 0.68)); tt.rotation.x = -Math.PI / 2; tt.position.set(2.4, 0.935, FZ); root.add(tt); }
   box(4.54, 0.04, 0.04, M.frame, 2.4, 0.915, FZ + 0.33, root);
-  const vesL = vessel('chicken', 0.55, root, ['BR-01 G-0221', 'D14  P41']); vesL.group.position.set(0.55, 0.95, FZ);
-  const vesC = vessel('beef', 0.3, root, ['BR-02 sample', '11/08  P37']); vesC.group.position.set(1.35, 0.95, FZ);
-  const vesR = vessel('pork', 0.85, root, ['BR-03 P-0932', 'D24  P52']); vesR.group.position.set(2.15, 0.95, FZ);
+  const vesL = columnVessel(root, 0.5, FZ, M, matFor('chicken'));
+  const vesC = vessel('beef', 0.3, root, ['BR-02 sample', '11/08  P37']); vesC.group.position.set(1.35, 0.936, FZ);
+  benchStain(root, 1.37, 0.9362, FZ + 0.03, 0.55, 0.7);
+  const vesR = jacketVessel(root, 2.15, FZ, M);
   const plate = (txt, sub, x, hi) => plane(0.5, 0.09, textSign([[txt, 30, hi ? '#ffffff' : '#1d1f22', 0.48, 500, SANS], [sub, 20, hi ? 'rgba(255,255,255,.75)' : '#6b6762', 0.85, 400, MONO]], 400, 72, { bg: hi ? '#b3262d' : '#ebe9e4' }), x, 0.83, FZ + 0.336, 0, root, false);
   plate('CULTIVATED CHICKEN', 'BR-01 · G-0221', 0.55, false);
   const myPlate = plate('YOUR BATCH', 'BR-02 · DEMO', 1.35, true);
   plate('CULTIVATED PORK', 'BR-03 · P-0932', 2.15, false);
-  for (const [x, i] of [[0.55, 4], [1.35, 8], [2.15, 4]]) {
+  for (const [x, i] of [[0.55, 7], [1.35, 12], [2.15, 7]]) {
     const s = new THREE.SpotLight(x > 1 && x < 2 ? 0xd6ffd8 : 0xffb868, i, 3.4, 0.36, 0.6, 1.4);
     s.position.set(x, 2.8, FZ + 0.4); s.target.position.set(x, 1.0, FZ);
     root.add(s, s.target);
-    lightCone(root, [x, 2.8, FZ + 0.4], [0, -1.8, -0.4], { length: 1.75, radius: 0.5, top: 0.05, color: x > 1 && x < 2 ? 0xc8ffd0 : 0xffb868, strength: x > 1 && x < 2 ? 0.15 : 0.09 });
+    lightCone(root, [x, 2.8, FZ + 0.4], [0, -1.8, -0.4], { length: 1.75, radius: 0.5, top: 0.05, color: x > 1 && x < 2 ? 0xc8ffd0 : 0xffb868, strength: x > 1 && x < 2 ? 0.3 : 0.2 });
+    dustMotes(root, [x, 2.8, FZ + 0.4], [0, -1.8, -0.4], { length: 1.7, radius: 0.42, top: 0.05, count: 110, color: x > 1 && x < 2 ? 0xd8ffe0 : 0xffd2a0, strength: 0.8 });
   }
   { const wl = new THREE.Group(); wl.position.set(-3.75, 2.25, -0.86); root.add(wl);                 // 铁丝罩壁灯
     box(0.12, 0.12, 0.04, M.frame, 0, 0, -0.04, wl); cyl(0.07, 0.07, 0.18, new THREE.MeshBasicMaterial({ color: new THREE.Color(3, 2.2, 1.2) }), 0, 0, 0.08, wl, 14).rotation.x = Math.PI / 2;
@@ -451,27 +457,26 @@ export function createLab(env) {
   const dataTex = canvasTexture(1600, 900, (g, W, H) => { g.fillStyle = '#06080a'; g.fillRect(0, 0, W, H); });
   box(0.06, 1.56, 2.74, M.frame, -4.97, 1.75, 1.6, root);
   plane(2.6, 1.4625, dataTex, -4.935, 1.75, 1.6, Math.PI / 2, root);
+  screenGlass(root, 2.6, 1.4625, { x: -4.935, y: 1.75, z: 1.6, ry: Math.PI / 2, seed: 2 });
 
-  // 右墙：品牌标语、参观须知、宣传册架
-  plane(2.4, 1.1, textSign([
-    ['FUTURE MEAT MARKET · 加工间 · 熟客参观', 22, '#8a8580', 0.16, 500, MONO],
-    ['SEE IT GROW.', 112, '#141414', 0.5, 300],
-    ['看得见，才安心。', 50, '#141414', 0.72, 400],
-    ['每一份订单，都在这里长大。', 24, '#6b6762', 0.86, 400],
-  ], 1200, 550, { bar: '#b3262d' }), 4.995, 1.95, 0.6, -Math.PI / 2, root);
-  plane(0.5, 0.7, textSign([
-    ['参观须知', 46, '#141414', 0.12, 500], ['VISITOR NOTICE', 20, '#8a8580', 0.18, 500, MONO],
-    ['1  请勿拍照、录像', 24, '#333', 0.32], ['2  请勿拍打玻璃', 24, '#333', 0.42],
-    ['3  工作人员不便回答', 24, '#333', 0.52], ['    工艺与细胞来源问题', 24, '#333', 0.6],
-    ['4  参观时长约 15 分钟', 24, '#333', 0.7],
-  ], 400, 560, { bar: '#141414' }), 4.995, 1.45, 2.45, -Math.PI / 2, root, false);
-  box(0.25, 1.0, 0.7, M.frame, 4.86, 0.5, 1.5, root);
-  for (let i = 0; i < 3; i++) plane(0.18, 0.24, textSign([['SEE IT', 30, '#141414', 0.3, 300], ['GROW', 30, '#141414', 0.5, 300], ['宣传册', 20, '#b3262d', 0.85, 500]], 180, 240, { bg: '#f4f1ea' }), 4.72, 0.75, 1.3 + i * 0.2, -Math.PI / 2, root, false);
+  // 右墙：品牌展板、参观须知（指上去有反应）、宣传册架；提问终端（屏幕就是界面）
+  const signs = createSigns(root);
+  for (const x of [-2.6, 1.0]) { const l = new THREE.PointLight(0xffcf9a, 2.2, 5.5, 1.8); l.position.set(x, 2.75, 2.2); root.add(l); }   // 参观廊顶上的灯条：只给地面留一点暖色，不把整条廊照亮
+  for (const [from, to, i, ang] of [[[3.55, 2.95, 0.95], [3.9, 1.0, 0.35], 7, 0.42], [[4.35, 2.95, 2.0], [4.99, 1.4, 2.4], 5, 0.36], [[4.3, 2.95, 0.4], [4.99, 1.8, 0.6], 6, 0.6]]) {   // 右墙这一段：终端、须知、展板头顶各一盏暖色射灯
+    const l = new THREE.SpotLight(0xffc48a, i, 4.5, ang, 0.55, 1.6); l.position.set(...from); l.target.position.set(...to); root.add(l, l.target);
+    const d = new THREE.Vector3(...to).sub(new THREE.Vector3(...from));
+    lightCone(root, from, d.toArray(), { length: d.length() * 0.9, radius: Math.tan(ang) * d.length() * 0.8, top: 0.05, color: 0xffc08a, strength: 0.16 });
+  }
+  dirtyCorridor(root);
+  glassStickers(root);
+  // 显微镜台上：交班单底下压着一摞，旁边又一摞，都歪着
+  paperStack(root, { x: -0.66, z: -1.62, y: 0.9346, n: 5, seed: 2, spread: 0.03, turn: 0.32 });
+  paperStack(root, { x: -0.32, z: -1.8, y: 0.9346, n: 9, seed: 5, spread: 0.028, turn: 0.4 });
 
   // 后墙：回门店的门
   box(1.1, 2.2, 0.06, M.frame, 3.6, 1.1, 3.98, root);
-  plane(1.0, 2.1, textSign([['←  返回门店', 60, '#ffffff', 0.12, 500, SANS, 'center'], ['STORE', 28, 'rgba(255,255,255,.6)', 0.17, 500, MONO, 'center']], 400, 840, { bg: '#3a3c40' }), 3.6, 1.07, 3.945, Math.PI, root, false);
-  plane(0.42, 0.14, textSign([['EXIT 出口', 40, '#ffffff', 0.7, 600, SANS, 'center']], 300, 100, { bg: '#1f8a4c' }), 3.6, 2.42, 3.99, Math.PI, root);
+  plane(1.0, 2.1, textSign([['←  STORE', 60, '#ffffff', 0.12, 500, SANS, 'center'], ['BACK TO THE SHOP', 24, 'rgba(255,255,255,.6)', 0.17, 500, MONO, 'center']], 400, 840, { bg: '#3a3c40' }), 3.6, 1.07, 3.945, Math.PI, root, false);
+  plane(0.42, 0.14, textSign([['EXIT', 40, '#ffffff', 0.7, 600, SANS, 'center']], 300, 100, { bg: '#1f8a4c' }), 3.6, 2.42, 3.99, Math.PI, root);
   box(1.8, 0.42, 0.45, M.frame, -0.6, 0.21, 2.9, root);
   box(1.76, 0.06, 0.42, M.fabric, -0.6, 0.45, 2.9, root);
 
@@ -486,7 +491,8 @@ export function createLab(env) {
 
   // 一整道帘子：实验台在前，病床和动物都在帘子后面，拉开才看得见
   const cloth = pbr('Fabric045', 1, 1, { size: 0.38, roughness: 0.96, color: 0x2d6a74, emissive: 0x02100f, side: THREE.DoubleSide, normalScale: 0.6 });
-  const curtain = createCurtain({ x0: -8.85, x1: 8.85, split: 0.8, z: -2.5, top: 3.52, bottom: 0.14,
+  const ward = new THREE.Group(); ward.position.z = -LAB_DEEP; hall.add(ward);     // 帘子后面的东西都往里让了 LAB_DEEP（模型在 lab_kit.py 里已经推过）
+  const curtain = createCurtain({ x0: -8.85, x1: 8.85, split: 0.8, z: -3.05, top: 3.52, bottom: 0.14,
     fabric: cloth, metal: pbr('Metal009', 1, 1, { size: 0.3, metalness: 0.8, roughness: 0.6 }) });
   hall.add(curtain.group);
   const WARD = -0.55;                                                      // 病床整体往里让了这么多（和 lab_kit.py 里一致）
@@ -500,11 +506,11 @@ export function createLab(env) {
   });
   ecgTex.wrapS = THREE.RepeatWrapping;
   const ecgMat = new THREE.MeshBasicMaterial({ map: ecgTex });
-  for (const [x, y, z] of [[-7.523, 1.248, -4.981], [-4.963, 1.309, -5.441], [3.559, 1.248, -4.779], [6.394, 1.248, -4.623]]) plane(0.33, 0.056, ecgMat, x, y + 0.037, z + WARD + 0.002, 0, hall);
+  for (const [x, y, z] of [[-7.523, 1.248, -4.981], [-4.963, 1.309, -5.441], [3.559, 1.248, -4.779], [6.394, 1.248, -4.623]]) plane(0.33, 0.056, ecgMat, x, y + 0.037, z + WARD + 0.002, 0, ward);
 
   const beds = [['P-0932', 'duroc', -6.8], ['B-0417', 'holstein', -4.1], ['P-0101', null, 0], ['P-1077', 'white', 4.1], ['G-0221', 'hen', 6.8]]
     .map(([id, animal, x]) => ({ id, animal, x, pose: null }));
-  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  const v = (x, y, z) => new THREE.Vector3(x, y, z - LAB_DEEP);
   const tankList = [
     { name: 'HT-01', size: '高位罐', tissue: ['融合片层', 'LM-04'], pos: v(-1.95, 2.9, -9.3) },
     { name: 'HT-02', size: '高位罐', tissue: ['富脂褶皱', 'FT-02'], pos: v(1.59, 3.1, -9.1) },
@@ -521,18 +527,20 @@ export function createLab(env) {
       kit.traverse((o) => { if (o.isMesh) meshes.push(o); });
       const pivots = {};
       for (const b of beds) if (b.animal) {                                 // 每只动物的支点在床垫面上：呼吸时蹄子和身子底下不离开床垫
-        const g = new THREE.Group(); g.position.set(b.x, b.animal === 'holstein' ? 0.8985 : 0.84, -3.9 + WARD); g.updateMatrixWorld(); hall.add(g);
+        const g = new THREE.Group(); g.position.set(b.x, b.animal === 'holstein' ? 0.8985 : 0.84, -3.9 + WARD - LAB_DEEP); g.updateMatrixWorld(); hall.add(g);
         pivots[b.animal] = g; b.pose = { o: g, rate: { duroc: 1.5, holstein: 1.1, white: 1.8, hen: 3.2 }[b.animal] };
       }
       for (const o of meshes) {
         const m = o.material, name = m.name || '';
-        m.envMapIntensity = 0.65;
-        if (name.startsWith('Grouted ceramic / floor')) { m.roughness = 0.5; m.envMapIntensity = 1.3; m.color.set(0x86aaa4); }   // 冲洗过的湿地：灯都拖出倒影
-        if (name.startsWith('Grouted ceramic / wall')) m.color.set(0x7c9c98);
-        if (name.startsWith('High bay limewash')) m.color.set(0x6f8f8a);
-        if (name.startsWith('Internal instrument strip')) m.emissiveIntensity = 4.2;
-        if (name.startsWith('Amber inspection lamp')) m.emissiveIntensity = 3;
-        if (name.startsWith('Opal fluorescent diffuser')) m.emissive.setRGB(0.36, 0.95, 0.85);
+        m.envMapIntensity = 0.5;
+        if (name.startsWith('Grouted ceramic / floor')) { m.roughness = 0.42; m.envMapIntensity = 1.4; m.color.set(0x5b7672); }   // 冲洗过的湿地：灯都拖出倒影；底色压暗，不发灰
+        if (name.startsWith('Grouted ceramic / wall')) m.color.set(0x506967);
+        if (name.startsWith('High bay limewash')) m.color.set(0x3f5653);
+        if (name.startsWith('Internal instrument strip')) m.emissiveIntensity = 5.2;
+        if (name.startsWith('Amber inspection lamp')) m.emissiveIntensity = 4.2;
+        if (name.startsWith('Heater inspection glow')) m.emissiveIntensity = 3;
+        if (name.startsWith('Opal fluorescent diffuser')) m.emissive.setRGB(0.55, 1.45, 1.3);
+        if (/^(us|pump|ecg)$/.test(name) && m.map) { m.emissive.set(0xffffff); m.emissiveMap = m.map; m.emissiveIntensity = 0.55; }   // 床尾设备的屏幕：暗处也看得清
         for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = 8;
         if (m.transparent) {
           m.depthWrite = false;                                            // 玻璃、培养液、门帘后面的东西不能被它们挡掉
@@ -543,33 +551,39 @@ export function createLab(env) {
         (animal ? pivots[animal[1]] : hall).attach(o);
       }
       draco.dispose();
+      dressWard({ hall, pivots, beds, kit: meshes.filter((o) => !/^A_/.test(o.name)), curtainMat: cloth });   // 盖单子、针眼和血、拉了一半的隔帘
       resolve(true);
     }, undefined, (e) => { console.error('实验室模型没有加载出来', e); resolve(false); });
   });
 
   // 打光分三层：远处沉在青色的雾里，中景是三座罐子的绿光，近处是几摊暖黄的台灯。暗的地方就让它暗（不开阴影）
-  for (const [x, y, z] of [[-1.73, 3.98, -9.78], [1.81, 4.18, -9.59], [5.7, 3.91, -9.91]]) { const l = new THREE.PointLight(0x62f0a0, 7, 6, 1.8); l.position.set(x, y - 0.7, z + 0.7); hall.add(l); }
+  for (const [x, y, z] of [[-1.73, 3.98, -9.78], [1.81, 4.18, -9.59], [5.7, 3.91, -9.91]]) { const l = new THREE.PointLight(0x62f0a0, 9, 6, 1.8); l.position.set(x, y - 0.7, z + 0.7); ward.add(l); }
   for (const [x, y, z] of [[-1.95, 3.85, -10.0], [1.59, 4.05, -9.83], [5.48, 3.65, -10.15]]) {
-    glowColumn(hall, [x, y, z], { radius: 1.05, height: 3.2, color: 0x43d97a, strength: 0.13 });
-    lightCone(hall, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.5, radius: 1.15, top: 0.4, color: 0x4fe8a0, strength: 0.14 });   // 罐底漏下来的光
+    glowColumn(ward, [x, y, z], { radius: 1.05, height: 3.2, color: 0x43d97a, strength: 0.15 });
+    lightCone(ward, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.5, radius: 1.15, top: 0.4, color: 0x4fe8a0, strength: 0.26 });   // 罐底漏下来的光
+    dustMotes(ward, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.4, radius: 1.0, top: 0.4, count: 160, color: 0xa8ffc8, strength: 0.6 });
   }
-  hazeLayer(hall, [0, 2.2, -6.75], { width: 18, height: 4.6, color: 0x124c5c, strength: 0.09 });
-  hazeLayer(hall, [0, 2.5, -11.0], { width: 18, height: 5.2, color: 0x1c6a96, strength: 0.19 });
-  lightCone(hall, [-1.55, 2.66, -1.62], [0, -1, -0.07], { length: 1.75, radius: 0.95, color: 0xffb25e, strength: 0.16 });
-  lightCone(hall, [-5.55, 3.3, -3.57], [0.04, -0.88, -0.47], { length: 2.7, radius: 1.3, color: 0x6fe6dc, strength: 0.14 });
-  lightCone(hall, [4.25, 3.3, -3.69], [0.04, -0.93, -0.37], { length: 2.7, radius: 1.3, color: 0x5fd0d8, strength: 0.13 });
-  lightCone(hall, [0.1, 3.3, -4.51], [0, -1, -0.04], { length: 2.4, radius: 0.85, color: 0xd8ffe8, strength: 0.17 });
-  lightCone(hall, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18], { length: 2.5, radius: 0.9, color: 0xff9c4a, strength: 0.16 });
+  hazeLayer(ward, [0, 2.2, -6.75], { width: 18, height: 4.6, color: 0x0e3c4a, strength: 0.05 });
+  hazeLayer(ward, [0, 2.5, -11.0], { width: 18, height: 5.2, color: 0x175c84, strength: 0.11 });
+  lightCone(hall, [-1.55, 2.66, -1.62], [0, -1, -0.07], { length: 1.75, radius: 0.95, color: 0xffb25e, strength: 0.3 });
+  dustMotes(hall, [-1.55, 2.66, -1.62], [0, -1, -0.07], { length: 1.7, radius: 0.8, count: 140, color: 0xffd6a0, strength: 0.7 });
+  for (const [from, dir, o] of [
+    [[-5.55, 3.3, -3.57], [0.04, -0.88, -0.47], { length: 2.7, radius: 1.3, color: 0x6fe6dc, strength: 0.3 }],
+    [[4.25, 3.3, -3.69], [0.04, -0.93, -0.37], { length: 2.7, radius: 1.3, color: 0x5fd0d8, strength: 0.28 }],
+    [[0.1, 3.3, -4.51], [0, -1, -0.04], { length: 2.4, radius: 0.85, color: 0xd8ffe8, strength: 0.34 }],
+    [[8.16, 2.98, -8.86], [-0.03, -0.98, -0.18], { length: 2.5, radius: 0.9, color: 0xff9c4a, strength: 0.3 }],
+  ]) { lightCone(ward, from, dir, o); dustMotes(ward, from, dir, { ...o, top: 0.1, count: 170, strength: 0.65 }); }
+  dirtyHall(ward, -12.4);                                                  // 车间后墙和两侧墙上的水痕、墙根的脏
   for (const [col, i, dist, outer, inner, [x, y, z], [dx, dy, dz]] of [
-    [0xffb468, 23, 5, 0.82, 0.4, [-1.55, 2.7, -1.6], [0, -1, -0.07]],          // 显微镜台：一摊暖黄
-    [0x7fe0d2, 34, 7, 0.95, 0.42, [-5.55, 3.05, -3.57], [0.04, -0.88, -0.47]], // 左边两张床
-    [0x62c8d4, 36, 7, 0.95, 0.42, [4.25, 3.16, -3.69], [0.04, -0.93, -0.37]],  // 右边两张床
-    [0x2a88cc, 58, 9, 1.0, 0.5, [-6.7, 3.13, -6.92], [0.78, -0.39, -0.49]],    // 工作区：冷青的侧光
-    [0xff9440, 26, 5, 0.8, 0.4, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18]],   // 回收角：钠灯一样的橙
-    [0xdcffe6, 19, 5, 0.58, 0.3, [0.1, 2.88, -4.51], [0, -1, -0.04]],          // 停用的空床：单独一束，垫子上擦过的血痕要看得见
+    [0xffb468, 34, 5, 0.82, 0.4, [-1.55, 2.7, -1.6], [0, -1, -0.07]],          // 显微镜台：一摊暖黄
+    [0x7fe0d2, 52, 7, 0.95, 0.42, [-5.55, 3.05, -3.57], [0.04, -0.88, -0.47]], // 左边两张床
+    [0x62c8d4, 54, 7, 0.95, 0.42, [4.25, 3.16, -3.69], [0.04, -0.93, -0.37]],  // 右边两张床
+    [0x2a88cc, 64, 9, 1.0, 0.5, [-6.7, 3.13, -6.92], [0.78, -0.39, -0.49]],    // 工作区：冷青的侧光
+    [0xff9440, 38, 5, 0.8, 0.4, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18]],   // 回收角：钠灯一样的橙
+    [0xdcffe6, 30, 5, 0.58, 0.3, [0.1, 2.88, -4.51], [0, -1, -0.04]],          // 停用的空床：单独一束，垫子上擦过的血痕要看得见
   ]) {
     const l = new THREE.SpotLight(col, i, dist, outer, 1 - inner / outer, 2);
-    l.position.set(x, y, z); l.target.position.set(x + dx, y + dy, z + dz); hall.add(l, l.target);
+    l.position.set(x, y, z); l.target.position.set(x + dx, y + dy, z + dz); (z > -2 ? hall : ward).add(l, l.target);
   }
 
   // 参观廊：扶手、隔离带、轨道射灯、监控探头、灭火器、回风口、地贴、展台提示牌
@@ -602,15 +616,7 @@ export function createLab(env) {
   box(0.16, 0.1, 0.04, M.frame, 4.55, 0.2, 3.95, root);
   plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root);
   plane(1.0, 0.35, canvasTexture(400, 140, (g, W, H) => { g.fillStyle = '#a4a29d'; g.fillRect(0, 0, W, H); g.fillStyle = '#34353a'; for (let y = 10; y < H - 6; y += 12) g.fillRect(8, y, W - 16, 6); }), -2.4, 2.6, 3.99, Math.PI, root, false);
-  // 提问终端：观众可以向品牌提问
-  const kiosk = new THREE.Group(); kiosk.position.set(3.9, 0, 0.35); kiosk.rotation.y = -0.5; root.add(kiosk);
-  box(0.42, 1.0, 0.34, M.white, 0, 0.5, 0, kiosk);
-  box(0.46, 0.04, 0.38, M.frame, 0, 1.02, 0, kiosk);
-  const ks = plane(0.4, 0.28, textSign([['ANY', 54, '#ffffff', 0.38, 400, SANS, 'center'], ['QUESTIONS?', 46, '#ffffff', 0.62, 400, SANS, 'center'], ['ASK US ANYTHING', 22, '#b8ff6a', 0.86, 500, MONO, 'center']], 400, 280, { bg: '#101214' }), 0, 1.25, 0.06, 0, kiosk);
-  ks.rotation.x = -0.3;
-  box(0.44, 0.31, 0.03, M.frame, 0, 1.25, 0.04, kiosk).rotation.x = -0.3;
-  blob(3.9, 0.35, 0.9, root, 0.003);
-  scene.add(new THREE.HemisphereLight(0x5cacb0, 0x071416, 0.42));
+  scene.add(new THREE.HemisphereLight(0x4a9aa0, 0x040c0d, 0.17));
 
   // ---------------------------------------------------------------- 动画与数据
   let lastWall = -1, scanOn = 0;
@@ -645,7 +651,8 @@ export function createLab(env) {
     setTissue(vesC, r.f);
     vesC.mediumMat.color.copy(PINK).lerp(ORANGE, r.acid);
     vesC.tissue.rotation.y = t * 0.05;
-    for (const v of [vesL, vesC, vesR]) {
+    vesL.tick(t, dt); vesR.tick(t, dt); signs.notice.tick(dt); signs.kiosk.tick(dt);
+    for (const v of [vesC]) {
       v.bub.forEach((p, i) => {
         p.y += dt * 0.12 * p.v;
         if (p.y > 1) p.y = 0;
@@ -679,5 +686,5 @@ export function createLab(env) {
   };
   const anchor = (k) => vesC.group.localToWorld(ANCHORS[k].clone());
 
-  return { scene, tick, setBatch, setScan, anchor, tanks: tankList, beds, load, curtain, setCurtain: curtain.set };
+  return { scene, tick, setBatch, setScan, anchor, tanks: tankList, beds, load, curtain, setCurtain: curtain.set, notice: signs.notice, kiosk: signs.kiosk };
 }

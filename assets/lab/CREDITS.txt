@@ -1,8 +1,10 @@
 lab_kit.glb
-  Source: FMM Laboratory Kit (FMM_Laboratory_Web.glb), supplied by the project author.
+  Source: FMM Laboratory Kit + Clinical Ward Kit (FMM_Laboratory_Web.glb with modules 01-05), supplied by the project author.
   Processed with tools/blender/lab_kit.py:
     - visitor gallery and exported lights removed (the gallery and lights live in lab.js)
-    - intersections corrected, hen neck seam and wattles fixed
+    - intersections corrected, hen neck seam and wattles fixed; bovine ultrasound cart moved off the cow's muzzle
+    - ward (beds, animals, bedside equipment 01-04) moved 0.55 + 0.9 m further in; walls and floor behind z = -2.4 pushed back 0.9 m
+    - retained cuts and cultureware (05) moved with the microscopy bench to the glass
     - static meshes joined by material, animals kept separate
     - WebP textures + Draco geometry
-  All tissue exhibits (LM-04, FT-02, FB-07) are fictional.
+  All tissue exhibits (LM-04, FT-02, FB-07) and retained samples are fictional.

@@ -4,7 +4,8 @@ blender --background --factory-startup --python lab_kit.py -- <FMM_Laboratory_We
 
 1. 去掉包里的参观廊（网页自己的参观廊带着批次、数据墙、提问终端）和灯（网页里用代码打灯）；外壳在玻璃那条线裁开，两侧补上墙。
 2. 修穿插：立管穿洗手台、布帘穿吊罐、灯杆穿管道、垃圾袋插进钢柱、吊架插进灯壳、牛腿陷进床垫；鸡的肉垂改成垂下来的两片。
-3. 换布局（实验台和培养肉在前、病床往里让 0.55 m），再查一遍件与件之间的穿插，打印 HIT；REPORT 一行是面数、网格数和体积。
+3. 换布局（实验台和培养肉在前、病床往里让 0.55 + 0.9 m；z < -2.4 的墙地设备也往里推 0.9 m），再查一遍件与件之间的穿插，打印 HIT；REPORT 一行是面数、网格数和体积。
+   源文件用 Clinical Ward Kit 里的整包 FMM_Laboratory_Web.glb：多了床尾四件设备（01–04，跟床一起挪）和显微镜台上的肉样、培养皿（05，跟显微镜台一起搬）。
 4. 静态的按材质合并，四只动物各自合并（要呼吸，名字以 A_ 开头）；贴图 WebP，网格 Draco。
 坐标一律按网页的来（米，Y 朝上，参观廊玻璃在 z = -1）。
 """
@@ -132,12 +133,20 @@ bm.to_mesh(tile.data); bm.free()
 
 # 布局：玻璃里第一排是实验台和培养肉，整道帘子（网页里做，会动）在 z = -2.5，帘子后面才是病床
 WARD = -.55                                                  # 病床、隔帘、动物整体往里让
+DEEP = -.9                                                   # 帘子后面再整体往里让 0.9 m：帘子贴着实验台太挤（网页 lab.js 的 LAB_DEEP 同步）
+ZCUT = -2.4                                                  # 这条线以后的墙、地、设备都往里推；线前面是实验台，不动
+KIT = ('01 ', '02 ', '03 ', '04 ')                           # Clinical Ward Kit：床尾的超声仪、输液泵、心电记录仪、保温台，跟着床走
+BENCH = Vector((2.65, 0, 6.68))                              # 显微镜台搬到玻璃前
+moved = set()
 for o in meshes:
     mod = o.name.split('|')[0].strip()
-    if mod in ANIMALS or mod.startswith('station_') or mod == 'ward_curtains':
-        o.data.transform(Matrix.Translation(w2b((0, 0, WARD))))
-        o.data.update()
-BENCH = Vector((2.65, 0, 6.68))                              # 显微镜台搬到玻璃前
+    if mod in ANIMALS or mod.startswith('station_') or mod == 'ward_curtains' or mod.startswith(KIT):
+        nudge = (.3, 0, .12) if mod.startswith('01 ') else (0, 0, 0)   # 超声仪的键盘台原来插进牛嘴里：挪到牛的右前方
+        o.data.transform(Matrix.Translation(w2b((nudge[0], 0, WARD + DEEP + nudge[2]))))
+        o.data.update(); moved.add(o.name)
+    elif mod.startswith('05 '):                              # 留样台上的肉样和培养皿：跟着显微镜台搬到玻璃前
+        o.data.transform(Matrix.Translation(w2b(BENCH)))
+        o.data.update(); moved.add(o.name)
 n_move = n_drop = n_copy = 0
 for o in [m for m in meshes if m.name.split('|')[0].strip() == B]:
     move, drop, dup = [], [], []
@@ -145,7 +154,6 @@ for o in [m for m in meshes if m.name.split('|')[0].strip() == B]:
         if hi[1] > 1.45 or lo[2] < -9.6: continue
         if lo[0] > -5.73 and hi[0] < -2.76 and lo[2] > -8.995 and hi[2] < -7.875:
             move += idx
-            if lo[1] > .925 and hi[1] < 1.015 and lo[0] > -4.45 and hi[0] < -3.4 and lo[2] > -8.9 and hi[2] < -8.08 and 'Print' not in o.name and 'handover' not in o.name: dup += idx
         else: drop += idx                                    # 原来台前的凳子：搬过来会挡住玻璃
     n_move += len(move); n_drop += len(drop); n_copy += len(dup)
     for i in move: o.data.vertices[i].co += w2b(BENCH)
@@ -163,6 +171,15 @@ for o in [m for m in meshes if m.name.split('|')[0].strip() == B]:
     if drop: bmesh.ops.delete(bm, geom=[bm.verts[i] for i in drop], context='VERTS')
     bm.to_mesh(o.data); bm.free(); o.data.update()
 print('LAYOUT', n_move, n_drop, n_copy)
+# 其余的（墙、地、车间设备、高位罐）：ZCUT 以后的顶点往里推，跨线的大面（地、侧墙）被拉长
+n_deep = 0
+for o in meshes:
+    if o.name in moved: continue
+    for v in o.data.vertices:
+        p = b2w(v.co)
+        if p.z < ZCUT: v.co = w2b(p + Vector((0, 0, DEEP))); n_deep += 1
+    o.data.update()
+print('DEEP', n_deep)
 
 # 件与件之间再查一遍（嵌进墙里的钢梁、支架不算）
 bym = defaultdict(list)

@@ -18,7 +18,7 @@ import { paperHTML } from './papers.js';
 import { ROOM_NAV } from './data.js';
 import { SPECIES, ORDER, OPTIONS, GROWTH, HOTSPOTS, MARQUEE, DONOR_PR, DONOR_STEPS, AD, CALLOUTS, CERAMIC_BASE, BRAND_FILM, BRAND_FINE,
   STREET_MARQUEE, STREET_HOTSPOTS, WH_MARQUEE, WH_HOTSPOTS, WH_NAV, LAB_NAV,
-  LAB_MARQUEE, LAB_HOTSPOTS, LAB_FOCUS, CELLBANK_ROWS, ASK, ASK_FALLBACK, ASK_ANIMAL } from './data.js';
+  LAB_MARQUEE, LAB_HOTSPOTS, LAB_FOCUS, CELLBANK_ROWS, LAB_DEEP } from './data.js';
 import { meatGeometry, meatHeight, kindFor } from './meat.js';
 import { makeBatch, stepBatch, readout, curve, sci } from './growth.js';
 
@@ -103,7 +103,7 @@ const PLACES = {
     lab = createLab(env);
     lab.setBatch(state.batch, state.order?.opts);
     mountLabTags();
-    post = grade(lab.scene, { uSat: 1.05, uShadow: [-0.017, 0.014, 0.024], uHigh: [0.03, 0.022, -0.025], uContrast: 1.07, uVignette: 0.62, uLift: 0.02, uGrain: 0.02 });   // 观察室：暗部沉进青色，台灯是暖的，罐子是绿的
+    post = grade(lab.scene, { uSat: 1.08, uShadow: [-0.01, 0.005, 0.01], uHigh: [0.035, 0.022, -0.03], uContrast: 1.18, uVignette: 0.68, uLift: 0, uGrain: 0.02 });   // 观察室：黑压下去不发灰，暗部一点青，台灯暖、罐子绿
   },
   async street() {
     street = createStreet(env);
@@ -131,7 +131,7 @@ const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned
 window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; } };   // 调试用
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
 // 三个场景统一偏暗、偏冷（调色在 post.js 里）
-const TONE = { lab: [THREE.NeutralToneMapping, 0.98], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
+const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
 
 const $ = (s) => document.querySelector(s);
 const state = { view: 'boot', rfocus: null, sel: null, opts: null, order: null, busy: false, focus: null, batch: makeBatch(null) };
@@ -231,17 +231,19 @@ const spotShade = document.createElement('div');
 spotShade.id = 'spot';
 document.body.appendChild(spotShade);
 let hovered = null;                                                          // { el, v, r }：正指着的那样东西
+let meshHover = null;                                                        // { v, r }：直接指着场景里的一样东西（墙上的须知、终端）
 function hoverOn(el, v, r = 0.5) { hovered = { el, v, r }; }
 function hoverOff(el) { if (!el || hovered?.el === el) hovered = null; }
 function feedback(dt) {
   const light = FOCUS_LIGHT[state.view];
   if (hovered && (!hovered.el.isConnected || !hovered.el.getClientRects().length || hovered.el.classList.contains('hidden'))) hovered = null;
-  spotShade.classList.toggle('on', !!hovered);
-  if (!inspector.active) light?.show(hovered?.v, camera);
+  const hv = hovered || meshHover;
+  spotShade.classList.toggle('on', !!hv);
+  if (!inspector.active) light?.show(hv?.v, camera);
   light?.tick(dt);
-  if (!hovered) return;
-  const p = project(hovered.v), focal = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const r = THREE.MathUtils.clamp((focal * hovered.r) / camera.position.distanceTo(hovered.v), 56, 260);
+  if (!hv) return;
+  const p = project(hv.v), focal = innerHeight / 2 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const r = THREE.MathUtils.clamp((focal * hv.r) / camera.position.distanceTo(hv.v), 56, 260);
   spotShade.style.setProperty('--x', p.x + 'px'); spotShade.style.setProperty('--y', p.y + 'px'); spotShade.style.setProperty('--r', r + 'px');
 }
 function makeHotspots(list, layer, onClick) {
@@ -262,7 +264,7 @@ function makeHotspots(list, layer, onClick) {
   });
 }
 const hsEls = makeHotspots(HOTSPOTS, $('#hotspots'), (h) => enterHotspot(h));
-const labEls = makeHotspots(LAB_HOTSPOTS, $('#labspots'), (h) => { location.hash = '#/' + h.route; });
+const labEls = makeHotspots(LAB_HOTSPOTS.filter((h) => !h.nopin), $('#labspots'), (h) => { location.hash = '#/' + h.route; });
 // 店外、仓库的热点：要么去另一个场景，要么在原地用引线标出几样东西
 const sceneLayer = (id) => { const d = document.createElement('div'); d.id = id; d.className = 'spots'; document.body.appendChild(d); return d; };
 let infoOpen = null;
@@ -376,6 +378,39 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = side ? 'pointer' : '';
 });
 canvas.addEventListener('click', (e) => { const side = bookSide(e); if (side) room.ledger.turn(side); });
+const labRay = new THREE.Raycaster(), labNdc = new THREE.Vector2();
+const LAB_THINGS = { notice: { v: new THREE.Vector3(4.95, 1.45, 2.45), r: 0.42 }, ask: { v: new THREE.Vector3(3.9, 1.15, 0.35), r: 0.4 } };
+function labThing(e) {
+  if (state.view !== 'lab' || !lab || inspector.active) return null;
+  const free = !state.focus && labChosen && !NAV.lab.walking && !labWalk?.isActive();
+  if (!free && state.focus !== 'notice' && state.focus !== 'ask') return null;
+  const r = canvas.getBoundingClientRect();
+  labNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  labRay.setFromCamera(labNdc, camera);
+  const h = labRay.intersectObjects([lab.notice.mesh, ...lab.kiosk.pick], false)[0];
+  if (!h || h.distance > 6) return free ? null : { id: state.focus, uv: null };
+  const id = h.object === lab.notice.mesh ? 'notice' : 'ask';
+  return { id, uv: h.object === lab.notice.mesh || h.object === lab.kiosk.screen ? h.uv : null, free };
+}
+canvas.addEventListener('pointermove', (e) => {
+  if (state.view !== 'lab' || !lab) return;
+  const t = labThing(e);
+  if (t?.free) {
+    if (meshHover?.id !== t.id) { meshHover = { id: t.id, ...LAB_THINGS[t.id] }; setMarquee(titleOf(LAB_HOTSPOTS.find((h) => h.id === t.id)) + ' · '); }
+    canvas.style.cursor = 'pointer'; return;
+  }
+  if (meshHover) { meshHover = null; canvas.style.cursor = ''; setMarquee(currentMarquee()); }
+  if (state.focus === 'notice') { const on = t?.id === 'notice' && lab.notice.hover(t.uv); if (!on) lab.notice.hover(null); canvas.style.cursor = on ? 'pointer' : ''; }
+  if (state.focus === 'ask') { const on = t?.id === 'ask' && lab.kiosk.hover(t.uv); if (!on) lab.kiosk.hover(null); canvas.style.cursor = on ? 'pointer' : ''; }
+});
+canvas.addEventListener('click', (e) => {
+  if (state.view !== 'lab' || !lab || lastDragMoved > 6) return;
+  const t = labThing(e);
+  if (!t) return;
+  if (t.free) { meshHover = null; canvas.style.cursor = ''; location.hash = '#/lab/' + t.id; return; }
+  if (t.id === 'notice' && state.focus === 'notice') lab.notice.click(t.uv);
+  if (t.id === 'ask' && state.focus === 'ask') lab.kiosk.click(t.uv);
+});
 addEventListener('keydown', (e) => {
   if (state.view === 'room' && state.rfocus === 'records' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { e.preventDefault(); return room.ledger.turn(e.code === 'ArrowRight' ? 1 : -1); }
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
@@ -1149,19 +1184,6 @@ const LAB_PANELS = {
     <div class="vault">${[88, 64, 76, 52, 70].map((w) => `<button class="redact" data-redact style="width:${w}%" aria-label="已涂黑"></button>`).join('')}</div>
     <button class="lbtn" data-act="apply">申请参观</button>
     <div class="reply"></div>`,
-  notice: () => `
-    <h2>参观须知</h2>
-    <div class="signs">
-      <span role="img" aria-label="请勿拍照" class="no">${SIGN('<rect x="10" y="16" width="28" height="20" rx="3"/><circle cx="24" cy="26" r="6"/><path d="M19 16l2-4h6l2 4"/><path class="bar" d="M8 40 40 8"/>')}</span>
-      <span role="img" aria-label="请勿拍打玻璃" class="no">${SIGN('<path d="M18 27V14a3 3 0 0 1 6 0v10V11a3 3 0 0 1 6 0v13-9a3 3 0 0 1 6 0v15c0 7-4 11-10 11-5 0-7-2-10-7l-4-7a3 3 0 0 1 5-3z"/><path class="bar" d="M8 40 40 8"/>')}</span>
-      <span role="img" aria-label="请勿提问" class="no">${SIGN('<path d="M9 12h30v19H22l-8 7v-7H9z"/><path d="M21 18a3.5 3.5 0 1 1 4 3.5v2"/><path class="bar" d="M8 40 40 8"/>')}</span>
-      <span role="img" aria-label="15 分钟">${SIGN('<circle cx="24" cy="24" r="15"/><path class="hand" d="M24 14v10h9"/>')}</span>
-    </div>`,
-  ask: () => `
-    <h2>提问终端</h2>
-    <div class="qs">${ASK.map(([q], i) => `<button data-q="${i}">${q}</button>`).join('')}</div>
-    <div class="chat"></div>
-    <form class="askform"><input maxlength="40" aria-label="输入问题"><button aria-label="发送">→</button></form>`,
   tank: () => tankPanel(),
   data: () => `<h2>生长数据墙</h2>`,
 };
@@ -1192,7 +1214,7 @@ bedEls = lab.beds.map((b, i) => {
   el.innerHTML = `<i></i><span>${b.id}</span>`;
   el.addEventListener('click', () => { location.hash = '#/lab/bed' + i; });
   $('#tankspots').appendChild(el);
-  return { el, v: new THREE.Vector3(b.x, 1.62, -4.3) };
+  return { el, v: new THREE.Vector3(b.x, 1.62, -4.3 - LAB_DEEP) };
 });
 }
 function openLabPanel(kind) {
@@ -1207,8 +1229,6 @@ labPanel.addEventListener('click', (e) => {
   if (gb) { location.hash = '#/lab/bed' + gb.dataset.bed; return; }
   const gl = e.target.closest('[data-lab]');
   if (gl) { location.hash = '#/lab/' + gl.dataset.lab; return; }
-  const q = e.target.closest('[data-q]');
-  if (q) return ask(ASK[q.dataset.q][0], ASK[q.dataset.q][1], ASK[q.dataset.q][2]);
   const b = e.target.closest('[data-act="apply"]');
   if (!b) return;
   b.disabled = true; b.textContent = '已提交';
@@ -1240,37 +1260,13 @@ function updateLabControls() {
   const text = state.focus === 'ward' ? '拉上帘子' : '拉开帘子';
   if (labDraw.textContent !== text) labDraw.textContent = text;
 }
-labPanel.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const input = labPanel.querySelector('.askform input');
-  const q = input.value.trim();
-  if (!q) return;
-  input.value = '';
-  const preset = ASK.find(([k]) => k === q);
-  ask(q, preset ? preset[1] : ASK_ANIMAL.test(q) ? '涉及供体信息的问题不在终端回答范围内。' : ASK_FALLBACK, preset?.[2]);
-});
-// 讲解员逐字打出回答
-let typing;
-function ask(q, a, fine) {
-  const chat = labPanel.querySelector('.chat');
-  if (!chat) return;
-  clearInterval(typing);
-  chat.insertAdjacentHTML('beforeend', `<div class="msg me">${q.replace(/</g, '&lt;')}</div><div class="msg bot"></div>`);
-  const out = chat.lastElementChild;
-  let i = 0;
-  typing = setInterval(() => {
-    out.textContent = a.slice(0, ++i);
-    chat.scrollTop = chat.scrollHeight;
-    if (i >= a.length) { clearInterval(typing); }
-  }, 28);
-}
-
 let focusTimer;
 function closeLabUI() {
   hideInfo();
   hud.classList.remove('on');
   labPanel.classList.remove('on');
   lab?.setScan(false);
+  lab?.notice.leave(); lab?.kiosk.focus(false);
   hideInfo();
 }
 // 观察室里的镜头移动：眼睛从 LAB_EYE 现在的位置走到 eye，一路盯着 at。
@@ -1312,7 +1308,7 @@ function focusLab(sub) {
   const seconds = walkLab(f.eye || LAB_HOME.toArray(), at, f.fov);
   focusTimer = setTimeout(() => {
     if (state.focus !== sub) return;
-    if (sub === 'batch') { hud.classList.add('on'); lab.setScan(true); } else openLabPanel(sub);
+    if (sub === 'batch') { hud.classList.add('on'); lab.setScan(true); } else if (sub === 'ask') lab.kiosk.focus(true); else if (sub !== 'notice') openLabPanel(sub);
   }, seconds * 1000);
 }
 function unfocusLab(instant = false) {

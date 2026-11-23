@@ -106,3 +106,38 @@ export function focusLight(scene, strength = 3.5) {
     tick(dt) { light.intensity += (want - light.intensity) * Math.min(1, dt * 7); },
   };
 }
+
+// 光柱里飘着的灰：丁达尔效应要有东西把光散出来。几百个点，在光锥里慢慢漂，越靠光柱中心越亮
+export function dustMotes(parent, from, dir, { length = 2.5, radius = 0.9, top = 0.1, count = 180, color = 0xfff2dc, size = 0.0065, strength = 0.5 } = {}) {
+  const pos = new Float32Array(count * 3), seed = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const t = 0.08 + Math.random() * 0.9, rad = (top + (radius - top) * t) * Math.sqrt(Math.random()) * 0.85, a = Math.random() * Math.PI * 2;
+    pos.set([Math.cos(a) * rad, -t * length, Math.sin(a) * rad], i * 3); seed[i] = Math.random();
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+  const mat = new THREE.ShaderMaterial({ ...base,
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uK: { value: strength * 0.6 }, uSize: { value: size }, uScale: { value: 800 }, uLen: { value: length } },
+    vertexShader: /* glsl */`
+      attribute float seed; uniform float uTime, uSize, uScale, uLen; varying float vA;
+      void main() {
+        vec3 p = position + vec3(sin(uTime * 0.11 + seed * 40.0), sin(uTime * 0.07 + seed * 23.0) * 1.4, cos(uTime * 0.09 + seed * 17.0)) * 0.04;
+        p.y -= mod(uTime * 0.008 * (0.5 + seed), 0.06);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        float t = -position.y / uLen;
+        vA = smoothstep(0.0, 0.15, t) * smoothstep(1.0, 0.75, t) * (0.45 + 0.55 * sin(uTime * (0.6 + seed) + seed * 50.0) * 0.5 + 0.3) * smoothstep(0.3, 1.2, -mv.z);
+        gl_PointSize = uSize * uScale / -mv.z * (0.6 + seed * 0.8);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor; uniform float uK; varying float vA;
+      void main() { float d = length(gl_PointCoord - 0.5); gl_FragColor = vec4(uColor * smoothstep(0.5, 0.0, d) * vA * uK, 1.0); }` });
+  const pts = new THREE.Points(geo, mat);
+  pts.position.set(...from);
+  pts.quaternion.setFromUnitVectors(UP, new THREE.Vector3(...dir).normalize().negate());
+  pts.renderOrder = 4; pts.frustumCulled = false; pts.userData.keep = true;
+  const size2 = new THREE.Vector2();
+  pts.onBeforeRender = (r, s, cam) => { mat.uniforms.uTime.value = performance.now() / 1000; r.getDrawingBufferSize(size2); mat.uniforms.uScale.value = size2.y * 0.5 * cam.projectionMatrix.elements[5]; };
+  parent.add(pts);
+  return pts;
+}

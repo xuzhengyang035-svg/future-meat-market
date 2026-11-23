@@ -218,6 +218,8 @@ export const LAB_MARQUEE = '加工间参观廊 · 请勿拍照 · ';
 
 // 隔着玻璃看：镜头一直在参观廊这一侧（不穿过玻璃），朝着目标；拖动是沿着玻璃横移、抬头低头
 const GLASS_Z = -0.32;
+export const LAB_DEEP = 0.9;                                                // 帘子后面整体往里让了这么多（tools/blender/lab_kit.py 的 DEEP）
+const DZ = -LAB_DEEP;
 const peek = (x, to, fov, { reach = 0.6, tilt = 14, y = 1.7, u0 = 0.5 } = {}) => ({ mode: 'track', a: [x - reach, y, GLASS_Z], b: [x + reach, y, GLASS_Z],
   look: [to[0] - x, to[1] - y, to[2] - GLASS_Z], tilt, fov, zoomFov: [Math.max(18, fov * 0.65), Math.min(70, fov * 1.4)], u0 });
 
@@ -230,23 +232,23 @@ export const LAB_HOTSPOTS = [
     marquee: '你的批次 · 细胞密度 · 存活率 · 倍增时间 · ' },
   { id: 'bench', label: '培养肉留样 · ', pos: [-1.3, 1.08, -1.78], route: 'lab/bench', show: ['glass'],
     marquee: '显微镜 · 切片架 · 留样托盘 · 交班单 · ', info: [{ at: [-0.55, 0.95, -1.7], title: '交班单', item: 'handover' }], view: peek(-0.42, [-0.78, 0.98, -1.8], 44, { reach: 1.2, tilt: 20, y: 1.72 }) },
-  { id: 'ward', label: '拉开帘子 · ', pos: [-0.1, 1.72, -2.4], route: 'lab/ward', show: ['glass'],
+  { id: 'ward', label: '拉开帘子 · ', pos: [-0.1, 1.72, -2.95], route: 'lab/ward', show: ['glass'],
     marquee: '帘子后面 · 5 张采样床 · ',
     view: { mode: 'track', a: [-2.6, 1.78, -0.15], b: [4.2, 1.78, -0.15], look: [0, -0.15, -1], u0: 0.353, tilt: 26, fov: 64, zoomFov: [30, 68] } },
-  ...[['P-0932', -6.8, 1.1, -1.7], ['B-0417', -4.1, 1.15, -2.2], ['P-0101', 0, 0.95, 0.2], ['P-1077', 4.1, 1.1, 3.5], ['G-0221', 6.8, 1.08, 4.3]].map(([id, x, y, from], i) => (
-    { id: 'bed' + i, label: `${id} · `, pos: [x, y + 0.5, -4.2], route: 'lab/bed' + i, show: ['ward'], subtle: true,
-      marquee: `采样床 ${id} · `, view: peek(from, [x, y, -4.35], [26, 38, 38, 36, 27][i], { reach: 0.4, tilt: 11, y: 1.86 }) })),
-  { id: 'vessels', label: '高位罐 · ', pos: [1.59, 3.2, -9.2], route: 'lab/vessels', show: ['ward'],
-    marquee: '高位培养罐 · HT-01 · HT-02 · HT-03 · ', view: peek(-0.3, [1.3, 3.6, -9.8], 34, { reach: 2.4, tilt: 9, y: 1.56 }) },
-  { id: 'returns', label: '回收角 · ', pos: [8.2, 1.4, -9.0], route: 'lab/returns', show: ['ward'], subtle: true,
-    marquee: '医疗废品回收角 · ', view: peek(4.3, [8.0, 0.75, -9.4], 20, { reach: 0.3, tilt: 8, y: 2.1 }) },
+  ...[['P-0932', -6.8, 1.1, -1.7], ['B-0417', -4.1, 1.15, -1.5], ['P-0101', 0, 0.95, 0.2], ['P-1077', 4.1, 1.1, 4.5], ['G-0221', 6.8, 1.08, 4.3]].map(([id, x, y, from], i) => (
+    { id: 'bed' + i, label: `${id} · `, pos: [x, y + 0.5, -4.2 + DZ], route: 'lab/bed' + i, show: ['ward'], subtle: true,
+      marquee: `采样床 ${id} · `, view: peek(from, [x, y, -4.35 + DZ], [24, 34, 34, 32, 25][i], { reach: 0.4, tilt: 11, y: 1.86 }) })),
+  { id: 'vessels', label: '高位罐 · ', pos: [1.59, 3.2, -9.2 + DZ], route: 'lab/vessels', show: ['ward'],
+    marquee: '高位培养罐 · HT-01 · HT-02 · HT-03 · ', view: peek(-0.3, [1.3, 3.6, -9.8 + DZ], 32, { reach: 2.4, tilt: 9, y: 1.56 }) },
+  { id: 'returns', label: '回收角 · ', pos: [8.2, 1.4, -9.0 + DZ], route: 'lab/returns', show: ['ward'], subtle: true,
+    marquee: '医疗废品回收角 · ', view: peek(4.3, [8.0, 0.75, -9.4 + DZ], 19, { reach: 0.3, tilt: 8, y: 2.1 }) },
   { id: 'data', label: '生长数据墙 · ', pos: [-4.9, 2.72, 1.6], route: 'lab/data', show: ['walk'],
     marquee: '生长数据墙 · 3,412 个批次 · ' },
   { id: 'cellbank', label: '细胞库 · ', pos: [-4.25, 1.6, -0.84], route: 'lab/cellbank', show: ['walk'], locked: true,
     marquee: '禁止游客进入 · 仅限授权人员 · ' },
-  { id: 'notice', label: '参观须知 · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', show: ['walk'], subtle: true,
+  { id: 'notice', label: '参观须知 · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', show: ['walk'], subtle: true, nopin: true,   // 不放标签：指到墙上那张纸本身就能点
     marquee: '请勿拍照 · 请勿拍打玻璃 · ' },
-  { id: 'ask', label: '提问终端 · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask', show: ['walk'],
+  { id: 'ask', label: '提问终端 · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask', show: ['walk'], nopin: true,
     marquee: '提问终端 · ' },
   { id: 'exit', label: '返回门店 · ', pos: [3.6, 1.55, 3.9], route: '', show: ['walk'], subtle: true,
     marquee: '返回门店 · ' },
@@ -276,10 +278,10 @@ export const LAB_NAV = {
 export const LAB_FOCUS = {
   batch: { eye: [1.35, 1.64, 0.25], fov: 28 },
   data: { at: [-4.93, 1.5, 1.6], fov: 24.5 },
-  hall: { eye: [0.6, 1.66, 0.1], at: [0.4, 1.15, -5.6], fov: 58 },
+  hall: { eye: [0.6, 1.66, 0.1], at: [0.4, 1.15, -6.5], fov: 56 },
   cellbank: { at: [-4.25, 1.45, -0.85], fov: 40 },
-  notice: { at: [4.99, 1.45, 2.45], fov: 18 },
-  ask: { at: [3.9, 1.2, 0.35], fov: 34 },
+  notice: { eye: [3.72, 1.52, 2.45], at: [4.99, 1.45, 2.45], fov: 34 },
+  ask: { eye: [3.42, 1.56, 1.22], at: [3.9, 1.1, 0.37], fov: 34 },
 };
 
 // 细胞库：信息确实存在，只是“已向监管部门备案，不向消费者公开”
@@ -294,15 +296,16 @@ export const CELLBANK_ROWS = [
 
 // 提问终端：预设问题和品牌的标准回答。涉及供体动物的问题不正面回答。
 export const ASK = [
-  ['这块肉是怎么长出来的？', '细胞在 37 ℃ 的生物反应器里培养 3–4 周，收获后成型、包装。'],
-  ['培养基里有什么？', '氨基酸、葡萄糖、维生素、无机盐和生长因子*。', '*具体配方属商业机密。'],
-  ['细胞最初是从哪里来的？', '来自合作牧场供体动物的肌肉组织。更多信息请联系客服。'],
-  ['供体动物现在还活着吗？', '这个问题已记录，会转交相关部门。'],
-  ['一个细胞系能用多久？', '细胞系 B-0417 已使用 1,300 多天。'],
-  ['我可以进细胞库看看吗？', '细胞库不对游客开放。批次数据可以在数据墙上查看。'],
+  ['How is this meat grown?', 'Cells grow in a 37 °C bioreactor for 3–4 weeks, then they are harvested, shaped and packed.'],
+  ["What's in the growth medium?", 'Amino acids, glucose, vitamins, salts and growth factors*.', '*The exact formula is a trade secret.'],
+  ['Where do the cells come from?', 'From muscle tissue of donor animals on our partner farms. Please contact customer care for details.'],
+  ['Are the donor animals still alive?', 'Your question has been logged and passed on to the relevant team.'],
+  ['How long does a cell line last?', 'Cell line B-0417 has been in use for more than 1,300 days.'],
+  ['Can I visit the cell bank?', 'The cell bank is closed to visitors. Batch data is shown on the data wall.'],
 ];
-export const ASK_FALLBACK = '这个问题终端无法回答，已转交客服。';
-export const ASK_ANIMAL = /供体|动物|屠宰|牛|猪|鸡|鱼|活检|取样|采集|痛|死|活着|农场|牧场|福利/;
+export const ASK_FALLBACK = "This terminal can't answer that. It has been passed to customer care.";
+export const ASK_DONOR = 'Questions about donors are outside what this terminal can answer.';
+export const ASK_ANIMAL = /供体|动物|屠宰|牛|猪|鸡|鱼|活检|取样|采集|痛|死|活着|农场|牧场|福利|血|针|donor|animal|slaughter|cow|calf|pig|chicken|hen|biops|pain|hurt|die|dead|alive|kill|farm|welfare|blood|needle/i;
 
 // ------------------------------------------------------------------ 门店：走近之后的标注（像观察室里“你的批次”那样，用引线指向实物）
 // at 是三维锚点，dx/dy 是标注框相对锚点的屏幕偏移（像素）
