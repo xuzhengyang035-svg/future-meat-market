@@ -273,4 +273,54 @@ function sample() {
   return { group: g, center: new THREE.Vector3(0, 0.03, 0), view: [0.25, -0.5, 0] };
 }
 
-export const SPECIMENS = { fbs, vial, frozen, eartag: earTag, grn, order, handover, sample };
+// ---------------------------------------------------------------- 档案区软木板上的一张老照片：6 × 4 英寸相纸，正面是牧场，背面圆珠笔写着
+function photo() {
+  const g = new THREE.Group(), W = 0.152, H = 0.102;
+  const img = new THREE.TextureLoader().load('assets/user/oldphoto_2.jpg'); img.colorSpace = THREE.SRGBColorSpace;
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.008, H - 0.008), new THREE.MeshStandardMaterial({ map: img, roughness: 0.35, color: 0xe8dcc4 }));
+  front.position.z = 0.0006; g.add(front);
+  const card = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.0008), new THREE.MeshStandardMaterial({ color: 0xefe6d2, roughness: 0.6 })); g.add(card);
+  const back = sheet(W, H, 5000, (c) => {
+    write(c, 'Hale Farm — spring 2019', 30, 90, { size: 52, font: pen, color: INK, tilt: -0.02 });
+    write(c, 'sow 4471 (dam of P-0932)', 30, 170, { size: 48, font: pen, color: INK, tilt: -0.02 });
+    write(c, 'last litter before we', 30, 250, { size: 48, font: pen, color: INK, tilt: -0.01 });
+    write(c, 'took the line', 30, 320, { size: 48, font: pen, color: INK, tilt: -0.01 });
+    write(c, 'pinhole — tack', 600, 60, { size: 30, font: pen, color: '#7a7066' });
+  }, { tint: '#e6dcc6' });
+  const bl = plane(W, H, back); bl.position.z = -0.0006; bl.rotation.y = Math.PI; g.add(bl);
+  return { group: g, center: new THREE.Vector3(0, 0, 0), view: [0, 0, 0.03] };
+}
+// ---------------------------------------------------------------- 失败的肉样：1 L 广口标本罐（Ø 100 × 150 mm），浑浊的保存液里一块发灰、边上发霉的组织
+function jar() {
+  const g = new THREE.Group(), R = 0.05, H = 0.15;
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0xf2f4ee, roughness: 0.08, transparent: true, opacity: 0.32, depthWrite: false, clearcoat: 1 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 40, 1, true), glass); body.position.y = H / 2; body.renderOrder = 3; g.add(body);
+  const base = new THREE.Mesh(new THREE.CircleGeometry(R, 40), glass); base.rotation.x = -Math.PI / 2; base.position.y = 0.002; g.add(base);
+  const fluid = new THREE.Mesh(new THREE.CylinderGeometry(R - 0.002, R - 0.002, H * 0.78, 40), new THREE.MeshStandardMaterial({ color: 0xc9b88a, roughness: 0.2, transparent: true, opacity: 0.42, depthWrite: false }));
+  fluid.position.y = H * 0.39 + 0.002; fluid.renderOrder = 2; g.add(fluid);
+  const bad = meatMaterial('pork'); const u = bad.userData.uniforms; u.uColor.value = 0.05; u.uFat.value = 0.2;
+  bad.color = new THREE.Color(0x9c9488); bad.sheen = 0; bad.clearcoat = 0.1;   // 灰掉了：组织坏死、褪色
+  const lump = new THREE.Mesh(meatGeometry('chicken'), bad); lump.scale.set(0.09, 0.2, 0.08); lump.position.y = 0.03; lump.rotation.set(0.3, 0.8, 0.2); g.add(lump);
+  const mould = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), new THREE.MeshStandardMaterial({ color: 0x5a6a3a, roughness: 0.9 })); mould.scale.set(1.4, 0.5, 1); mould.position.set(0.012, 0.05, 0.01); g.add(mould);
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.003, R + 0.003, 0.018, 40), pbr('Plastic010', 0.32, 0.02, { size: 0.08, color: 0x3a4a6a, roughness: 0.5 })); lid.position.y = H + 0.009; g.add(lid);
+  const label = sheet(0.07, 0.055, 6000, (c, w) => {
+    c.fillStyle = RED; c.fillRect(0, 0, w, 56);
+    text(c, 'FAILED BATCH', 16, 40, 30, { color: '#fff', weight: 700 });
+    text(c, 'FM-2291 · P-1077', 16, 100, 24, { font: MONO, weight: 500 });
+    text(c, 'contaminated d11', 16, 140, 24, { font: MONO, weight: 500 });
+    text(c, 'DO NOT REUSE', 16, 200, 28, { weight: 700, color: RED });
+    text(c, 'incinerate after audit', 16, 240, 20, { weight: 500 });
+  });
+  const lf = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.0008, R + 0.0008, 0.055, 32, 1, true, -0.7, 1.4), new THREE.MeshStandardMaterial({ map: label, roughness: 0.75 }));
+  lf.position.y = 0.08; g.add(lf);
+  const note = sheet(0.05, 0.04, 6000, (c) => {
+    write(c, 'biopsy wasted —', 12, 60, { size: 40, font: marker, color: BLACK, tilt: -0.03 });
+    write(c, 're-sample P-1077', 12, 120, { size: 40, font: marker, color: BLACK, tilt: -0.03 });
+    write(c, '(3rd this month)', 12, 180, { size: 40, font: marker, color: RED, tilt: -0.04 });
+  }, { tint: '#f1e48a' });
+  const nf = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.0009, R + 0.0009, 0.04, 32, 1, true, Math.PI - 0.5, 1.0), new THREE.MeshStandardMaterial({ map: note, roughness: 0.8 }));
+  nf.position.y = 0.06; g.add(nf);
+  return { group: g, center: new THREE.Vector3(0, H / 2, 0), view: [0.15, -0.6, 0] };
+}
+
+export const SPECIMENS = { fbs, vial, frozen, eartag: earTag, grn, order, handover, sample, photo, jar };

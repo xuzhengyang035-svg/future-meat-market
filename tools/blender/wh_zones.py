@@ -2,7 +2,7 @@
 
 blender --background --factory-startup --python wh_zones.py -- <04_Cold.glb> <05_Dispatch.glb> <06_Archive.glb> <输出目录>
 
-1. 去掉展示用的地台和背板（仓库自己有地和墙）；牌子留着，挂到仓库的墙上。05 的牌子不靠墙：底下补两根立柱。
+1. 去掉展示用的地台和背板（仓库自己有地和墙）；牌子留着，挂到仓库的墙上，去掉上面的区号。05 的牌子不靠墙：底下补两根立柱。
 2. 三个文件里重复的贴图（galv_color.001 …）并成一张；材质贴图压到 512，带字的、肉、图谱页保持原尺寸。
 3. 静态的按材质合并；开书的铰链（Atlas_Hinge 和它下面的书页）保持原样，动画 Open_Atlas 一起导出；
    05 那只 DISPATCH 纸箱（连同它的标签和胶带）单独留成一个物体，网页里让它在滚筒线上走。
@@ -38,6 +38,17 @@ for src, out, cx in zip(SRC, NAMES, CENTRE):
         k = base(im.name)
         if k in imgs: im.user_remap(imgs[k]); bpy.data.images.remove(im)
         else: imgs[k] = im; im.name = k
+    # 牌子上去掉区号（04 / 05 / 06）：标题那一行整体左移盖住编号，纸纹和边框不动
+    import numpy as np
+    for k in ('cold', 'auto', 'archive'):
+        im = imgs.get(k)
+        if not im: continue
+        w, h = im.size
+        px = np.array(im.pixels[:], dtype=np.float32).reshape(h, w, 4)
+        r0, r1 = h - 72, h - 12                                               # 标题那一行（像素从下往上数）
+        width = 470
+        px[r0:r1, 22:22 + width] = px[r0:r1, 148:148 + width].copy()
+        im.pixels[:] = px.ravel(); im.update(); im.pack()
     for k, im in imgs.items():
         if not k.startswith(KEEP_SIZE) and max(im.size) > 512:
             im.scale(512, 512)

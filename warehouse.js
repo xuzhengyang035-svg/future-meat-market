@@ -785,6 +785,49 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     atlas = { mixer, act, k: 0, to: 0, len: g.animations[0].duration }; mixer.setTime(0);
   }); blob(5.9, -28.6, 4.2, 2.6);
   placeKit('09_Cold_Store.glb', 10.5, 0, -25.76, -Math.PI / 2); blob(10.6, -26.0, 2.6, 4.2);
+  // 档案区往右扩到墙角：柱子边两只医疗废物桶；墙上一块软木板钉着老牧场照片、家系图、耳标复印件；
+  //   板下一辆不锈钢小推车放着几罐失败的肉样（标本罐），墙角一摞档案箱；桌前一张凳子
+  { const steelM = M.steel, yel = pbr('Plastic010', 1.6, 0.6, { size: 0.5, color: 0xe8c430, roughness: 0.55 }), red = pbr('Plastic010', 1.6, 0.1, { size: 0.5, color: 0xb42a22, roughness: 0.5 });
+    const bin = canvasTexture(256, 160, (g, W, H) => { g.fillStyle = '#e8c430'; g.fillRect(0, 0, W, H); g.fillStyle = '#141414'; g.font = `800 26px ${SANS}`; g.textAlign = 'center'; g.fillText('CLINICAL WASTE', W / 2, 40); g.font = `600 18px ${SANS}`; g.fillText('FOR INCINERATION ONLY', W / 2, 70);
+      g.lineWidth = 7; g.strokeStyle = '#141414'; for (let k = 0; k < 3; k++) { const a = k * 2.094 - 1.57; g.beginPath(); g.arc(W / 2 + Math.cos(a) * 16, 112 + Math.sin(a) * 16, 15, 0, 7); g.stroke(); } g.beginPath(); g.arc(W / 2, 112, 8, 0, 7); g.stroke(); ageCanvas(g, W, H, { amount: 1.2, seed: 4 }); });
+    for (const [x, z, r] of [[8.32, -29.66, 0.3], [8.38, -29.02, 1.4]]) {
+      cyl(0.25, 0.23, 0.6, yel, x, 0.3, z, root, 24); cyl(0.26, 0.26, 0.05, red, x, 0.625, z, root, 24);
+      const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.2505, 0.2505, 0.2, 24, 1, true, r - 0.6, 1.2), new THREE.MeshStandardMaterial({ map: bin, roughness: 0.6 })); lb.position.set(x, 0.32, z); root.add(lb); blob(x, z, 0.8);
+    }
+    // 软木板
+    const cork = canvasTexture(1024, 640, (g, W, H) => { g.fillStyle = '#9c7446'; g.fillRect(0, 0, W, H); for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '60,38,18' : '200,160,110'},${0.15 + Math.random() * 0.3})`; g.fillRect(Math.random() * W, Math.random() * H, 2 + Math.random() * 3, 2 + Math.random() * 2); }
+      const paper = (x, y, w, h, a, draw) => { g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-w / 2 + 4, -h / 2 + 5, w, h); g.fillStyle = '#ece4cf'; g.fillRect(-w / 2, -h / 2, w, h); draw(-w / 2, -h / 2, w, h); g.fillStyle = '#b8282a'; g.beginPath(); g.arc(0, -h / 2 + 12, 7, 0, 7); g.fill(); g.restore(); };
+      paper(560, 330, 300, 380, 0.03, (x, y, w) => { g.fillStyle = '#1d1f22'; g.font = `700 20px ${MONO}`; g.fillText('LINE P-0932 · LINEAGE', x + 18, y + 40); g.strokeStyle = '#1d1f22'; g.lineWidth = 2;
+        const nodes = [[w / 2, 90, 'SOW 4471'], [w / 2 - 70, 170, 'P-0932'], [w / 2 + 70, 170, 'P-0933 †'], [w / 2 - 110, 260, 'MCB-07'], [w / 2 - 20, 260, 'WCB-07-3'], [w / 2 - 60, 340, 'B-0417 ?']];
+        for (const [a, b] of [[0, 1], [0, 2], [1, 3], [1, 4], [4, 5]]) { g.beginPath(); g.moveTo(x + nodes[a][0], y + nodes[a][1] + 8); g.lineTo(x + nodes[b][0], y + nodes[b][1] - 18); g.stroke(); }
+        g.font = `500 16px ${MONO}`; for (const [nx, ny, t] of nodes) { g.strokeRect(x + nx - 52, y + ny - 18, 104, 28); g.fillText(t, x + nx - 46, y + ny + 2); } });
+      paper(850, 220, 220, 150, -0.05, (x, y, w) => { g.fillStyle = '#1d1f22'; g.font = `600 17px ${MONO}`; g.fillText('EAR TAG · COPY', x + 14, y + 30); g.fillStyle = '#c9a930'; g.fillRect(x + 30, y + 50, 70, 80); g.fillStyle = '#1d1f22'; g.font = `700 13px ${MONO}`; g.fillText('UK 286071', x + 32, y + 86); g.fillText('00932', x + 44, y + 104); g.font = `400 15px ${MONO}`; g.fillText('culled 03/22', x + 112, y + 100); });
+      paper(870, 470, 230, 170, 0.06, (x, y) => { g.fillStyle = '#1c2f66'; g.font = `400 26px "Caveat", cursive`; g.fillText('ask Hale about', x + 16, y + 50); g.fillText('the new gilts —', x + 16, y + 86); g.fillText('need a 2nd donor', x + 16, y + 122); });
+      g.strokeStyle = '#b8282a'; g.lineWidth = 3; g.beginPath(); g.moveTo(560, 160); g.quadraticCurveTo(420, 260, 300, 170); g.stroke(); g.beginPath(); g.moveTo(640, 410); g.quadraticCurveTo(760, 380, 850, 160); g.stroke();   // 红线把照片和家系连起来
+      ageCanvas(g, W, H, { amount: 0.9, seed: 21, drips: false }); });
+    const board = new THREE.Group(); board.position.set(10.6, 1.72, -29.97); root.add(board);
+    board.add(new THREE.Mesh(new THREE.BoxGeometry(1.66, 1.06, 0.03), M.rackDark));
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshStandardMaterial({ map: cork, roughness: 0.95 })); face.position.z = 0.016; board.add(face);
+    [['oldphoto_1.jpg', -0.58, 0.22, 0.24, 0.17, 0.06], ['oldphoto_2.jpg', -0.36, -0.22, 0.152, 0.102, -0.08], ['oldphoto_3.jpg', -0.66, -0.2, 0.152, 0.102, 0.12]].forEach(([f, x, y, w, h, a]) => {
+      const t = new THREE.TextureLoader().load('assets/user/' + f); t.colorSpace = THREE.SRGBColorSpace;
+      const ph = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, roughness: 0.4, color: 0xe2d6bc })); ph.position.set(x, y, 0.02); ph.rotation.z = a; board.add(ph);
+      const pin = new THREE.Mesh(new THREE.SphereGeometry(0.008, 10, 8), new THREE.MeshStandardMaterial({ color: 0xb8282a, roughness: 0.3 })); pin.position.set(x, y + h / 2 - 0.012, 0.026); board.add(pin); });
+    // 小推车：两层不锈钢盘，上层四罐失败的肉样、下层一箱档案
+    const tr = new THREE.Group(); tr.position.set(9.95, 0, -29.58); root.add(tr);
+    for (const y of [0.32, 0.86]) box(0.72, 0.025, 0.46, steelM, 0, y, 0, tr);
+    for (const sx of [-0.34, 0.34]) for (const sz of [-0.21, 0.21]) { cyl(0.011, 0.011, 0.86, steelM, sx, 0.47, sz, tr, 8); cyl(0.03, 0.03, 0.025, M.rackDark, sx, 0.035, sz, tr, 12); }
+    const jarGlass = new THREE.MeshPhysicalMaterial({ color: 0xf2f4ee, roughness: 0.08, transparent: true, opacity: 0.3, depthWrite: false }), murk = new THREE.MeshStandardMaterial({ color: 0x7a6a42, roughness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }), grey = new THREE.MeshStandardMaterial({ color: 0x5e554a, roughness: 0.75 }), lidM = new THREE.MeshStandardMaterial({ color: 0x3a4a6a, roughness: 0.5 });
+    [[-0.24, 0.05], [-0.08, -0.08], [0.09, 0.06], [0.25, -0.05]].forEach(([x, z], i) => { const y = 0.873;
+      const gl = cyl(0.05, 0.05, 0.15, jarGlass, x, y + 0.075, z, tr, 24, true); gl.renderOrder = 3; const fl = cyl(0.047, 0.047, 0.11, murk, x, y + 0.057, z, tr, 24); fl.renderOrder = 2;
+      const lump = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 9), grey); lump.scale.set(1.1, 0.7 + i * 0.1, 0.9); lump.position.set(x, y + 0.03, z); tr.add(lump); cyl(0.053, 0.053, 0.018, lidM, x, y + 0.159, z, tr, 24); });
+    carton(0, 0.3325, 0, 0, 0, 0, 'reuse', 0.04, tr);
+    // 墙角一摞档案箱
+    for (let i = 0; i < 3; i++) carton(11.45 + (rnd() - 0.5) * 0.06, i * 0.27, -29.62, 0, 0, 0, 'reuse', rnd() * 0.3, root);
+    blob(9.95, -29.58, 1.0, 0.7); blob(11.45, -29.6, 0.8, 0.7);
+    model('wooden_stool_01', { pos: [5.55, 0, -26.95], rot: 0.5, parent: root });
+    // 扩出来的这一段也要有光：软木板上方一盏壁灯
+    { const l = new THREE.SpotLight(0xffc890, 9, 4.5, 0.6, 0.6, 1.6); l.position.set(10.6, 2.75, -29.4); l.target.position.set(10.4, 1.2, -29.8); root.add(l, l.target); }
+  }
   placeKit('10_Dispatch.glb', 5.6, 0, -22.6, 0, (o) => {
     const box = o.getObjectByName('Dispatch_carton'); if (!box) return;
     box.matrixAutoUpdate = true; box.userData.keep = true; dispatch = { box, x0: box.position.x, t: 0 };
