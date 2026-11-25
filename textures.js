@@ -136,10 +136,10 @@ export function drawAttract(g, W, H) {
 export const shelfLabel = (key) => canvasTexture(512, 96, (g, W, H) => {
   const s = SPECIES[key];
   g.fillStyle = '#f4f3ef'; g.fillRect(0, 0, W, H);
-  g.fillStyle = '#141414'; g.font = `500 34px ${FONT}`;
-  g.fillText(s.title, 22, 50);
+  g.fillStyle = "#141414"; g.font = `500 28px ${FONT}`;
+  g.fillText({ beef: 'Cultivated beef steak', pork: 'Cultivated pork chop', chicken: 'Cultivated chicken breast', fish: 'Cultivated yellow croaker' }[key] || s.en, 22, 50);
   g.font = `400 20px ${FONT}`; g.fillStyle = '#6b6662';
-  g.fillText(`细胞系 ${s.id} · 零屠宰`, 22, 80);
+  g.fillText(`CELL LINE ${s.id} · PER 200 g`, 22, 80);
   g.textAlign = 'right'; g.fillStyle = '#b3262d'; g.font = `500 44px ${FONT}`;
   g.fillText('¥' + s.price, W - 22, 62);
 });

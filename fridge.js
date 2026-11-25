@@ -6,7 +6,12 @@ import { meatGeometry, meatMaterial, meatHeight } from './meat.js';
 import { canvasTexture, drawAttract, shelfLabel, signTexture } from './textures.js';
 import { grimeWallMaps, grimeFloorMaps, grimeMap, brushedSteelMaps } from './materials.js';
 import { pbr, model, decal, userMat } from './assets.js';
-import { menuScreen } from './notepad.js';
+import { menuKiosk, legalPad, pencil } from './notepad.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { deferImages } from './gfx.js';
+import { screenGlass } from './lab-signs.js';
 
 const M = {
   graphite: new THREE.MeshStandardMaterial({ color: 0x3a3c3a, roughness: 0.55, metalness: 0.4, map: grimeMap(14) }),
@@ -33,18 +38,101 @@ export function makePack(species, kind) {
   box(0.22, 0.03, 0.16, M.tray, 0, 0.015, 0, g);
   const mat = meatMaterial(species);
   const meat = new THREE.Mesh(meatGeometry(kind), mat);
-  meat.scale.setScalar(0.38);
-  meat.position.y = 0.03 + meatHeight(kind) * 0.38;
+  const fit = packFit(kind);                                                    // 放得进 22 × 16 cm 的托盘
+  meat.scale.setScalar(fit);
+  meat.position.y = 0.03 + meatHeight(kind) * fit;
   meat.castShadow = true;
   g.add(meat);
   const film = new THREE.Mesh(new THREE.BoxGeometry(0.225, 0.07, 0.165), M.film);
   film.position.y = 0.04;
   g.add(film);
-  g.userData = { meat, mat };
+  g.userData = { meat, mat, fit };
+  g.traverse((o) => { o.userData.keep = true; });                               // 点开时这盒要飞出来：不能被 batchStatic 合进静态网格
+  g.userData = { meat, mat, fit };
   return g;
+}
+const SHAPES_XZ = { beef: [0.46, 0.32], pork: [0.44, 0.30], chicken: [0.40, 0.22], fillet: [0.55, 0.17], steak: [0.30, 0.26] };
+export const packFit = (kind) => { const [sx, sz] = SHAPES_XZ[kind] || [0.46, 0.32]; return Math.min(0.19 / (2 * sx * 1.1), 0.135 / (2 * sz * 1.1)); };
+
+// ---- 零售盒：你给的肉样模型（牛、猪、鱼、鸡的切面）放进吸塑托盘、封一层膜、贴一张称重价签。每盒大小、块数、角度、重量都不一样
+const RETAIL = { tray: null, cuts: {}, size: {} };
+let retailLoad = null;
+function loadRetail() {
+  return retailLoad ??= new Promise((res) => {
+    const draco = new DRACOLoader().setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/');
+    deferImages(new GLTFLoader()).setDRACOLoader(draco).load('assets/kit/12_Retail_Cuts.glb', ({ scene }) => {
+      scene.updateMatrixWorld(true);
+      scene.traverse((o) => { if (!o.isMesh) return; o.material.envMapIntensity = 0.8;
+        let n = o.name.replace(/_\d+$/, ''); if (!/^(tray|cut_)/.test(n) && o.parent) n = o.parent.name.replace(/_\d+$/, '');   // 一块肉是两种材质（切面 + 风干的边）：两个网格挂在同一个节点下
+        if (n === 'tray') RETAIL.tray = o;
+        else if (n.startsWith('cut_')) { const k = n.slice(4); (RETAIL.cuts[k] ||= []).push(o); }
+      });
+      for (const [k, list] of Object.entries(RETAIL.cuts)) { const b = new THREE.Box3(); list.forEach((m) => b.expandByObject(m)); RETAIL.size[k] = b.getSize(new THREE.Vector3()); RETAIL.base = RETAIL.base || {}; RETAIL.base[k] = b.min.y; }
+      draco.dispose(); res(true);
+    }, undefined, (e) => { console.warn('retail cuts', e); res(false); });
+  });
+}
+const EN = { beef: ['CULTIVATED BEEF', 'STEAK', 168], pork: ['CULTIVATED PORK', 'CHOP', 98], chicken: ['CULTIVATED CHICKEN', 'BREAST', 68], fish: ['CULTIVATED CROAKER', 'FILLET', 128] };
+const LOTS = { beef: 'B-0417', pork: 'P-0932', chicken: 'G-0221', fish: 'F-1180' };
+const trayM = new THREE.MeshStandardMaterial({ color: 0x18191a, roughness: 0.35, metalness: 0 });
+const filmM = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.05, transparent: true, opacity: 0.07, depthWrite: false, clearcoat: 0.5, clearcoatRoughness: 0.1, envMapIntensity: 0.6 });
+function priceSticker(key, grams, seed) {
+  const [a, b, per] = EN[key];
+  return canvasTexture(256, 168, (g, W, H) => {
+    g.fillStyle = '#f6f3ea'; g.fillRect(0, 0, W, H); g.fillStyle = '#b3262d'; g.fillRect(0, 0, W, 30);
+    g.fillStyle = '#fff'; g.font = '700 17px "Inter", Arial, sans-serif'; g.fillText(a, 10, 21);
+    g.fillStyle = '#141414'; g.font = '600 20px "Inter", Arial, sans-serif'; g.fillText(b, 10, 56);
+    g.font = '500 15px "IBM Plex Mono", monospace'; g.fillText(`NET ${grams} g`, 10, 82); g.fillText(`LOT ${LOTS[key]}·D${18 + (seed % 11)}`, 10, 102);
+    g.textAlign = 'right'; g.font = '700 30px "Inter", Arial, sans-serif'; g.fillText('¥' + (per * grams / 200).toFixed(1), W - 10, 86); g.textAlign = 'left';
+    let s = seed; for (let x = 10; x < W - 10;) { s = (s * 16807) % 2147483647; const w = 1 + (s % 3); if (s % 3) g.fillRect(x, 116, w, 34); x += w + 1 + (s % 2); }
+    g.font = '400 11px "IBM Plex Mono", monospace'; g.fillText('USE BY 28 NOV · KEEP 0–4 °C', 10, H - 4);
+  });
+}
+// 敞口的黑色吸塑盒：盘底、四面往外斜的壁、一圈 8 mm 的翻边（PET 0.5 mm 厚，看着就是一层薄壳）
+const trayGeo = new Map();
+function openTray(TW, TD, TH) {
+  const key = [TW, TD, TH].join(), cached = trayGeo.get(key);
+  if (cached) return new THREE.Mesh(cached, trayM);
+  const inset = 0.012, t = 0.0015, parts = [];
+  const add = (geo, m) => { geo.applyMatrix4(m); parts.push(geo); };
+  add(new THREE.BoxGeometry(TW - 2 * inset, t, TD - 2 * inset), new THREE.Matrix4().makeTranslation(0, t / 2, 0));
+  const lean = Math.atan2(inset, TH), wallH = Math.hypot(inset, TH);
+  for (const [w, x, z, ry] of [[TW, 0, TD / 2, 0], [TW, 0, -TD / 2, Math.PI], [TD, TW / 2, 0, Math.PI / 2], [TD, -TW / 2, 0, -Math.PI / 2]]) {
+    const m = new THREE.Matrix4().makeRotationY(ry).multiply(new THREE.Matrix4().makeTranslation(0, TH / 2, (ry === 0 || ry === Math.PI ? TD / 2 : TW / 2) - inset / 2)).multiply(new THREE.Matrix4().makeRotationX(lean));
+    add(new THREE.BoxGeometry(w - inset, wallH, t), m);
+    const fm = new THREE.Matrix4().makeRotationY(ry).multiply(new THREE.Matrix4().makeTranslation(0, TH, (ry === 0 || ry === Math.PI ? TD / 2 : TW / 2) + 0.003));
+    add(new THREE.BoxGeometry(w + 0.012, t, 0.008), fm);
+  }
+  const geo = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  trayGeo.set(key, geo);
+  return new THREE.Mesh(geo, trayM);
+}
+// 一盒：托盘（仓库包里的吸塑盘，缩成 21 × 16.5 cm 的零售盒）、1–3 块肉（不超出盘底）、一层膜、价签
+function retailPack(key, rnd) {
+  const g = new THREE.Group(), TW = 0.21, TD = 0.165, TH = 0.042;
+  g.add(openTray(TW, TD, TH));
+  const src = RETAIL.cuts[key], sz = RETAIL.size[key];
+  const n = key === 'chicken' ? 2 : rnd() < 0.3 ? 2 : 1;
+  let top = 0;
+  for (let i = 0; i < n; i++) {
+    const a = n > 1 ? Math.PI / 2 + (rnd() - 0.5) * 0.35 : (rnd() - 0.5) * 0.9, cw = Math.abs(sz.x * Math.cos(a)) + Math.abs(sz.z * Math.sin(a)), cd = Math.abs(sz.x * Math.sin(a)) + Math.abs(sz.z * Math.cos(a));
+    const availW = (TW - 0.032) / (n > 1 ? n : 1) - (n > 1 ? 0.006 : 0), availD = TD - 0.03;
+    const sc = Math.min(availW / cw, availD / cd) * (0.8 + rnd() * 0.17), yk = 0.9 + rnd() * 0.35;
+    const c = new THREE.Group(); for (const m of src) c.add(new THREE.Mesh(m.geometry, m.material));
+    c.scale.set(sc, Math.min(sc * yk, 0.05 / sz.y), sc); c.rotation.y = a + (rnd() < 0.5 ? Math.PI : 0);
+    c.position.set(n > 1 ? -TW / 2 + 0.016 + availW * (i + 0.5) + i * 0.006 : (rnd() - 0.5) * 0.01, 0.004, (rnd() - 0.5) * 0.01);
+    g.add(c); top = Math.max(top, 0.004 + sz.y * c.scale.y);
+  }
+  const fy = Math.max(TH, top) + 0.0015;
+  const film = new THREE.Mesh(new THREE.PlaneGeometry(TW - 0.004, TD - 0.004), filmM); film.rotation.x = -Math.PI / 2; film.position.y = fy; film.renderOrder = 3; g.add(film);
+  const grams = Math.round((150 + rnd() * 160) / 5) * 5;
+  const st = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.046), new THREE.MeshStandardMaterial({ map: priceSticker(key, grams, Math.floor(rnd() * 9999)), roughness: 0.6 }));
+  st.rotation.set(-Math.PI / 2, 0, (rnd() - 0.5) * 0.3); st.position.set(TW * 0.22 * (rnd() < 0.5 ? 1 : -1), fy + 0.0006, TD * 0.18); g.add(st);
+  return { group: g, h: fy + 0.001 };
 }
 
 export const SHELF_ORDER = [['beef', 1.58], ['chicken', 1.18], ['pork', 0.78], ['fish', 0.38]];
+const TILT = 0.3;                                                                // 每排盒子往前斜 17°：肉面朝着客人，后沿搭在横杆上
 
 // 不锈钢外壳（照着效果图：一台用了很多年的立式玻璃门冷柜）
 const steelM = userMat('steel_worn.webp', 1, 1, { size: 1.0, bump: 0.15, metalness: 0.85, roughness: 0.45, envMapIntensity: 0.9, color: 0xc8c6c0 });   // 你给的旧不锈钢
@@ -79,23 +167,18 @@ export function buildSmartFridge() {
   g.add(back);
   box(DW - 0.06, 0.01, 0.02, M.led, doorCX, H - 0.17, front - 0.05, g).castShadow = false;
 
-  const shelves = {};
+  const shelves = {}, fills = [];
   for (const [key, y] of SHELF_ORDER) {
     for (let k = 0; k <= 14; k++) { const wbar = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, D - 0.1, 4), wireM); wbar.rotation.x = Math.PI / 2; wbar.position.set(doorCX - (DW - 0.08) / 2 + k * (DW - 0.08) / 14, y, 0); g.add(wbar); }   // 铁丝格栅隔板
     for (const z of [-(D - 0.1) / 2, 0, (D - 0.1) / 2]) { const wbar = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, DW - 0.06, 4), wireM); wbar.rotation.z = Math.PI / 2; wbar.position.set(doorCX, y + 0.004, z); g.add(wbar); }
-    for (const dx of [-0.26, 0.26]) { const extra = makePack(key, key === 'fish' ? 'fillet' : key); extra.position.set(doorCX + dx * 0.9, y + 0.01, -0.2); extra.rotation.y = dx; g.add(extra); }   // 后排再塞两盒
     const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.056), new THREE.MeshBasicMaterial({ map: shelfLabel(key), toneMapped: false }));
     tag.position.set(doorCX, y - 0.03, front - 0.04);
     g.add(tag);
     const kind = key === 'fish' ? 'fillet' : key;
-    const packs = [-0.26, 0, 0.26].map((dx, i) => {
-      const p = makePack(key, kind);
-      p.position.set(doorCX + dx, y + 0.008, 0.04 - Math.abs(dx) * 0.2);
-      p.rotation.set(0.38, (i - 1) * -0.06, 0);
-      g.add(p);
-      return p;
-    });
-    shelves[key] = { y, packs, hero: packs[1], anchor: new THREE.Vector3(doorCX, y + 0.1, 0.1) };
+    const hero = makePack(key, kind);                                              // 前排中间：点开能定制的那一盒（和别的盒一样往前斜）
+    hero.position.set(doorCX, y + 0.008 + Math.sin(TILT) * 0.08, 0.19); hero.rotation.set(TILT, 0.03, 0); g.add(hero);
+    shelves[key] = { y, packs: [hero], hero, anchor: new THREE.Vector3(doorCX, y + 0.1, 0.1) };
+    fills.push({ key, y });
   }
 
   // 玻璃门（铰链在左边）
@@ -118,22 +201,62 @@ export function buildSmartFridge() {
   decal('Fingerprints008', g, { pos: [colCX, 0.95, front + 0.0035], w: 0.3, h: 0.3, color: 0x444440, opacity: 0.4 });
 
   // 触摸屏与取货口
-  const menu = menuScreen();                                                    // 触摸屏上是电子版的手写菜单，可以点
+  const menu = menuKiosk();                                                     // 触摸屏：点单界面（四种培养肉 + 堂食），纸菜单在旁边的小柜上
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.74), new THREE.MeshBasicMaterial({ map: menu.tex, toneMapped: false, color: new THREE.Color(0.82, 0.82, 0.82) }));
-  screen.position.set(colCX, 1.28, front + 0.002);
+  screen.position.set(colCX, 1.28, front + 0.004);
   g.add(screen);
+  { const bez = new THREE.MeshStandardMaterial({ color: 0x141516, roughness: 0.45, metalness: 0.3 });              // 屏幕的黑边框（压在不锈钢面板上）
+    for (const [w, h, x, y] of [[0.45, 0.018, 0, 0.379], [0.45, 0.018, 0, -0.379], [0.018, 0.76, -0.216, 0], [0.018, 0.76, 0.216, 0]]) box(w, h, 0.012, bez, colCX + x, 1.28 + y, front + 0.004, g); }
+  screenGlass(g, 0.42, 0.74, { x: colCX, y: 1.28, z: front + 0.0045, seed: 3 });   // 屏前的旧玻璃：划痕、指纹、斜着一道反光
   box(0.16, 0.1, 0.03, M.white, colCX, 0.78, front, g);
   box(0.36, 0.12, 0.03, new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.3 }), colCX, 0.45, front, g);
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.14),
-    new THREE.MeshBasicMaterial({ map: signTexture('FUTURE MEAT · 鲜肉即时培养', null, { bg: '#f4f2ee', h: 110 }), toneMapped: false }));
+    new THREE.MeshBasicMaterial({ map: signTexture('FUTURE MEAT · GROWN TO ORDER', null, { bg: '#f4f2ee', h: 110 }), toneMapped: false }));
   sign.position.set(0, H - 0.08, front + 0.002);
   g.add(sign);
+
+  // 冷柜右边：一只不锈钢小边柜（42 × 42 × 92 cm），柜顶一个斜面菜单架，上面是店员手写的那本黄色便签菜单和一支铅笔
+  const pad = legalPad();
+  { const cab = new THREE.Group(); cab.position.set(W / 2 + 0.235, 0, -D / 2 + 0.215); g.add(cab);
+    box(0.42, 0.9, 0.42, steelM, 0, 0.45, 0, cab); box(0.43, 0.02, 0.43, steelDim, 0, 0.91, 0, cab);
+    box(0.38, 0.02, 0.006, M.tray, 0, 0.78, 0.211, cab); box(0.02, 0.1, 0.02, chromeM, 0.16, 0.6, 0.22, cab);
+    const stand = new THREE.Group(); stand.position.set(0, 0.92, 0.19); stand.rotation.x = 0.62; cab.add(stand);   // 斜面架：绕前沿往后仰，后边高、朝着客人
+    box(0.28, 0.012, 0.36, new THREE.MeshStandardMaterial({ color: 0x2a2b2c, roughness: 0.5, metalness: 0.4 }), 0, 0.006, -0.18, stand);
+    box(0.28, 0.024, 0.012, chromeM, 0, 0.012, -0.006, stand);                   // 下沿的挡条
+    for (const x of [-0.12, 0.12]) { const leg = box(0.014, 0.2, 0.014, chromeM, x, -0.1, -0.33, stand); leg.rotation.x = -0.62; }   // 后面两根撑脚
+    pad.group.position.set(0, 0.012, -0.172); stand.add(pad.group);
+    const pc = pencil(); pc.position.set(0.02, 0.024, -0.022); pc.rotation.y = 0.05; stand.add(pc);
+    decal('Fingerprints002', cab, { pos: [0, 0.6, 0.2115], w: 0.3, h: 0.4, color: 0x444440, opacity: 0.35 }); }
 
   const light = new THREE.PointLight(0xffd8e0, 0.45, 1.6, 2);
   light.position.set(doorCX, 1.4, 0.15);
   g.add(light);
 
-  return { group: g, door, screen, shelves, size: { W, H, D }, menu };
+  // 零售盒等模型到了再摆（门店的 load() 会等这一步，贴图跟着一起下）
+  const load = () => loadRetail().then((ok) => {
+    if (!ok) return;
+    let sd = 41; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    const COLS = [-0.24, 0, 0.24], ROWS = [[0.19, 1], [-0.01, 2], [-0.21, 2]];            // [z, 最多叠几层]
+    const rodM = new THREE.MeshStandardMaterial({ color: 0xc8c8c4, roughness: 0.25, metalness: 1 });
+    for (const { key, y } of fills) {
+      for (const [z] of ROWS) {                                                     // 每排后沿下面一根横杆，托着斜放的盒子
+        const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.72, 8), rodM); rod.rotation.z = Math.PI / 2;
+        rod.position.set(doorCX, y + 0.008 + Math.sin(TILT) * 0.165 - 0.006, z - 0.0825 * Math.cos(TILT) + 0.01); g.add(rod);
+      }
+      for (const [z, maxStack] of ROWS) for (const cx of COLS) {
+        if (z === ROWS[0][0] && cx === 0) continue;                                  // 前排中间是主角
+        const layers = maxStack === 1 ? 1 : 1 + Math.floor(rnd() * maxStack);
+        const cell = new THREE.Group(); cell.position.set(doorCX + cx + (rnd() - 0.5) * 0.01, y + 0.008, z + 0.0825); cell.rotation.x = TILT; g.add(cell);   // 绕前沿往后仰
+        let base = 0;
+        for (let L = 0; L < layers; L++) {
+          const p = retailPack(key, rnd);
+          p.group.position.set((rnd() - 0.5) * 0.01, base, -0.0825 + (rnd() - 0.5) * 0.008); p.group.rotation.y = (rnd() - 0.5) * 0.06 + (rnd() < 0.15 ? Math.PI : 0);
+          cell.add(p.group); base += p.h;
+        }
+      }
+    }
+  });
+  return { group: g, door, screen, shelves, size: { W, H, D }, menu, pad, load };
 }
 
 export function buildDrinksFridge(seed = 1) {

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRoom } from './room.js';
 import { createLab } from './lab.js';
+import { packFit } from './fridge.js';
 import { createNav } from './nav.js';
 import { batchStatic } from './batch.js';
 import { focusLight } from './atmosphere.js';
@@ -189,19 +190,21 @@ function menuRow(e) {
   const r = canvas.getBoundingClientRect();
   menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   menuRay.setFromCamera(menuNdc, camera);
-  const h = menuRay.intersectObject(fridge.screen, false)[0];
-  return h ? fridge.menu.pick(h.uv) : null;
+  const h = menuRay.intersectObjects(fridge.pad ? [fridge.screen, fridge.pad.sheet] : [fridge.screen], false)[0];   // 屏幕和旁边那本纸菜单都能点
+  if (!h) return null;
+  return h.object === fridge.screen ? fridge.menu.pick(h.uv) : fridge.pad.pick(h.uv);
 }
+const menuHover = (i) => { fridge.menu.setHover(i); fridge.pad?.setHover(i); };
 canvas.addEventListener('pointermove', (e) => {
   if (!atFridge()) return;
   const row = menuRow(e);
-  fridge.menu.setHover(row ? row.i : -1);
+  menuHover(row ? row.i : -1);
   canvas.style.cursor = row && !row.out ? 'pointer' : '';
 });
 canvas.addEventListener('click', (e) => {
   const row = menuRow(e);
   if (!row) return;
-  canvas.style.cursor = ''; fridge.menu.setHover(-1);
+  canvas.style.cursor = ''; menuHover(-1);
   if (row.out) { toast('售罄'); return; }
   location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : '#/' + row.go;
 });
@@ -552,7 +555,7 @@ function fridgeOverlay(t) {
 }
 
 function openProduct(k) {
-  fridge.menu.setCurrent(k); room?.smart.menu?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
+  fridge.menu.setCurrent(k); fridge.pad?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
   if (state.sel === k) return;
   if (state.sel) closeProduct(true);
   state.sel = k;
@@ -605,7 +608,8 @@ function applyMeat() {
   u.uSteak.value = o.form === 'steak' ? 1 : 0;
   const kind = kindFor(k, o.form);
   hero.userData.meat.geometry = meatGeometry(kind);
-  hero.userData.meat.position.y = 0.03 + meatHeight(kind) * 0.38;
+  const fit = packFit(kind); hero.userData.meat.scale.setScalar(fit);
+  hero.userData.meat.position.y = 0.03 + meatHeight(kind) * fit;
 }
 
 // ------------------------------------------------------------------ 翻牌数字（参考网站配方用量的滚动数字）

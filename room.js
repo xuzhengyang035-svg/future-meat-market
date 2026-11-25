@@ -1305,8 +1305,8 @@ export function createRoom(env) {
     ITEM.rag(room, 2.85, 0.931, BZ + 0.1, { seed: 11, ry: 1.2, color: 0x8a7a6a });
     model('alarm_clock_01', { pos: [2.62, 0.93, BZ - 0.17], rot: 0.35, parent: room });            // 操作台上的旧闹钟
     for (const [x, rot, sc] of [[-2.55, 0.3, 1.3], [-2.12, -0.2, 1.1]]) model('pot_enamel_01', { pos: [x, 2.05, -3.62], rot, scale: sc, parent: room });   // 冷柜顶上两只汤锅（照效果图），左边是绿萝盆
-    model('dustpan', { pos: [-1.12, 0, -3.58], rot: 2.6, parent: room });                        // 簸箕和扫把挪到冷柜和后操作台之间的墙角
-    model('plastic_broom', { pos: [-1.5, 0, -3.92], rot: 0.2, parent: room })?.rotation.set(0.12, 0.2, 0.0);
+    model('dustpan', { pos: [-1.12, 0, -3.45], rot: 2.6, parent: room });                        // 簸箕和扫把挪到冷柜和后操作台之间的墙角
+    model('plastic_broom', { pos: [-1.08, 0, -3.95], rot: 0.2, parent: room })?.rotation.set(0.12, 0.2, 0.0);   // 冷柜右边现在是放菜单的小边柜
   }
   // ---- 你生成的贴图：油锈流痕、拖拽的血迹、撕掉海报后剩下的纸边
   userDecal('drips.webp', room, { pos: [-5.6, 3.62, -3.994], w: 2.0, h: 1.0 });                          // 后墙左上：顶上管子漏下来的锈水
@@ -1454,5 +1454,5 @@ export function createRoom(env) {
 
   // 会动、会换贴图、要往上贴网页的这几件不参与合并（batch.js）
   for (const o of [steak, lightbox, slot, tv, tabScreen, ks, flyer, ...Object.values(spots).map((p) => p.surface?.mesh)]) o?.traverse((c) => { c.userData.keep = true; });
-  return { scene, tick, smart, spots, figurines: [], slot, setPosters, ledger: office.ledger };
+  return { scene, tick, smart, spots, figurines: [], slot, setPosters, ledger: office.ledger, load: smart.load };   // load：冷柜里的零售盒模型
 }

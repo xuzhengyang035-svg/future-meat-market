@@ -169,3 +169,62 @@ export function menuScreen() {
   const setCurrent = (k) => { if (state.current !== k) { state.current = k; draw(); } };
   return { tex, pick, setHover, setCurrent, redraw: draw };
 }
+
+// ------------------------------------------------------------------ 冷柜上的触摸屏：正经的点单界面（不再是拍下来的那页便签）
+// 上半是四种培养肉的卡片，下半是堂食的单子；行号和纸菜单（legalPad）一一对应，指到哪一行两边一起亮、看过的那件两边一起圈出来
+export function menuKiosk() {
+  const SW = 600, SH = 1057, P = 26;
+  const cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const state = { hover: -1, current: null }, regions = [];
+  const MONO = '"IBM Plex Mono", Consolas, monospace', SANS = '"Inter", "Helvetica Neue", Arial, sans-serif';
+  const LINE = { beef: 'B-0417', pork: 'P-0932', chicken: 'G-0221', fish: 'F-1180' };
+  const TONE = { beef: ['#8e2a2a', '#c8505a'], pork: ['#c97a78', '#ecb2a8'], chicken: ['#d9a48c', '#f1d0bc'], fish: ['#d8c2a8', '#f3e6d4'] };
+  const rows = MENU.sections.flatMap((s, si) => s.rows.map((r) => ({ si, name: r[0], price: r[1], ...r[2] })));
+  const draw = () => {
+    const g = cv.getContext('2d'); regions.length = 0;
+    g.fillStyle = '#0e1012'; g.fillRect(0, 0, SW, SH);
+    g.fillStyle = '#e8e4dc'; g.font = `600 24px ${MONO}`; g.textAlign = 'left'; g.fillText('FUTURE MEAT', P, 50);
+    g.fillStyle = '#8a8680'; g.font = `400 18px ${MONO}`; g.textAlign = 'right'; g.fillText(`ORDER · ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`, SW - P, 50);
+    g.fillStyle = '#26292c'; g.fillRect(P, 70, SW - 2 * P, 2);
+    g.textAlign = 'left'; g.fillStyle = '#b3262d'; g.font = `600 17px ${MONO}`; g.fillText('CULTIVATED · PER 200 g', P, 112);
+    const TW = (SW - 2 * P - 18) / 2, TH = 236;
+    rows.filter((r) => r.si === 0).forEach((r, k) => {
+      const i = rows.indexOf(r), x = P + (k % 2) * (TW + 18), y = 130 + Math.floor(k / 2) * (TH + 18), hot = state.hover === i, cur = state.current === r.go;
+      g.fillStyle = hot ? '#24282c' : '#181b1e'; g.fillRect(x, y, TW, TH);
+      if (hot || cur) { g.strokeStyle = cur ? '#d4343c' : '#6c7276'; g.lineWidth = cur ? 4 : 2; g.strokeRect(x + 1, y + 1, TW - 2, TH - 2); }
+      const [a, b] = TONE[r.go], gr = g.createLinearGradient(x, y, x + TW, y + 110); gr.addColorStop(0, a); gr.addColorStop(1, b);
+      g.fillStyle = gr; g.beginPath(); g.ellipse(x + TW / 2, y + 66, TW * 0.34, 40, -0.08, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(255,240,230,.55)'; g.lineWidth = 2; for (let s = 0; s < 5; s++) { g.beginPath(); g.moveTo(x + TW * 0.24 + s * 22, y + 44 + s * 6); g.quadraticCurveTo(x + TW / 2, y + 70 + s * 4, x + TW * 0.78 - s * 12, y + 50 + s * 9); g.stroke(); }
+      g.fillStyle = '#f0ece4'; g.font = `600 27px ${SANS}`; g.fillText(r.name, x + 16, y + 150);
+      g.fillStyle = '#8f949a'; g.font = `400 16px ${MONO}`; g.fillText(`CELL LINE ${LINE[r.go]}`, x + 16, y + 178);
+      g.fillStyle = '#e0474e'; g.font = `600 34px ${SANS}`; g.fillText(r.price, x + 16, y + 220);
+      if (cur) { g.fillStyle = '#d4343c'; g.font = `600 14px ${MONO}`; g.textAlign = 'right'; g.fillText('VIEWED', x + TW - 14, y + 26); g.textAlign = 'left'; }
+      regions.push({ i, x0: x, x1: x + TW, y0: y, y1: y + TH, go: r.go, name: r.name });
+    });
+    let y = 130 + 2 * (TH + 18) + 24;
+    g.fillStyle = '#b3262d'; g.font = `600 17px ${MONO}`; g.fillText('KITCHEN', P, y); y += 18;
+    for (const r of rows.filter((q) => q.si === 1)) {
+      const i = rows.indexOf(r), hot = state.hover === i && !r.out, RH = 50;
+      if (hot) { g.fillStyle = '#24282c'; g.fillRect(P - 8, y, SW - 2 * P + 16, RH); }
+      g.fillStyle = r.out ? '#5a5e62' : '#e8e4dc'; g.font = `500 24px ${SANS}`; g.fillText(r.name, P, y + 34);
+      g.textAlign = 'right'; g.fillStyle = r.out ? '#5a5e62' : '#e8e4dc'; g.fillText(r.price, SW - P, y + 34);
+      if (r.was) { g.fillStyle = '#6a6e72'; g.font = `400 18px ${SANS}`; const w = g.measureText(r.was).width; g.fillText(r.was, SW - P - 72, y + 33); g.fillRect(SW - P - 72 - w, y + 27, w, 2); }
+      g.textAlign = 'left';
+      if (r.hi) { g.font = `500 24px ${SANS}`; const w = g.measureText(r.name).width; g.fillStyle = '#d4343c'; g.font = `600 13px ${MONO}`; g.fillText('SPECIAL', P + w + 14, y + 32); }
+      if (r.out) { g.font = `500 24px ${SANS}`; const w = g.measureText(r.name).width; g.fillStyle = '#5a5e62'; g.fillRect(P, y + 26, w, 2); g.font = `600 13px ${MONO}`; g.fillText('SOLD OUT', P + w + 14, y + 32); }
+      g.fillStyle = '#1e2124'; g.fillRect(P, y + RH, SW - 2 * P, 1);
+      regions.push({ i, x0: P - 8, x1: SW - P + 8, y0: y, y1: y + RH, go: r.go, out: r.out, name: r.name });
+      y += RH;
+    }
+    g.fillStyle = '#5c6064'; g.font = `400 16px ${MONO}`; g.fillText('TAP TO ORDER', P, SH - 30);
+    for (let yy = 0; yy < SH; yy += 3) { g.fillStyle = 'rgba(0,0,0,.05)'; g.fillRect(0, yy, SW, 1); }   // 液晶的细横纹
+    tex.needsUpdate = true;
+  };
+  draw();
+  document.fonts.ready.then(draw).catch(() => {});
+  const pick = (uv) => { if (!uv) return null; const x = uv.x * SW, y = (1 - uv.y) * SH; return regions.find((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) || null; };
+  const setHover = (i) => { if (state.hover !== i) { state.hover = i; draw(); } };
+  const setCurrent = (k) => { if (state.current !== k) { state.current = k; draw(); } };
+  return { tex, pick, setHover, setCurrent, redraw: draw };
+}
