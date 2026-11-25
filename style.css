@@ -71,6 +71,9 @@ body:not(.at-fridge) #products, body.product-open #products { display: none; }
 .ps .tag b { color: var(--red); font-weight: 500; margin-left: 8px; }
 body.pad-held .ps { opacity: 0; pointer-events: none; transition: opacity .2s; }   /* 纸菜单拿在眼前时，冷柜上的点让开 */
 .ps:hover .tag { opacity: 1; transform: none; }
+.ps.hot .tag { opacity: 1; transform: none; }
+.ps.hot .dot { transform: scale(1.25); }
+.ps .dot { transition: transform .2s; }
 
 /* 冷柜触摸屏里的内容 */
 #screen { position: fixed; z-index: 10; background: linear-gradient(160deg, #fdfcfa, #ecebe7); border-radius: 6px; overflow: hidden; opacity: 0; pointer-events: none; clip-path: inset(0 0 100% 0); transition: clip-path .7s cubic-bezier(.7,0,.2,1), opacity .2s; }

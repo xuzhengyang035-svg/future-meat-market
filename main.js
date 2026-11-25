@@ -201,6 +201,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (!atFridge()) return;
   const row = menuRow(e);
   menuHover(row ? row.i : -1);
+  padHover(!!row?.padPick);
   canvas.style.cursor = row && !row.out ? 'pointer' : '';
 });
 canvas.addEventListener('click', (e) => {
@@ -237,11 +238,20 @@ canvas.addEventListener('click', (e) => {
   else if (a.type === 'close') location.hash = '#/fridge';
 });
 // 旁边柜子上的纸菜单：点一下拿到眼前（拿着也能点菜），点别处或 Esc 放回去
-let padHeld = null;
+let padHeld = null, padLift = false;
+function padHover(on, now = false) {                                       // 指到纸菜单：纸从板上抬起一点，旁边的点亮出名字
+  const g = fridge?.pad?.group; if (!g || (padHeld && !now) || on === padLift) return;
+  padLift = on; g.userData.y0 ??= g.position.y;
+  gsap.killTweensOf(g.position);
+  if (now) { g.position.y = g.userData.y0; g.updateMatrixWorld(true); }
+  else gsap.to(g.position, { y: g.userData.y0 + (on ? 0.02 : 0), duration: 0.25, ease: 'power2.out' });
+  padDot.classList.toggle('hot', on);
+}
 function holdPad(on) {
   const pad = fridge?.pad; if (!pad) return;
   const grp = pad.group;
   if (on && !padHeld) {
+    padHover(false, true);
     padHeld = { parent: grp.parent, pos: grp.position.clone(), quat: grp.quaternion.clone(), k: { t: 0 } };
     const wp = grp.getWorldPosition(new THREE.Vector3()), wq = grp.getWorldQuaternion(new THREE.Quaternion());
     room.scene.attach(grp);
@@ -251,14 +261,14 @@ function holdPad(on) {
     toPos.addScaledVector(fwd.clone().negate(), 0.011);
     padHeld.from = { p: wp, q: wq }; padHeld.to = { p: toPos, q: toQuat };
     gsap.to(padHeld.k, { t: 1, duration: 0.6, ease: 'power2.inOut', onUpdate: () => { grp.position.lerpVectors(wp, toPos, padHeld.k.t); grp.quaternion.slerpQuaternions(wq, toQuat, padHeld.k.t); } });
-    document.body.classList.add('pad-held');
+    document.body.classList.add('pad-held'); psLayer.style.visibility = 'hidden';   // 拿在眼前时不显示任何交互点
   } else if (!on && padHeld) {
     const h = padHeld; padHeld = null;
     gsap.killTweensOf(h.k);
     const p0 = grp.position.clone(), q0 = grp.quaternion.clone(), k = { t: 0 };
     gsap.to(k, { t: 1, duration: 0.5, ease: 'power2.inOut', onUpdate: () => { grp.position.lerpVectors(p0, h.from.p, k.t); grp.quaternion.slerpQuaternions(q0, h.from.q, k.t); },
       onComplete: () => { h.parent.add(grp); grp.position.copy(h.pos); grp.quaternion.copy(h.quat); } });
-    document.body.classList.remove('pad-held');
+    document.body.classList.remove('pad-held'); psLayer.style.visibility = '';
   }
 }
 canvas.addEventListener('pointerdown', (e) => {                          // 先于点菜判断：没拿着时点到纸菜单 = 拿起来；拿着时点到纸外面 = 放回去
@@ -595,6 +605,14 @@ const psEls = ORDER.map((k) => {
   return { k, el };
 });
 
+const padDot = document.createElement('button');                           // 纸菜单放在柜子上时的交互点：点它 = 拿起来
+padDot.className = 'ps pad-dot';
+padDot.innerHTML = '<span class="dot"></span><span class="tag">纸菜单<b>拿起来看</b></span>';
+padDot.addEventListener('click', () => { if (atFridge() && !state.sel) holdPad(true); });
+padDot.addEventListener('pointerenter', () => padHover(true));
+padDot.addEventListener('pointerleave', () => padHover(false));
+psLayer.appendChild(padDot);
+const padAnchor = new THREE.Vector3();
 const screenEl = $('#screen');
 const screenBody = $('#screen .body');
 const blankScreen = new THREE.MeshBasicMaterial({ color: 0x101113 });
@@ -612,6 +630,7 @@ function fridgeOverlay(t) {
     const l = Math.min(...xs), r = Math.max(...xs), tp = Math.min(...ys), b = Math.max(...ys);
     Object.assign(screenEl.style, { left: l + 'px', top: tp + 'px', width: (r - l) + 'px', height: (b - tp) + 'px' });
   }
+  if (fridge.pad && !padHeld) { const s = project(fridge.pad.sheet.getWorldPosition(padAnchor)); padDot.style.transform = `translate(${s.x}px, ${s.y}px)`; }
   for (const { k, el } of psEls) {
     const s = project(fridge.group.localToWorld(fridge.shelves[k].anchor.clone()));
     el.style.transform = `translate(${s.x}px, ${s.y}px)`;
