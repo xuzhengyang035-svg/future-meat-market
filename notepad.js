@@ -74,7 +74,7 @@ function ink(g, M, state, regions) {
       if (f.out) { line(g, LEFT - 8, LEFT + nw + 10, y - 20, { color: INK, w: 4.4, alpha: 0.85, seed: hash('o' + name), slope: 4 }); line(g, RIGHT - pw - 8, RIGHT + 6, y - 18, { color: INK, w: 4.4, alpha: 0.85, seed: hash('op' + name) }); hand(g, f.out, LEFT + nw + 36, y, 58, { color: RED, alpha: 0.9, seed: 'out' + name }); }
       if (f.was) { const ww = hand(g, f.was, RIGHT - pw - 36, y, 54, { align: 'right', alpha: 0.6, seed: 'was' + name }); line(g, RIGHT - pw - 42 - ww, RIGHT - pw - 30, y - 18, { color: INK, w: 3.6, alpha: 0.8, seed: hash('w' + name) }); }
       if (f.hi) hand(g, 'special!', LEFT + nw + 26, y - 4, 52, { color: RED, alpha: 0.85, seed: 'rec' });
-      regions.push({ i: idx, x0: MARGIN - 100, x1: RIGHT + 30, y0: y - RULE + 14, y1: y + 16, go: f.go, out: f.out, name });
+      regions.push({ i: idx, x0: MARGIN - 100, x1: RIGHT + 30, y0: y - RULE + 14, y1: y + 16, go: f.go, out: f.out, name, mx0: LEFT - 16, mx1: Math.min(RIGHT + 10, LEFT + nameW + 34), my0: y - 48, my1: y + 16 });
       k++;
     }
     k++;
@@ -97,8 +97,7 @@ export function legalPad() {
   // 纸只画一次，每次重写字的时候先把纸贴回去（悬停时要反复重画）
   const paperCv = document.createElement('canvas'); paperCv.width = CW; paperCv.height = CH; paper(paperCv.getContext('2d'));
   const state = { hover: -1, current: null }, regions = [];
-  const draw = () => { const c = cv.getContext('2d'); c.clearRect(0, 0, CW, CH); c.drawImage(paperCv, 0, 0); ink(c, MENU, state, regions); tex.needsUpdate = true; };
-  draw();
+  const draw = () => { const c = cv.getContext('2d'); c.clearRect(0, 0, CW, CH); c.drawImage(paperCv, 0, 0); ink(c, MENU, { hover: -1, current: state.current }, regions); tex.needsUpdate = true; placeHi(); };
   document.fonts.load(FONT(60), MENU.title + '¥').then(draw).catch(() => {});   // Caveat 到了再写一遍
 
   const edge = document.createElement('canvas'); edge.width = 8; edge.height = 64;
@@ -112,6 +111,20 @@ export function legalPad() {
   sg.computeVertexNormals();
   const sheet = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, side: THREE.DoubleSide })); sheet.name = 'menuSheet';
   sheet.rotation.x = -Math.PI / 2; sheet.position.y = PT + 0.0004; g.add(sheet);
+  // 指针下那一行的荧光笔：一块贴着纸面起伏的小贴片（正片叠底），移动时只挪它，不重画、不重新上传 1024×1410 的整页贴图
+  const hc = document.createElement('canvas'); hc.width = 256; hc.height = 64;
+  { const c = hc.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, 256, 64); c.fillStyle = 'rgba(255,138,70,.5)'; c.beginPath(); c.moveTo(3, 6); c.lineTo(250, 3); c.lineTo(256, 38); c.lineTo(249, 60); c.lineTo(0, 58); c.closePath(); c.fill(); }
+  const hTex = new THREE.CanvasTexture(hc); hTex.colorSpace = THREE.SRGBColorSpace;
+  const hi = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 10, 2), new THREE.MeshBasicMaterial({ map: hTex, transparent: true, premultipliedAlpha: true, blending: THREE.MultiplyBlending, depthWrite: false, toneMapped: false }));
+  hi.visible = false; hi.renderOrder = 2; hi.userData.keep = true; sheet.add(hi);
+  const zAt = (x, y) => { const u = Math.max(0, x / (PW / 2) - 0.3) / 0.7, v = Math.max(0, -y / (PL / 2) - 0.45) / 0.55; return 0.008 * (u * v) ** 1.6 + Math.sin(x * 40 + y * 20) * 0.0004; };
+  function placeHi() {
+    const r = regions.find((q) => q.i === state.hover); hi.visible = !!r; if (!r) return;
+    const hp = hi.geometry.attributes.position, uv = hi.geometry.attributes.uv;
+    for (let i = 0; i < hp.count; i++) { const cx = r.mx0 + (r.mx1 - r.mx0) * uv.getX(i), cy = r.my1 - (r.my1 - r.my0) * uv.getY(i), x = (cx / CW - 0.5) * PW, y = (0.5 - cy / CH) * PL; hp.setXYZ(i, x, y, zAt(x, y) + 0.0005); }
+    hp.needsUpdate = true; hi.geometry.computeBoundingSphere();
+  }
+  draw();
   // 顶上的胶装封条和被撕掉的几页留下的纸茬
   const glue = new THREE.Mesh(new THREE.BoxGeometry(PW + 0.002, 0.004, 0.026), new THREE.MeshStandardMaterial({ color: 0x6a2a22, roughness: 0.6 }));
   glue.position.set(0, PT + 0.001, -PL / 2 + 0.012); g.add(glue);
@@ -119,7 +132,7 @@ export function legalPad() {
   for (let i = 0; i < 3; i++) { const s = new THREE.Mesh(new THREE.BoxGeometry(PW * (0.4 + i * 0.2), 0.0006, 0.006 + i * 0.002), stub); s.position.set(-PW * 0.25 + i * 0.05, PT + 0.0035, -PL / 2 + 0.026 + (0.006 + i * 0.002) / 2); g.add(s); }
   // 交互：uv → 哪一行（像参考网站那样，点一行就是“放进这盘带子”）
   const pick = (uv) => { if (!uv) return null; const x = uv.x * CW, y = (1 - uv.y) * CH; return regions.find((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) || null; };
-  const setHover = (i) => { if (state.hover !== i) { state.hover = i; draw(); } };
+  const setHover = (i) => { if (state.hover !== i) { state.hover = i; placeHi(); } };
   const setCurrent = (k) => { if (state.current !== k) { state.current = k; draw(); } };
   return { group: g, sheet, redraw: draw, size: [PW, PL], pick, setHover, setCurrent };
 }

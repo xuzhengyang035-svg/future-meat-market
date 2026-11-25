@@ -196,7 +196,7 @@ function menuRow(e) {
   if (h.object !== fridge.screen && !padHeld) return { i: -1, padPick: true };   // 纸菜单：先拿起来，拿着才点菜
   return h.object === fridge.screen ? fridge.menu.pick(h.uv) : fridge.pad.pick(h.uv);
 }
-const menuHover = (i) => { fridge.menu.setHover(i); fridge.pad?.setHover(i); };
+const menuHover = (i) => { fridge.pad?.setHover(i); if (!padHeld) fridge.menu.setHover(i); };   // 拿着纸时屏幕被挡住，不重画它
 canvas.addEventListener('pointermove', (e) => {
   if (!atFridge()) return;
   const row = menuRow(e);
@@ -261,7 +261,7 @@ function holdPad(on) {
     toPos.addScaledVector(fwd.clone().negate(), 0.011);
     padHeld.from = { p: wp, q: wq }; padHeld.to = { p: toPos, q: toQuat };
     gsap.to(padHeld.k, { t: 1, duration: 0.6, ease: 'power2.inOut', onUpdate: () => { grp.position.lerpVectors(wp, toPos, padHeld.k.t); grp.quaternion.slerpQuaternions(wq, toQuat, padHeld.k.t); } });
-    document.body.classList.add('pad-held'); psLayer.style.visibility = 'hidden';   // 拿在眼前时不显示任何交互点
+    document.body.classList.add('pad-held'); fridge.menu.setHover(-1); psLayer.style.visibility = 'hidden';   // 拿在眼前时不显示任何交互点
   } else if (!on && padHeld) {
     const h = padHeld; padHeld = null;
     gsap.killTweensOf(h.k);
