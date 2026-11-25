@@ -69,6 +69,7 @@ body:not(.at-fridge) #products, body.product-open #products { display: none; }
 .ps .dot::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--red); }
 .ps .tag { margin-top: -8px; font-size: 12px; background: var(--paper); padding: 6px 10px; border-radius: 4px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.12); opacity: 0; transform: translateX(-6px); transition: .25s; }
 .ps .tag b { color: var(--red); font-weight: 500; margin-left: 8px; }
+body.pad-held .ps { opacity: 0; pointer-events: none; transition: opacity .2s; }   /* 纸菜单拿在眼前时，冷柜上的点让开 */
 .ps:hover .tag { opacity: 1; transform: none; }
 
 /* 冷柜触摸屏里的内容 */

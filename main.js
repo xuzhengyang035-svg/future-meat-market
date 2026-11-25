@@ -3,6 +3,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRoom } from './room.js';
 import { createLab } from './lab.js';
 import { packFit } from './fridge.js';
+import { createProductScreen } from './fridge-screen.js';
 import { createNav } from './nav.js';
 import { batchStatic } from './batch.js';
 import { focusLight } from './atmosphere.js';
@@ -192,6 +193,7 @@ function menuRow(e) {
   menuRay.setFromCamera(menuNdc, camera);
   const h = menuRay.intersectObjects(fridge.pad ? [fridge.screen, fridge.pad.sheet] : [fridge.screen], false)[0];   // 屏幕和旁边那本纸菜单都能点
   if (!h) return null;
+  if (h.object !== fridge.screen && !padHeld) return { i: -1, padPick: true };   // 纸菜单：先拿起来，拿着才点菜
   return h.object === fridge.screen ? fridge.menu.pick(h.uv) : fridge.pad.pick(h.uv);
 }
 const menuHover = (i) => { fridge.menu.setHover(i); fridge.pad?.setHover(i); };
@@ -202,12 +204,75 @@ canvas.addEventListener('pointermove', (e) => {
   canvas.style.cursor = row && !row.out ? 'pointer' : '';
 });
 canvas.addEventListener('click', (e) => {
+  if (padJustHeld) { padJustHeld = false; return; }                        // 这一下是把纸菜单拿起来
   const row = menuRow(e);
-  if (!row) return;
+  if (!row || row.padPick) return;
+  holdPad(false);
   canvas.style.cursor = ''; menuHover(-1);
   if (row.out) { toast('售罄'); return; }
   location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : '#/' + row.go;
 });
+// 选好的那块肉：屏幕上的商品页直接点（定制、份量、交付、下单、看它生长 / 去结算）
+function productAct(e) {
+  if (!atFridge() || !state.sel) return null;
+  const r = canvas.getBoundingClientRect();
+  menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  menuRay.setFromCamera(menuNdc, camera);
+  const h = menuRay.intersectObject(fridge.screen, false)[0];
+  return h ? h.uv : null;
+}
+canvas.addEventListener('pointermove', (e) => {
+  if (!atFridge() || !state.sel) return;
+  const a = productScreen.hover(productAct(e));
+  canvas.style.cursor = a ? 'pointer' : '';
+});
+canvas.addEventListener('click', (e) => {
+  if (!atFridge() || !state.sel) return;
+  const a = productScreen.pick(productAct(e));
+  if (!a) return;
+  if (a.type === 'opt') { state.opts[a.key] = a.v; applyMeat(); drawProduct(); }
+  else if (a.type === 'qty') { state.opts.qty = THREE.MathUtils.clamp(state.opts.qty + a.d, 1, 10); drawProduct(); }
+  else if (a.type === 'buy') placeOrder();
+  else if (a.type === 'go') location.hash = a.hash;
+  else if (a.type === 'close') location.hash = '#/fridge';
+});
+// 旁边柜子上的纸菜单：点一下拿到眼前（拿着也能点菜），点别处或 Esc 放回去
+let padHeld = null;
+function holdPad(on) {
+  const pad = fridge?.pad; if (!pad) return;
+  const grp = pad.group;
+  if (on && !padHeld) {
+    padHeld = { parent: grp.parent, pos: grp.position.clone(), quat: grp.quaternion.clone(), k: { t: 0 } };
+    const wp = grp.getWorldPosition(new THREE.Vector3()), wq = grp.getWorldQuaternion(new THREE.Quaternion());
+    room.scene.attach(grp);
+    const fwd = camera.getWorldDirection(new THREE.Vector3()), up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion), right = new THREE.Vector3().crossVectors(fwd, up);
+    const toPos = camera.position.clone().addScaledVector(fwd, 0.6).addScaledVector(up, -0.02);
+    const toQuat = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, fwd.clone().negate(), up.clone().negate()));
+    toPos.addScaledVector(fwd.clone().negate(), 0.011);
+    padHeld.from = { p: wp, q: wq }; padHeld.to = { p: toPos, q: toQuat };
+    gsap.to(padHeld.k, { t: 1, duration: 0.6, ease: 'power2.inOut', onUpdate: () => { grp.position.lerpVectors(wp, toPos, padHeld.k.t); grp.quaternion.slerpQuaternions(wq, toQuat, padHeld.k.t); } });
+    document.body.classList.add('pad-held');
+  } else if (!on && padHeld) {
+    const h = padHeld; padHeld = null;
+    gsap.killTweensOf(h.k);
+    const p0 = grp.position.clone(), q0 = grp.quaternion.clone(), k = { t: 0 };
+    gsap.to(k, { t: 1, duration: 0.5, ease: 'power2.inOut', onUpdate: () => { grp.position.lerpVectors(p0, h.from.p, k.t); grp.quaternion.slerpQuaternions(q0, h.from.q, k.t); },
+      onComplete: () => { h.parent.add(grp); grp.position.copy(h.pos); grp.quaternion.copy(h.quat); } });
+    document.body.classList.remove('pad-held');
+  }
+}
+canvas.addEventListener('pointerdown', (e) => {                          // 先于点菜判断：没拿着时点到纸菜单 = 拿起来；拿着时点到纸外面 = 放回去
+  if (!atFridge() || state.sel || !fridge?.pad) return;
+  const r = canvas.getBoundingClientRect();
+  menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  menuRay.setFromCamera(menuNdc, camera);
+  const onPad = menuRay.intersectObject(fridge.pad.sheet, false).length > 0;
+  if (!padHeld && onPad) { e.stopImmediatePropagation(); padJustHeld = true; holdPad(true); }
+  else if (padHeld && onPad) e.stopImmediatePropagation();                  // 拿着时点纸上：只点菜，不拖动视角
+  else if (padHeld && !onPad) holdPad(false);
+}, true);
+let padJustHeld = false;
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && padHeld) holdPad(false); });
 canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('wheel', (e) => {
   if (!canLook()) return;
@@ -533,7 +598,6 @@ const psEls = ORDER.map((k) => {
 const screenEl = $('#screen');
 const screenBody = $('#screen .body');
 const blankScreen = new THREE.MeshBasicMaterial({ color: 0x101113 });
-let heroHome = null;
 
 function defaults() {
   return { fat: 'mid', form: 'fillet', firm: 'tender', aroma: 'base', shade: 'light', cycle: 28, plan: 'std', qty: 1, delivery: 'std' };
@@ -555,13 +619,15 @@ function fridgeOverlay(t) {
 }
 
 function openProduct(k) {
+  holdPad(false);
   fridge.menu.setCurrent(k); fridge.pad?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
   if (state.sel === k) return;
   if (state.sel) closeProduct(true);
   state.sel = k;
   state.opts = defaults();
   const hero = heroOf(k);
-  heroHome = { p: hero.position.clone(), r: hero.rotation.clone(), s: hero.scale.x };
+  gsap.killTweensOf([hero.position, hero.rotation, hero.scale]);
+  hero.userData.home ??= { p: hero.position.clone(), r: hero.rotation.clone(), s: hero.scale.x };   // 架子上的原位只记一次（半路再点也不会记歪）
   document.body.classList.add('product-open');
   hideTutorial();
   gsap.to(fridge.door.rotation, { y: -1.8, duration: 1.0, ease: 'power2.inOut' });
@@ -572,17 +638,17 @@ function openProduct(k) {
     .to(hero.position, { x: -0.22, y: 1.16, z: 0.62, duration: 0.9, ease: 'power3.inOut' })
     .to(hero.rotation, { x: 0.7, y: 0.25, duration: 0.9, ease: 'power3.inOut' }, '<')
     .to(hero.scale, { x: 1.5, y: 1.5, z: 1.5, duration: 0.9, ease: 'power3.inOut' }, '<');
-  fridge.screen.material = blankScreen;
+  fridge.screen.material = new THREE.MeshBasicMaterial({ map: productScreen.tex, toneMapped: false, color: screenTint });   // 商品页就画在这块玻璃屏上
   setFridgePosters(k);
   renderProduct();
-  setTimeout(() => { screenEl.classList.add('on'); startFlips(screenBody); }, 1100);
   setMarquee(`${SPECIES[k].title} · 细胞系 ${SPECIES[k].id} · 零屠宰 · `);
 }
 
 function closeProduct(instant = false) {
   if (!state.sel) return;
   const hero = heroOf(state.sel);
-  const home = heroHome;
+  const home = hero.userData.home;
+  gsap.killTweensOf([hero.position, hero.rotation, hero.scale]);
   screenEl.classList.remove('on');
   document.body.classList.remove('product-open');
   const d = instant ? 0 : 0.8;
@@ -652,7 +718,14 @@ const techBlock = (t, body) => `
     ${body}
     <button class="paper-link" data-paper="${t.paper}">技术报告 →</button>
   </div>`;
-function renderProduct() {
+const productScreen = createProductScreen();
+function drawProduct() {
+  const k = state.sel, o = state.opts;
+  if (!k) return;
+  productScreen.draw({ mode: 'product', k, opts: o, options: OPTIONS[k], price: price(), base: SPECIES[k].price, x: GROWTH.plan[o.plan].x });
+}
+function renderProduct() { drawProduct(); applyMeat(); }
+function renderProductHTML() {
   const k = state.sel, s = SPECIES[k], o = state.opts;
   screenBody.innerHTML = `
     <div class="ptitle head"><h2>${s.title}</h2><b>¥${s.price}</b></div>
@@ -675,6 +748,7 @@ function renderProduct() {
   applyMeat();
 }
 function updateStats() {
+  drawProduct();
   const o = state.opts;
   const x = GROWTH.plan[o.plan].x;
   screenBody.querySelectorAll('.flip').forEach((el) => {
@@ -727,6 +801,8 @@ function placeOrder() {
   hudStatic();
   document.body.classList.add('has-order');
   $('#cart').textContent = `订单 ${state.order.no}`;
+  productScreen.draw({ mode: 'ordered', k, no: state.order.no, price: state.order.price, days: state.order.opts.cycle - (state.order.opts.delivery === 'priority' ? 5 : 0) });
+  return;
   screenBody.innerHTML = `
     <h2>已开始培养</h2>
     <div class="stats">
@@ -972,6 +1048,7 @@ function openRoomUI(id) {
   if (list.length) showCallouts(list);
 }
 function closeRoomUI() {
+  holdPad(false);
   inspector.close();
   document.body.classList.remove('at-fridge');
   if (state.sel) closeProduct(true);
