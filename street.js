@@ -58,7 +58,7 @@ export function createStreet(env) {
   const scene = new THREE.Scene();
   scene.background = canvasTexture(16, 512, (g, W, H) => {                  // 雨夜的天：上面深蓝黑，往下一点点被城市的灯光照成暖灰
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#05080c'); gr.addColorStop(0.55, '#141b22'); gr.addColorStop(0.8, '#2a2a28'); gr.addColorStop(1, '#3a3228'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
-  scene.fog = new THREE.FogExp2(0x243039, 0.021);
+  scene.fog = new THREE.FogExp2(0x34424b, 0.017);
   scene.environment = env;
   scene.environmentIntensity = 0.25;
   const root = new THREE.Group(); scene.add(root);
@@ -424,8 +424,8 @@ export function createStreet(env) {
   const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xa8b2ba, transparent: true, opacity: 0.12, depthWrite: false })); rain.frustumCulled = false; root.add(rain);
 
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗
-  scene.add(new THREE.HemisphereLight(0x9aaebc, 0x27251f, 2.8));
-  const moon = new THREE.DirectionalLight(0x5fb4c4, 1.3); moon.position.set(5, 14, 10); scene.add(moon);
+  scene.add(new THREE.HemisphereLight(0xbac9d2, 0x594c3d, 3.05));
+  const moon = new THREE.DirectionalLight(0xb6ced8, 1.42); moon.position.set(5, 14, 10); scene.add(moon);
 
   function tick(t) {
     for (const s of steam) {

@@ -112,19 +112,218 @@ export function addMarketLane(root) {
       for(let j=0;j<21;j++)piece(g,display,.42+j*.13,-.55,span,.055,.085,frame);
     }
   }
+  const moss=[0x425937,0x617448,0x748355,0x4e6341].map(c=>mat(c,.93));
+  const clay=mat(0x94654d,.93), linen=mat(0xb4a283,.94), blueCloth=mat(0x637d80,.94);
+  const amber=new T.MeshStandardMaterial({color:0xe8bd83,emissive:0xffc678,emissiveIntensity:1.1});
+  const porcelain=mat(0xd3d7c7,.52), greenPaint=mat(0x536c58,.8);
+  const olive=new T.SphereGeometry(1,8,5), wheelGeo=new T.TorusGeometry(.325,.029,8,30);
+  function oval(g,x,y,z,a,b,c,m){
+    const o=new T.Mesh(olive,m);o.position.set(x,y,z);o.scale.set(a,b,c);g.add(o);return o;
+  }
+  function plant(g,x,y,z,size,seed){
+    const group=new T.Group();group.position.set(x,y,z);group.scale.setScalar(size);g.add(group);
+    rod(group,[0,0,0],[0,.34,0],.14,clay,.21);rod(group,[0,.30,0],[0,.36,0],.22,clay);
+    for(let j=0;j<9;j++){
+      const angle=j*2.4+seed,h=.49+.34*(.5+.5*Math.sin(j*2+seed)),rad=.12+.08*(j%3);
+      const dx=rad*Math.cos(angle),dz=rad*Math.sin(angle);
+      rod(group,[0,.30,0],[dx,h,dz],.011,moss[0],.006,5);
+      for(let k=0;k<3;k++){const t=.4+.27*k;const leaf=oval(group,dx*t,h-(1-t)*.21,dz*t,.09,.05,.14,moss[(j+k)%4]);leaf.rotation.set(.38,angle+k,.24);}
+    }
+  }
+  const prints=new Map();
+  function picture(g,name,x,y,z,w,h,glow=.22){
+    if(!prints.has(name)){
+      const map=texture(name);
+      prints.set(name,new T.MeshStandardMaterial({map,emissiveMap:map,emissive:0xffffff,emissiveIntensity:glow,roughness:.93}));
+    }
+    const mesh=new T.Mesh(new T.PlaneGeometry(w,h),prints.get(name));mesh.position.set(x,y,z);g.add(mesh);return mesh;
+  }
+  function chair(g,x,y,z,turn=0){
+    const a=new T.Group();a.position.set(x,y,z);a.rotation.y=turn;g.add(a);
+    for(const dx of [-.21,.21]) for(const dz of [-.19,.19])rod(a,[dx*1.22,0,dz*1.25],[dx,.47,dz],.022,iron);
+    for(let i=0;i<4;i++)piece(a,0,.465,-.17+.115*i,.48,.045,.095,timber);
+    for(const dx of [-.21,.21])rod(a,[dx,.43,-.18],[dx,.91,-.26],.023,iron);
+    for(const y of [.76,.87])piece(a,0,y,-.25,.48,.073,.045,timber);
+  }
+  function curtain(g,x,y,z,w,h,m,phase){
+    const geo=new T.PlaneGeometry(w,h,16,4);const pos=geo.attributes.position;
+    for(let i=0;i<pos.count;i++){const u=pos.getX(i)/w+.5,v=pos.getY(i)/h+.5;
+      pos.setXYZ(i,pos.getX(i)+(1-v)*.022*Math.sin(phase),pos.getY(i)+.035*(1-v)*Math.sin(u*16),.064*Math.cos(u*22+phase));}
+    geo.computeVertexNormals();const cloth=new T.Mesh(geo,m);cloth.position.set(x,y,z);g.add(cloth);
+  }
+  function pendant(g,x,y,z,drop,cool=false){
+    rod(g,[x,y,z],[x,y-drop,z],.014,iron);rod(g,[x,y-drop-.145,z],[x,y-drop,z],.23,greenPaint,.055);
+    rod(g,[x,y-drop-.154,z],[x,y-drop-.14,z],.19,cool?porcelain:amber);
+  }
+  function flat(g,x,y,w,h,id){
+    const ax=Math.abs(id), back=-1.62, floor=y-h/2, ceiling=y+h/2;
+    const roomMat=ax%3===0?'cool-room':'warm-room';
+    picture(g,roomMat,x,y,back,w,h,.66);piece(g,x,floor,back/2,w,.08,-back,timber);
+    piece(g,x,ceiling,back/2,w,.09,-back,cream);
+    for(const s of [-1,1])piece(g,x+s*w/2,y,back/2,.07,h,-back,cream);
+    // Furniture is set back from the sill. The frame masks it differently on each approach.
+    const dx=x+(ax%2?.19:-.18)*w;
+    piece(g,dx,floor+.52,-1.08,w*.57,.07,.56,timber);
+    for(const sx of [-1,1])piece(g,dx+sx*w*.23,floor+.24,-1.05,.055,.48,.08,timber);
+    if(ax%3===0){
+      piece(g,dx,floor+.83,-1.15,.58,.35,.09,iron);piece(g,dx,floor+.83,-1.094,.52,.29,.012,blueCloth);
+      for(let j=0;j<3;j++)piece(g,dx-.32,floor+.61+j*.058,-.98,.2,.05,.15,spines[(j+ax)%6]);
+    }else if(ax%3===1){
+      rod(g,[dx,floor+.57,-1.05],[dx,floor+.89,-1.05],.026,brass);
+      rod(g,[dx,floor+.86,-1.05],[dx,floor+1.15,-1.05],.24,amber,.12);
+    }else{
+      pendant(g,x,ceiling,-.98,.28);plant(g,dx,floor+.57,-1,.54,id);
+    }
+    piece(g,x-.18*w,y+.12,back+.045,.34,.44,.07,timber);piece(g,x-.18*w,y+.12,back+.09,.27,.35,.01,blueCloth);
+    if(ax%3===1){for(let k=0;k<6;k++)piece(g,x,ceiling-.1-k*.095,-.12,w*.94,.064,.05,linen).rotation.x=.28;}
+    else {for(const s of [-1,1])curtain(g,x+s*w*.39,y,-.24,w*(s===1?.21:.25),h*.97,ax%2?blueCloth:linen,id+s);}
+    for(const s of [-1,1])piece(g,x+s*w/2,y,.025,.105,h,.14,frame);
+    piece(g,x,ceiling,.035,w+.17,.1,.17,frame);piece(g,x,floor,.12,w+.23,.13,.32,coping);
+    piece(g,x,y+.22,.055,w,.048,.085,timber);piece(g,x,y,.065,.047,h,.09,timber);
+    if(ax%3===0)plant(g,x+w*.24,floor+.08,.17,.58,id);
+    if(ax%4===1){piece(g,x,floor-.13,.27,w+.26,.09,.55,iron);
+      for(let k=0;k<8;k++)piece(g,x+w*(k/7-.5),floor+.17,.51,.025,.57,.028,iron);
+      piece(g,x,floor+.47,.51,w+.12,.044,.045,iron);
+    }
+  }
+  function shopLife(g,shop){
+    const lit=shop==='tide'||shop==='wash',shade=lit?'cool-room':'warm-room';
+    picture(g,shop==='tide'?'tiled':shade,0,1.71,-2.965,5.8,2.97,.50);
+    for(const x of [-1.45,1.35])pendant(g,x,3.32,-1.55,x<0?.29:.43,lit);
+    const lamp=new T.PointLight(lit?0xffe4bb:0xffc787,lit?15:10,5.2,2);
+    lamp.position.set(.7,2.68,-1.33);g.add(lamp);
+    if(shop==='tide'){
+      picture(g,'fish-board',-.88,1.85,-2.94,1.03,1.29);
+      for(let k=0;k<2;k++)piece(g,1.18,1.54+k*.58,-2.68,2.46,.08,.48,iron);
+      for(let k=0;k<9;k++)rod(g,[.19+k*.24,1.60,-2.59],[.19+k*.24,1.90+(k%3)*.05,-2.59],.089,k%3?porcelain:blueCloth);
+      for(let k=0;k<24;k++){const j=k%3;oval(g,-.45+j*1.15+.38*Math.cos(k*2.32),1.195,-.99+.33*Math.sin(k*3.11),.11,.075,.135,porcelain);}
+      rod(g,[-.4,1,-.47],[-.4,1.5,-.47],.017,brass);picture(g,'fish-board',-.4,1.63,-.46,.29,.35);
+      for(let j=0;j<3;j++){const px=2.2+(j%2)*.51,py=.35+Math.floor(j/2)*.34;
+        piece(g,px,py,.64,.63,.33,.45,blueCloth);for(let k=0;k<4;k++)piece(g,px-.22+k*.145,py+.03,.874,.085,.043,.012,dark);}
+      plant(g,-2.69,.15,.49,1.03,4);
+    }else if(shop==='wash'){
+      picture(g,'wash-board',1.4,1.93,-2.94,1.03,1.29);
+      for(let k=0;k<2;k++)chair(g,-1.30+k*.68,.22,-1.76,.09-k*.2);
+      for(let k=0;k<4;k++)piece(g,-.52,1.76+k*.065,-1.1,.54,.06,.37,k%2?blueCloth:linen);
+    }else if(shop==='paper'||shop==='moran'){
+      picture(g,shop==='paper'?'books-board':'news-print',-.76,1.93,-2.94,1.03,1.29);
+      piece(g,1.24,1.13,-2.39,1.78,.12,.87,timber);chair(g,1.1,.2,-2.15,.64);
+      if(shop==='paper'){chair(g,-1.15,.15,.74,.30);plant(g,2.77,.15,.56,1.23,7);}
+      else {for(let j=0;j<3;j++)picture(g,'news-print',-.59+j*.54,1.25,-.65,.40,.50);}
+    }else if(shop==='keane'){
+      piece(g,1.1,.95,-2.4,2.2,.14,.76,timber);for(let j=0;j<7;j++)piece(g,.37+j*.23,1.2,-2.46,.19,.32,.19,spines[j%6]);
+      for(let j=0;j<3;j++)rod(g,[2.42+j*.1,.16,.52],[2.12+j*.15,1.85,.08],.033,timber);
+    }
+  }
+  function streetDetails(g,shop){
+    if(shop==='paper'){
+      const end=new T.Group();end.position.set(.03,.15,.95);end.rotation.y=-.19;g.add(end);
+      rod(end,[0,0,0],[0,.04,0],.28,iron);rod(end,[0,.04,0],[0,.69,0],.047,iron);
+      rod(end,[0,.68,0],[0,.74,0],.39,timber);
+      piece(end,-.1,.77,.04,.27,.052,.19,spines[2]).rotation.y=.28;
+      rod(end,[.16,.74,-.08],[.16,.87,-.08],.054,porcelain);
+      const bag=oval(g,-1.26,.78,.71,.19,.18,.09,clay);bag.rotation.z=-.14;
+    }
+    if(shop==='tide'||shop==='moran'){
+      const width=shop==='tide'?4.68:3.16, offset=.58, fabric=shop==='tide'?blueCloth:spines[0];
+      const count=13;
+      for(let i=0;i<count;i++){
+        const x=offset+width*((i+.5)/count-.5),m=i%2===0?fabric:linen;
+        const roof=piece(g,x,2.78,.48,width/count,.033,1.04,m);roof.rotation.x=.16;
+        const lip=piece(g,x,2.63,1,width/count,.14+.014*Math.cos(i),.025,m);lip.rotation.x=.035;
+      }
+      for(const side of [-1,1]){
+        const x=offset+side*(width*.5-.07);rod(g,[x,2.25,.08],[x,2.69,.99],.021,iron);
+      }
+      rod(g,[offset-width/2,2.69,.99],[offset+width/2,2.69,.99],.026,iron);
+    }
+    if(shop==='tide'){
+      // A scale with a dial and weighing pan, below the tiled backsplash.
+      piece(g,1.83,1.05,-2.16,1.38,.1,.8,iron);
+      for(const sx of [-1,1])for(const sz of [-1,1])piece(g,1.83+sx*.59,.65,-2.16+sz*.29,.055,.78,.055,iron);
+      piece(g,1.85,1.32,-2.1,.41,.39,.34,greenPaint);
+      rod(g,[1.85,1.36,-1.94],[1.85,1.36,-1.89],.161,porcelain);
+      rod(g,[1.85,1.36,-1.88],[1.79,1.44,-1.88],.008,iron);
+      rod(g,[1.85,1.52,-2.09],[1.85,1.56,-2.09],.24,iron);
+      const stand=new T.Group();stand.position.set(1.79,.15,1.25);stand.rotation.y=-.33;g.add(stand);
+      piece(stand,0,.59,0,.71,.86,.055,timber).rotation.x=-.13;
+      const card=picture(stand,'fish-board',0,.60,.040,.63,.79);card.rotation.x=-.13;
+      for(const dx of [-.31,.31])for(const dz of [-1,1])rod(stand,[dx,0,dz*.22],[dx,.99,0],.027,timber);
+    }
+  }
+  function estateCar(){
+    const c=new T.Group();c.position.set(11,.015,17.98);c.rotation.y=1.49;root.add(c);
+    const paint=mat(0x4f685f,.44,.32),glass=mat(0x3e5158,.37,.19);
+    // Profile rings run from tailgate to bonnet. Separate inset panes follow the cabin taper.
+    const rings=[[-2.1,.78,.83],[-1.97,.9,1.02],[-1.58,.91,1.13],[.78,.91,1.1],[1.67,.87,.96],[2.05,.73,.82]];
+    function hull(sections,low,material){
+      const pos=[],indices=[];
+      for(const [z,w,y] of sections)pos.push(-w,low,z,w,low,z,w,y-.11,z,w*.91,y,z,-w*.91,y,z,-w,y-.11,z);
+      for(let i=1;i<sections.length;i++)for(let j=0;j<6;j++){
+        const a=(i-1)*6+j,b=(i-1)*6+(j+1)%6;indices.push(a,b,a+6,b,b+6,a+6);}
+      for(const [start,rev] of [[0,false],[(sections.length-1)*6,true]])for(let k=1;k<5;k++)indices.push(start,start+(rev?k+1:k),start+(rev?k:k+1));
+      const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setIndex(indices);geo.computeVertexNormals();
+      material.side=T.DoubleSide;c.add(new T.Mesh(geo,material));
+    }
+    hull(rings,.45,paint);
+    hull([[-1.75,.82,1.12],[-1.44,.77,1.63],[-1.1,.75,1.71],[.45,.75,1.69],[1.09,.84,1.1]],1.04,glass);
+    piece(c,-.01,1.683,-.38,1.38,.055,1.92,paint);
+    for(const sx of [-1,1]){
+      for(const z of [-1.11,-.42,.43])rod(c,[sx*.824,1.085,z],[sx*.737,1.65,z-.018],.034,paint);
+      for(const z of [-1.37,1.32]){
+        rod(c,[sx*.74,.35,z],[sx*.92,.35,z],.34,rubber,.34,24);
+        rod(c,[sx*.93,.35,z],[sx*.95,.35,z],.19,iron,.19,20);
+      }
+      piece(c,sx*.88,1.18,.66,.17,.12,.23,paint);piece(c,sx*.61,.76,2.045,.28,.12,.04,porcelain);
+      piece(c,sx*.62,.79,-2.106,.24,.13,.035,spines[0]);
+    }
+    piece(c,0,.56,2.06,.6,.13,.024,cream);
+  }
+  function cycle(){
+    const g=new T.Group();g.position.set(-11.1,.16,20.75);g.rotation.y=-.27;g.rotation.z=.065;root.add(g);
+    for(const x of [-.54,.54]){const wh=new T.Mesh(wheelGeo,rubber);wh.position.set(x,.325,0);g.add(wh);
+      for(let k=0;k<6;k++){const a=k*Math.PI/6,dx=.30*Math.cos(a),dy=.30*Math.sin(a);rod(g,[x-dx,.325-dy,0],[x+dx,.325+dy,0],.006,iron,.006,5);}}
+    const rear=[-.54,.325,0],crank=[-.08,.32,0],seat=[-.24,.78,0],head=[.34,.74,0],front=[.54,.325,0];
+    for(const [a,b] of [[rear,seat],[rear,crank],[crank,seat],[crank,head],[seat,head],[head,front]])rod(g,a,b,.027,greenPaint);
+    piece(g,-.24,.805,0,.22,.055,.105,rubber);rod(g,head,[.33,.89,0],.021,iron);rod(g,[.33,.89,-.18],[.33,.89,.18],.022,iron);
+  }
   // Street-facing side is local +Z. The opposite pavement is rotated as a unit.
   function premise({x,z,yaw=0,w,h,d=6,shop,skin,kind,rows=1,cols=2}) {
     const g=new T.Group(); g.name=shop; g.position.set(x,0,z); g.rotation.y=yaw; root.add(g);
     const wall=surface(skin,w,h);
-    piece(g,0,(h+3.55)/2,-d/2,w,h-3.55,d,wall);
-    piece(g,0,1.775,-(d+3.2)/2,w,3.55,d-3.2,wall);
-    interior(g,shop,w,wall);
-    for(let row=0;row<rows;row++) for(let col=0;col<cols;col++){
-      const px=w*((col+.5)/cols-.5), py=3.72+(row+.5)*(h-3.9)/rows;
-      const bay=kind==='bay' && row===0;
-      if(bay) {piece(g,px,py,.28,2.04,2.17,.69,timber); piece(g,px,py+1.12,.28,2.2,.14,.85,slate);}
-      window(g,px,py,kind==='mill'?w/cols-.57:kind==='bay'?1.68:1.01,kind==='mill'?1.22:1.65,bay?.65:.04,Math.round(x)+col*5+row*9);
+    const dwelling = kind==='bay'||kind==='terrace';
+    if(dwelling){
+      piece(g,0,(h+3.55)/2,-(d+1.72)/2,w,h-3.55,d-1.72,wall);
+      // Keep masonry courses continuous across the surfaces framing the real openings.
+      const facade=(xx,yy,width,height)=>{
+        if(height<.001||width<.001)return;
+        const p=piece(g,xx,yy,-.86,width,height,1.72,wall);
+        p.geometry=unit.clone();
+        const uv=p.geometry.attributes.uv;
+        for(let i=16;i<20;i++){
+          uv.setXY(i,(xx+(uv.getX(i)-.5)*width)/w+.5,(yy+(uv.getY(i)-.5)*height)/h);
+        }
+      };
+      let bottom=3.55;
+      for(let row=0;row<rows;row++){
+        const cy=3.72+(row+.5)*(h-3.9)/rows, H=1.72, pitch=w/cols, W=Math.min(1.65,pitch*.64);
+        facade(0,(bottom+cy-H/2)/2,w,cy-H/2-bottom);
+        for(let col=0;col<=cols;col++){
+          const width=(pitch-W)*((col===0||col===cols)?.5:1);
+          const px=col===0?-w/2+width/2:col===cols?w/2-width/2: -w/2+col*pitch;
+          facade(px,cy,width,H);
+          if(col<cols)flat(g,-w/2+(col+.5)*pitch,cy,W,H,Math.round(x)+col*5+row*9);
+        }
+        bottom=cy+H/2;
+      }
+      facade(0,(bottom+h)/2,w,h-bottom);
+    }else{
+      piece(g,0,(h+3.55)/2,-d/2,w,h-3.55,d,wall);
+      for(let row=0;row<rows;row++)for(let col=0;col<cols;col++)
+        window(g,w*((col+.5)/cols-.5),3.72+(row+.5)*(h-3.9)/rows,w/cols-.57,1.22,.04,Math.round(x)+col*5+row*9);
     }
+    piece(g,0,1.775,-(d+3.2)/2,w,3.55,d-3.2,wall);
+    interior(g,shop,w,wall);shopLife(g,shop);streetDetails(g,shop);
     piece(g,0,h+.08,-.04,w+.18,.16,.37,coping);
     if(kind==='bay'||kind==='terrace'){
       const rise=1.75, length=Math.hypot(d/2,rise);
@@ -143,7 +342,7 @@ export function addMarketLane(root) {
       piece(g,w*.22,h+.63,-d*.45,1.15,.77,.88,iron);
     }
     const L=['Leaking003','Leaking004','Leaking005','Leaking007','Leaking008'];
-    for(let k=0;k<cols*rows;k++){ const px=w*(((k%cols)+.5)/cols-.5)+(k%2?.15:-.1); decal(L[(k+Math.abs(Math.round(x)))%3],g,{pos:[px,3.72+(Math.floor(k/cols)+.5)*(h-3.9)/Math.max(rows,1)-1.6,.012],w:1.3,h:2.2,color:0x24221e,opacity:.55,flipX:k%2===1}); }
+    for(let k=0;k<cols*rows;k++){ const px=w*(((k%cols)+.5)/cols-.5)+(k%2?.15:-.1); decal(L[(k+Math.abs(Math.round(x)))%3],g,{pos:[px,3.72+(Math.floor(k/cols)+.5)*(h-3.9)/Math.max(rows,1)-1.11,.012],w:.78,h:.40,color:0x24221e,opacity:.55,flipX:k%2===1}); }
     decal(L[3+Math.abs(Math.round(x))%2],g,{pos:[0,h-.4,.013],w:w,h:.8,color:0x24221e,opacity:.5});
     const pipeX=-w/2+.18;
     decal('Leaking006',g,{pos:[pipeX+.12,h*.45,.012],w:.6,h:h*.8,color:0x24221e,opacity:.6});
@@ -160,6 +359,7 @@ export function addMarketLane(root) {
     {x:-3.6,z:22.65,yaw:back,w:8.8,h:11.65,rows:3,cols:3,kind:'terrace',skin:'kiln-brick',shop:'paper'},
     {x:5.05,z:22.51,yaw:back,w:8.3,h:7.1,cols:2,kind:'bay',skin:'limewash',shop:'tide'}
   ].forEach(premise);
+  cycle();estateCar();
   // A pavement bench with bolted feet and separate slats, and two bike hoops outside the wash.
   const bench=new T.Group(); bench.position.set(-16.1,.15,20.85); bench.rotation.y=-.16; root.add(bench);
   for(const x of [-.72,.72]){
