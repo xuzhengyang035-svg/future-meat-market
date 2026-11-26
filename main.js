@@ -109,7 +109,7 @@ const PLACES = {
   },
   async street() {
     street = createStreet(env);
-    postStreet = grade(street.scene, { uSat: 0.9, uShadow: [-0.014, 0.012, 0.018], uHigh: [0.035, 0.014, -0.032], uVignette: 0.6 });   // 夜里：暗部偏蓝，路灯偏橘
+    postStreet = grade(street.scene, { bloomStrength: 0.12, bloomThreshold: 1.65, uSat: 0.85, uShadow: [-0.014, 0.012, 0.018], uHigh: [0.035, 0.014, -0.032], uVignette: 0.6 });   // 夜里：暗部偏蓝，路灯偏橘
   },
   async warehouse() {
     wh = createWarehouse(env);
@@ -129,11 +129,11 @@ function buildPlace(view, onProgress = () => {}) {
   })();
 }
 const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned_factory_canteen_01', 0.55],
-  street: ['cobblestone_street_night', 0.6], lab: ['abandoned_tiled_room', 0.26], warehouse: ['empty_warehouse_01', 0.42] };   // 环境光照片也是进哪个房间才下载哪张
+  street: ['cobblestone_street_night', 0.24], lab: ['abandoned_tiled_room', 0.26], warehouse: ['empty_warehouse_01', 0.42] };   // 环境光照片也是进哪个房间才下载哪张
 window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; } };   // 调试用
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
 // 三个场景统一偏暗、偏冷（调色在 post.js 里）
-const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
+const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.0], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
 
 const $ = (s) => document.querySelector(s);
 const state = { view: 'boot', rfocus: null, sel: null, mode: null, fscreen: null, opts: null, order: null, basket: [], busy: false, focus: null, batch: makeBatch(null) };

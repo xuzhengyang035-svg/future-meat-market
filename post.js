@@ -91,7 +91,7 @@ function createCore(renderer, scene, camera) {
   const film = new ShaderPass(FilmShader);
   composer.addPass(film);
   return {
-    composer, ao, renderPass, film,
+    composer, ao, bloom, renderPass, film,
     resize(w, h) {
       const r = pixelRatio();
       composer.setPixelRatio(r); composer.setSize(w, h);
@@ -110,6 +110,8 @@ export function createPost(renderer, scene, camera, grade = {}) {
   return {
     render(t) {
       const { composer, ao, renderPass, film } = core;
+      core.bloom.strength = grade.bloomStrength ?? 0.4;
+      core.bloom.threshold = grade.bloomThreshold ?? 1.1;
       renderPass.scene = scene; ao.scene = scene;
       for (const [k, v] of look) {
         const u = film.uniforms[k];
