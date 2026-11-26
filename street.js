@@ -6,6 +6,7 @@
 //   左边   墙角一盏铸铁壁灯；往左是一条更窄的老街，远处的窗都亮着
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
+import { addMarketLane } from './market-lane.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { meatGeometry, meatMaterial } from './meat.js';
@@ -97,24 +98,70 @@ export function createStreet(env) {
   for (let f = 1; f < NF; f++) box(BW, 0.12, 0.16, M.sill, 0, GH + f * FH, 0.02, root);
   { const st = canvasTexture(1600, 1400, (g, W, H) => { g.clearRect(0, 0, W, H); grimeLayer(g, W, H, R(77), { stains: 14, drips: 120, rust: 10, mould: 2, unit: 500, dripCol: '24,26,24' }); });
     plane(BW, TOP - GH, new THREE.MeshStandardMaterial({ map: st, transparent: true, depthWrite: false, roughness: 0.9 }), 0, GH + (TOP - GH) / 2, 0.012, 0, root); }
-  const curtainTex = canvasTexture(128, 256, (g, W, H) => { const gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, '#6a4a2a'); gr.addColorStop(0.5, '#e8b070'); gr.addColorStop(1, '#6a4a2a'); g.fillStyle = gr; g.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 10) { g.fillStyle = 'rgba(60,30,10,.35)'; g.fillRect(x, 0, 4, H); } });
   const darkWin = new THREE.MeshStandardMaterial({ color: 0x0c1014, roughness: 0.05, metalness: 0.6, envMapIntensity: 2 });
   const leafM = new THREE.MeshStandardMaterial({ color: 0x3a5a2e, roughness: 0.7, side: THREE.DoubleSide });
   const flowerM = [0xb83a3a, 0xd8a03a, 0xe8e0d0].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
   const leafG = new THREE.SphereGeometry(0.055, 8, 5); leafG.scale(1, 0.3, 1.6);
   const bush = (x, y, z, w, d, n, flowers = 0) => { for (let i = 0; i < n; i++) { const l = new THREE.Mesh(leafG, leafM); l.position.set(x + (rnd() - 0.5) * w, y + rnd() * 0.3, z + (rnd() - 0.5) * d); l.rotation.set(rnd() * 2, rnd() * 6, rnd() * 2); l.scale.setScalar(0.7 + rnd() * 0.8); root.add(l); } for (let i = 0; i < flowers; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 4), flowerM[i % 3]); f.position.set(x + (rnd() - 0.5) * w, y + 0.2 + rnd() * 0.15, z + (rnd() - 0.5) * d); root.add(f); } };
   const vine = (x, y, z, len, n) => { for (let k = 0; k < n; k++) { const ox = (rnd() - 0.5) * 0.6; for (let i = 0; i < len / 0.06; i++) { const l = new THREE.Mesh(leafG, leafM); l.position.set(x + ox + Math.sin(i * 0.7 + k) * 0.04, y - i * 0.06, z + 0.05 + rnd() * 0.05); l.rotation.set(rnd() * 2, rnd() * 6, rnd()); l.scale.setScalar(0.6 + rnd() * 0.6); root.add(l); } } };
+  // 每扇亮着的窗是一间不同的屋子：钨丝灯的暖黄、厨房日光灯的青白、电视的蓝光在闪、红灯罩、只开一盏台灯的暗屋、百叶窗……亮度和冷暖都不一样
+  const roomTex = (kind, seed) => canvasTexture(128, 256, (g, W, H) => {
+    const r = R(seed), P = {
+      tungsten: ['#3a2410', '#f0b060', '#ffd9a0'], fluoro: ['#2a3432', '#cfe6dc', '#f4fff8'], tv: ['#0a1020', '#3a5a9a', '#a8c4ff'],
+      red: ['#2a0c0a', '#c0483a', '#ffb090'], lamp: ['#120a06', '#6a4020', '#ffc070'], blinds: ['#3a3022', '#e8d8b0', '#fff4dc'], green: ['#10180e', '#6a8a4a', '#e8f0c0'] }[kind];
+    g.fillStyle = P[0]; g.fillRect(0, 0, W, H);
+    const hx = W * (0.25 + r() * 0.5), hy = H * (0.2 + r() * 0.35);                         // 屋里的灯在哪
+    const gr = g.createRadialGradient(hx, hy, 2, hx, hy, W * (kind === 'lamp' ? 0.5 : 1.1)); gr.addColorStop(0, P[2]); gr.addColorStop(0.35, P[1]); gr.addColorStop(1, P[0]);
+    g.fillStyle = gr; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(0,0,0,.55)';                                                          // 屋里的东西：书架、柜子、椅背、吊灯
+    if (r() < 0.6) { const sx = r() < 0.5 ? 4 : W - 34; g.fillRect(sx, H * 0.3, 30, H * 0.7); g.fillStyle = 'rgba(255,255,255,.08)'; for (let y = H * 0.35; y < H; y += 22) g.fillRect(sx + 2, y, 26, 2); g.fillStyle = 'rgba(0,0,0,.55)'; }
+    if (r() < 0.5) { g.fillRect(W * 0.35, H * 0.62, 34, 8); g.fillRect(W * 0.35 + 2, H * 0.62, 5, H * 0.38); g.fillRect(W * 0.35 + 27, H * 0.66, 5, H * 0.34); }
+    if (kind !== 'lamp') { g.fillRect(hx - 0.8, 0, 1.6, hy - 6); g.beginPath(); g.ellipse(hx, hy - 4, 10, 6, 0, Math.PI, 0); g.fill(); }
+    if (kind === 'tv') { g.fillStyle = 'rgba(0,0,0,.7)'; g.beginPath(); g.ellipse(W * 0.5, H * 0.78, 26, 30, 0, Math.PI, 0); g.fill(); g.fillRect(W * 0.2, H * 0.78, W * 0.6, H * 0.22); }   // 沙发背和人头
+    if (kind === 'blinds') { for (let y = 0; y < H; y += 7) { g.fillStyle = 'rgba(40,30,20,.55)'; g.fillRect(0, y, W, 2.2); } if (r() < 0.6) { g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(0, H * 0.72, W, H * 0.28); } }   // 一边拉歪的百叶
+    if (kind === 'green') { g.fillStyle = 'rgba(10,20,8,.8)'; for (let k = 0; k < 40; k++) { g.beginPath(); g.ellipse(W * 0.2 + r() * W * 0.6, H * 0.55 + r() * H * 0.35, 4 + r() * 8, 2 + r() * 4, r() * 3, 0, 7); g.fill(); } }   // 窗台上一排盆栽
+    const cc = ['#7a2a20', '#d8c8a0', '#2a3a4a', '#8a6a3a', '#4a5238'][Math.floor(r() * 5)], cw = kind === 'blinds' ? 0 : 0.12 + r() * 0.3;
+    for (const side of [0, 1]) {                                                              // 窗帘拉开的程度每扇不一样
+      const w = W * cw * (0.6 + r() * 0.8), x0 = side ? W - w : 0;
+      g.fillStyle = cc; g.globalAlpha = 0.92; g.fillRect(x0, 0, w, H); g.globalAlpha = 1;
+      for (let x = x0; x < x0 + w; x += 6) { g.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.25})`; g.fillRect(x, 0, 2.5, H); }
+    }
+    if (r() < 0.35) { g.fillStyle = 'rgba(255,255,255,.22)'; for (let x = 0; x < W; x += 3) g.fillRect(x, 0, 1, H * 0.55); }   // 半截白纱帘
+    if (r() < 0.4) { g.fillStyle = 'rgba(0,0,0,.75)'; const bx = W * (0.15 + r() * 0.6); g.fillRect(bx, H - 30, 16, 30); g.beginPath(); g.ellipse(bx + 8, H - 34, 14, 10, 0, 0, 7); g.fill(); }   // 窗台上的东西
+  });
+  //               种类        亮度   灯光颜色（给前两层的点光）  —— null = 没人在家
+  const ROOMS = [['tungsten', 1.25, 0xffb070], null, ['fluoro', 1.05, 0xd8f0e8], null, ['lamp', 0.55, 0xff9a50], ['tv', 0.9, 0x7a9cff], null,
+    ['red', 0.8, 0xff6a50], null, ['blinds', 1.15, 0xffe0b0], null, null, ['tungsten', 0.75, 0xffa860], ['green', 0.95, 0xe8f0c0], null,
+    ['fluoro', 0.7, 0xc8e8f0], null, ['lamp', 0.8, 0xffb060], null, ['tungsten', 1.4, 0xffc080]].map((d, n) => {
+    if (!d) return null; const [kind, k, light] = d, c = [k, k, k];
+    return { kind, k, light, c, tv: kind === 'tv', mat: new THREE.MeshBasicMaterial({ map: roomTex(kind, 40 + n * 7), color: new THREE.Color(k, k, k) }) };
+  });
+  // 黑着的窗也有人住的痕迹：贴着的纸板、晾在窗里的衣服、一只猫
+  const darkLife = [
+    canvasTexture(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); g.fillStyle = '#6a5438'; g.fillRect(4, H * 0.45, W * 0.55, H * 0.35); g.fillStyle = 'rgba(220,210,180,.5)'; g.fillRect(4, H * 0.45, W * 0.55, 3); g.fillRect(4, H * 0.8 - 3, W * 0.55, 3); }),
+    canvasTexture(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(0,0,0,.9)'; g.beginPath(); g.ellipse(W * 0.6, H * 0.9, 9, 7, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(W * 0.6, H * 0.82, 5, 5, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(W * 0.6 - 5, H * 0.8); g.lineTo(W * 0.6 - 3, H * 0.76); g.lineTo(W * 0.6 - 1, H * 0.8); g.moveTo(W * 0.6 + 1, H * 0.8); g.lineTo(W * 0.6 + 3, H * 0.76); g.lineTo(W * 0.6 + 5, H * 0.8); g.fill(); }),
+    canvasTexture(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); g.strokeStyle = 'rgba(90,90,90,.8)'; g.beginPath(); g.moveTo(0, 14); g.lineTo(W, 16); g.stroke(); for (const [x, c, w, h] of [[6, '#6a7a8a', 16, 30], [26, '#8a4a3a', 12, 22], [42, '#c8c0b0', 16, 34]]) { g.fillStyle = c; g.fillRect(x, 15, w, h); } }),
+  ].map((map) => new THREE.MeshStandardMaterial({ map, transparent: true, roughness: 0.9, color: 0x707070, depthWrite: false }));
+  // 阳台栏杆上晾的衣服、一串小彩灯
+  const clothM = [0x8a3a30, 0xd8d0c0, 0x3a4a6a, 0x5a6a4a, 0xc8a050].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, side: THREE.DoubleSide, map: grimeMap(58) }));
+  const laundry = (x, y, z, n) => { const rr = R(n * 31); for (let k = 0; k < n; k++) { const w = 0.18 + rr() * 0.22, h = 0.25 + rr() * 0.35, o = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 1, 4), clothM[Math.floor(rr() * 5)]); const pa = o.geometry.attributes.position; for (let v = 0; v < pa.count; v++) pa.setZ(v, Math.sin((pa.getY(v) / h + 0.5) * 3) * 0.015); o.geometry.computeVertexNormals(); o.position.set(x - 0.55 + k * (1.1 / n) + rr() * 0.05, y - h / 2 + 0.03, z + 0.03); o.rotation.z = (rr() - 0.5) * 0.08; root.add(o); } };
+  const fairy = (x, y, z) => { const bulbs = [0xffd080, 0xff6a6a, 0x80c0ff, 0x90ff90].map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(2.2) })); const bg = new THREE.SphereGeometry(0.014, 6, 4); for (let k = 0; k < 15; k++) { const t = k / 14, b = new THREE.Mesh(bg, bulbs[k % 4]); b.position.set(x - 0.72 + t * 1.44, y + 0.01 - Math.sin(t * Math.PI) * 0.12, z + 0.02); root.add(b); } const l = new THREE.PointLight(0xffc0a0, 0.6, 2.5, 2); l.position.set(x, y, z + 0.3); root.add(l); };
+  const LAUNDRY = { '0,1': 4, '1,4': 3, '2,0': 5, '3,2': 3 };
   const WXS = [-6.2, -3.1, 0, 3.1, 6.2];
   for (let f = 0; f < NF; f++) {
     const y = GH + f * FH + 1.55;
     WXS.forEach((x, i) => {
       box(1.36, 2.5, 0.12, M.sill, x, y, 0.03, root);
       box(1.6, 0.14, 0.3, M.sill, x, y + 1.32, 0.08, root);
-      const on = (f * 5 + i * 3) % 7 < 3;
-      plane(1.08, 2.26, on ? new THREE.MeshBasicMaterial({ map: curtainTex, color: new THREE.Color(1.6, 1.15, 0.75) }) : darkWin, x, y, 0.1, 0, root);
+      const room = ROOMS[(f * 5 + i) % ROOMS.length], on = !!room;
+      const wp = plane(1.08, 2.26, on ? room.mat : darkWin, x, y, 0.1, 0, root);
+      if (room?.tv) wp.onBeforeRender = () => { const t = performance.now() * 0.001, k = 0.75 + 0.25 * Math.sin(t * 7.3) * Math.sin(t * 2.1 + 1) + (Math.sin(t * 23) > 0.92 ? 0.25 : 0); room.mat.color.setRGB(room.c[0] * k, room.c[1] * k, room.c[2] * k); };
+      if (!on && (f + i) % 3 === 0) plane(1.0, 2.1, darkLife[(f + i) % darkLife.length], x, y, 0.101, 0, root);
       for (const dx of [-0.27, 0.27]) box(0.04, 2.26, 0.05, M.iron, x + dx, y, 0.12, root);
       for (const dy of [-0.4, 0.35]) box(1.08, 0.04, 0.05, M.iron, x, y + dy, 0.12, root);
-      if (on && f < 2) { const l = new THREE.PointLight(0xffb070, 1.2, 4, 2); l.position.set(x, y, 0.8); root.add(l); }
+      if (on && f < 2) { const l = new THREE.PointLight(room.light, 1.2 * room.k, 4, 2); l.position.set(x, y, 0.8); root.add(l); }
+      if (LAUNDRY[`${f},${i}`]) laundry(x, y - 1.15 + 0.66, 0.47, LAUNDRY[`${f},${i}`]);
+      if (f === 2 && i === 3) fairy(x, y - 1.15 + 0.66, 0.48);
       const by = y - 1.15;
       { const k = (f * 5 + i) % 3; decal(['Leaking003', 'Leaking004', 'Leaking005'][k], root, { pos: [x + (k - 1) * 0.1, by - 0.85, 0.013], w: 1.5, h: 1.7, color: 0x2e2c26, opacity: 0.55 + k * 0.1, flipX: (f + i) % 2 === 1 }); }
       box(1.5, 0.08, 0.5, M.sill, x, by, 0.25, root);
@@ -360,79 +407,9 @@ export function createStreet(env) {
   // ---------------------------------------------------------------- 左边：墙角的铸铁壁灯；往左是一条退进去的老街（远处的楼和亮着的窗）
   model('street_lamp_02', { pos: [BX0 + 0.15, 4.1, 0.05], scale: 1.2, parent: root });
   { const l = new THREE.PointLight(0xffb060, 5, 9, 1.6); l.position.set(BX0 + 0.15, 4.3, 0.95); root.add(l); const s = new THREE.SpotLight(0xffb060, 3.2, 14, 0.9, 0.6, 1.4); s.position.set(BX0 + 0.2, 4.4, 1.0); s.target.position.set(-5, 0, 4); root.add(s, s.target); }
-  const farWin = (f) => canvasTexture(512, 1024, (g, W, H) => {
-    const r = R(f); g.fillStyle = '#55504a'; g.fillRect(0, 0, W, H);
-    for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(${30 + r() * 40},${30 + r() * 40},${30 + r() * 30},${r() * 0.2})`; g.fillRect(r() * W, r() * H, 20 + r() * 80, 4 + r() * 40); }
-    for (let y = 80; y < H - 60; y += 160) for (let x = 40; x < W - 40; x += 110) { const on = r() < 0.35; g.fillStyle = on ? `rgb(${220 + r() * 30},${150 + r() * 40},${80 + r() * 30})` : '#1a1c1e'; g.fillRect(x, y, 56, 100); g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(x + 26, y, 4, 100); g.fillRect(x, y + 40, 56, 3); g.fillStyle = '#7a756c'; g.fillRect(x - 6, y + 100, 68, 8); }
-    ageCanvas(g, W, H, { amount: 1.6, seed: f });
-  });
-  const farMat = (f) => { const t = farWin(f); return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: new THREE.Color(0.55, 0.42, 0.3), emissiveIntensity: 0.6, roughness: 0.9 }); };
-  for (let k = 0; k < 5; k++) {
-    const z = 1 - k * 6.5, h = 12 + (k % 3) * 2.5;
-    box(1.0, h, 6.2, farMat(100 + k), -14.5, h / 2, z - 3, root);
-    box(1.0, h, 6.2, farMat(200 + k), BX0 - 0.6, h / 2, z - 6.6, root);
-  }
-  for (let k = 0; k < 3; k++) { const z = -2 - k * 8; const l = new THREE.PointLight(0xffb060, 2.2, 7, 1.7); l.position.set(-12.5, 4, z); root.add(l); cyl(0.1, 0.14, 0.3, M.warm, -13.7, 4, z, root, 8); }
-  { const al = new THREE.Mesh(new THREE.PlaneGeometry(6, 40), pbr('brick_pavement', 6, 40, { size: 2.0, roughness: 0.55, envMapIntensity: 0.5, color: 0x7a6e66 })); al.rotation.x = -Math.PI / 2; al.position.set(-11.2, 0.004, -16); root.add(al); }
-  { const back = new THREE.Mesh(new THREE.PlaneGeometry(80, 22), new THREE.MeshBasicMaterial({ map: farWin(400), color: new THREE.Color(0.35, 0.33, 0.32) })); back.position.set(0, 11, -40); root.add(back); }
-
-  // ---------------------------------------------------------------- 四周的楼：同一边左右各两栋，对街一整排；真实的抹灰/砖墙贴图 + 一格格窗（有的亮着）+ 檐口 + 灰瓦斜屋顶 + 底层小店
-  const winLit = (seed) => canvasTexture(64, 128, (g, W, H) => { const r = R(seed); const c = ['#e8a860', '#f0c080', '#d89050', '#c8b8a0'][Math.floor(r() * 4)]; const gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, '#3a2210'); gr.addColorStop(0.5, c); gr.addColorStop(1, '#3a2210'); g.fillStyle = gr; g.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 8) { g.fillStyle = 'rgba(40,20,8,.3)'; g.fillRect(x, 0, 3, H); } });
-  const litMats = [1, 2, 3, 4].map((k) => new THREE.MeshBasicMaterial({ map: winLit(k * 13), color: new THREE.Color(1.3, 1.0, 0.75) }));
-  const shutM = new THREE.MeshStandardMaterial({ color: 0x4a5048, roughness: 0.8, map: grimeMap(55) });
-  const roofM = (w, d) => pbr('grey_roof_tiles', w, d, { size: 2.0, color: 0x6a6a6a, roughness: 0.6, envMapIntensity: 1.5 });
-  const building = ({ x0, x1, face, dir = 1, floors = 4, tex = 'worn_mossy_plasterwall', color = 0x9a968c, seed = 1, shop = true, gh = 4.0, fh = 3.1 }) => {
-    const r = R(seed), w = x1 - x0, cx = (x0 + x1) / 2, H = gh + floors * fh, D = 8, zc = face - dir * D / 2, zf = face + dir * 0.02;
-    const g = new THREE.Group(); root.add(g);
-    const wallM = pbr(tex, w, H, { size: 3.0, roughness: 0.95, color });
-    box(w, H, D, wallM, cx, H / 2, zc, g);
-    { const st = canvasTexture(512, 512, (gg, W2, H2) => { gg.clearRect(0, 0, W2, H2); grimeLayer(gg, W2, H2, R(seed * 7), { stains: 6, drips: 40, rust: 4, mould: 2, unit: 200, dripCol: '24,26,24' }); });
-      const sp = plane(w, H, new THREE.MeshStandardMaterial({ map: st, transparent: true, depthWrite: false, roughness: 0.9 }), cx, H / 2, face + dir * 0.012, dir > 0 ? 0 : Math.PI, g); }
-    box(w + 0.3, 0.4, 0.5, M.sill, cx, H + 0.2, face - dir * 0.05, g);                    // 檐口
-    const roof = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.4, 5.2), roofM(w, 5)); roof.position.set(cx, H + 1.6, face - dir * 2.2); roof.rotation.x = dir > 0 ? -Math.PI / 2 + 0.62 : Math.PI / 2 - 0.62; roof.rotation.y = dir > 0 ? 0 : Math.PI; g.add(roof);
-    if (r() < 0.6) for (let k = 0; k < 2; k++) box(0.6, 1.2, 0.6, M.stone(0.6, 1.2), cx - w * 0.3 + k * w * 0.55, H + 2.4, face - dir * 3.2, g);   // 烟囱
-    box(w, 0.18, 0.25, M.sill, cx, gh, face, g);
-    const n = Math.max(2, Math.floor(w / 2.6)), step = w / n;
-    for (let f = 0; f < floors; f++) {
-      const y = gh + f * fh + fh * 0.5;
-      for (let k = 0; k < n; k++) {
-        const x = x0 + step * (k + 0.5);
-        box(1.2, 2.1, 0.1, M.sill, x, y, zf, g);
-        const on = r() < 0.32;
-        const wp = plane(0.95, 1.85, on ? litMats[Math.floor(r() * 4)] : darkWin, x, y, zf + dir * 0.06, dir > 0 ? 0 : Math.PI, g);
-        box(0.04, 1.85, 0.04, M.iron, x, y, zf + dir * 0.08, g); box(0.95, 0.04, 0.04, M.iron, x, y + 0.3, zf + dir * 0.08, g);
-        box(1.3, 0.08, 0.28, M.sill, x, y - 1.05, zf + dir * 0.12, g);
-        if (Math.abs(cx) < 32 && r() < 0.7) decal(['Leaking003', 'Leaking004', 'Leaking005'][Math.floor(r() * 3)], g, { pos: [x, y - 1.75, zf + dir * 0.004], rot: [0, dir > 0 ? 0 : Math.PI, 0], w: 1.4, h: 1.3, color: 0x2a2822, opacity: 0.5 + r() * 0.3, flipX: r() < 0.5 });
-        if (!on && r() < 0.45) for (const sx of [-1, 1]) { const sh = plane(0.46, 1.9, shutM, x + sx * 0.75, y, zf + dir * 0.1, dir > 0 ? sx * 0.3 : Math.PI - sx * 0.3, g); }
-        if (f === 0 && r() < 0.35) { box(1.3, 0.05, 0.4, M.sill, x, y - 1.0, zf + dir * 0.25, g); for (let b = 0; b < 9; b++) cyl(0.007, 0.007, 0.55, M.iron, x - 0.6 + b * 0.15, y - 0.72, zf + dir * 0.44, g, 4); box(1.3, 0.025, 0.025, M.iron, x, y - 0.45, zf + dir * 0.44, g); }
-      }
-    }
-    // 底层：一间小店（暗着或亮着）或者一扇拉下来的卷帘门
-    if (shop) {
-      const sw = Math.min(w - 1.2, 5), sx = cx + (r() - 0.5) * (w - sw - 1);
-      const open = r() < 0.5;
-      box(sw + 0.4, 3.0, 0.12, M.green(sw, 3), sx, 1.65, zf + dir * 0.02, g);
-      const shutter = () => pbr(['painted_metal_shutter', 'rusty_metal_shutter', 'worn_shutter'][Math.floor(r() * 3)], sw - 0.3, 2.3, { size: 2.2, roughness: 0.6, metalness: 0.4, color: 0x9a9890 });
-      plane(sw - 0.3, 2.3, open ? litMats[Math.floor(r() * 4)] : shutter(), sx, 1.45, zf + dir * 0.1, dir > 0 ? 0 : Math.PI, g);
-      if (!open) { box(sw - 0.1, 0.32, 0.3, M.iron, sx, 2.75, zf + dir * 0.16, g); decal('Leaking004', g, { pos: [sx, 1.6, zf + dir * 0.104], rot: [0, dir > 0 ? 0 : Math.PI, 0], w: sw - 0.3, h: 2.2, color: 0x3a3428, opacity: 0.5 }); }
-      if (open) { const l = new THREE.PointLight(0xffb468, 2.5, 6, 1.7); l.position.set(sx, 2.0, face + dir * 1.2); g.add(l); }
-    }
-    for (let k = 0; k < 2; k++) { cyl(0.05, 0.05, H, M.iron, x0 + 0.2 + k * (w - 0.4), H / 2, zf + dir * 0.08, g, 8); }   // 落水管
-    if (Math.abs(cx) < 40) { decal(['Leaking007', 'Leaking008', 'Leaking009'][Math.floor(r() * 3)], g, { pos: [cx, 0.85, zf + dir * 0.006], rot: [0, dir > 0 ? 0 : Math.PI, 0], w, h: 1.5, color: 0x24221e, opacity: 0.75 });   // 墙根返潮、溅上去的泥水
-      for (let k = 0; k < 2; k++) decal('Leaking006', g, { pos: [x0 + 0.2 + k * (w - 0.4) + 0.15, 1.4, zf + dir * 0.007], rot: [0, dir > 0 ? 0 : Math.PI, 0], w: 0.6, h: 2.8, color: 0x24221e, opacity: 0.6 }); }   // 落水管接口漏水
-    return g;
-  };
-  // 同一边：左边过了小街再两栋，右边两栋
-  building({ x0: -24, x1: -15.1, face: 0.2, floors: 5, tex: 'yellow_plaster_02', color: 0x8a8070, seed: 11 });
-  building({ x0: -34, x1: -24, face: -0.3, floors: 4, tex: 'beige_wall_001', color: 0x8a8478, seed: 12 });
-  building({ x0: 8.05, x1: 17, face: 0.3, floors: 4, tex: 'painted_plaster_wall', color: 0x8a8a84, seed: 13 });
-  building({ x0: 17, x1: 28, face: 0.1, floors: 5, tex: 'red_brick_plaster_patch_02', color: 0x7a7068, seed: 14 });
-  { const T = ['yellow_plaster_02', 'PaintedPlaster016', 'painted_plaster_wall', 'red_brick_plaster_patch_02', 'PaintedPlaster015'];
-    for (let k = 0; k < 3; k++) { building({ x0: -46 - k * 12, x1: -34 - k * 12, face: 0.2 - (k % 2) * 0.4, floors: 4 + (k % 2), tex: T[k % 5], color: 0x807a70, seed: 50 + k }); building({ x0: 28 + k * 12, x1: 40 + k * 12, face: 0.2 - (k % 2) * 0.4, floors: 5 - (k % 2), tex: T[(k + 2) % 5], color: 0x807a70, seed: 60 + k }); }
-    for (let k = 0; k < 3; k++) { building({ x0: -46 - k * 12, x1: -34 - k * 12, face: 22.5, dir: -1, floors: 4 + ((k + 1) % 2), tex: T[(k + 1) % 5], color: 0x7a7670, seed: 70 + k }); building({ x0: 30 + k * 12, x1: 42 + k * 12, face: 22.5, dir: -1, floors: 4 + (k % 2), tex: T[(k + 3) % 5], color: 0x7a7670, seed: 80 + k }); } }
-  // 对街一整排（面朝店面）
-  [[-34, -22, 'beige_wall_001', 4], [-22, -12, 'worn_mossy_plasterwall', 5], [-12, -2, 'yellow_plaster_02', 4], [-2, 9, 'painted_plaster_wall', 5], [9, 19, 'red_brick_plaster_patch_02', 4], [19, 30, 'beige_wall_001', 5]].forEach(([a, b, t, f], i) =>
-    building({ x0: a, x1: b, face: 22.5, dir: -1, floors: f, tex: t, color: 0x7a7670, seed: 30 + i }));
+  addMarketLane(root);
+  const alleyFloor = new THREE.Mesh(new THREE.PlaneGeometry(6, 13), pbr('brick_pavement', 6, 13, {size:2, roughness:.55}));
+  alleyFloor.rotation.x = -Math.PI/2; alleyFloor.position.set(-11.6,.01,-5.8); root.add(alleyFloor);
   { const sw2 = new THREE.Mesh(new THREE.PlaneGeometry(150, 2.5), pbr('stone_pavers', 150, 2.5, { size: 2.0, roughness: 0.4, envMapIntensity: 2.2, color: 0x7a7a78 })); sw2.rotation.x = -Math.PI / 2; sw2.position.set(0, 0.15, 21.2); root.add(sw2);
     box(150, 0.16, 0.28, M.stone(150, 0.3), 0, 0.075, 19.95, root);
     const rd2 = new THREE.Mesh(new THREE.PlaneGeometry(150, 16), pbr('square_cobblestone', 150, 16, { size: 2.2, roughness: 0.4, metalness: 0.1, envMapIntensity: 1.2, color: 0x6e6e6c })); rd2.rotation.x = -Math.PI / 2; rd2.position.set(0, -0.002, 12.4); root.add(rd2);
