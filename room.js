@@ -398,6 +398,29 @@ export function createRoom(env) {
   box(WX1 - WX0, HT - WY1, 0.1, wallMat(WX1 - WX0, HT - WY1, { dado: 0 }), (WX0 + WX1) / 2, (HT + WY1) / 2, -4.05, room);
   { const band = (w, x, z, ry) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, 0.02), pbr('long_white_tiles', w, 0.15, { size: 2.6, rotate: Math.PI / 2, color: 0x3e7458, roughness: 0.5 })); b.position.set(x, 1.15, z); b.rotation.y = ry; room.add(b); };
     band(OFFICE.DZ0 + 4, LX + 0.01, (OFFICE.DZ0 - 4) / 2, Math.PI / 2); band(5 - OFFICE.DZ1, LX + 0.01, (OFFICE.DZ1 + 5) / 2, Math.PI / 2); band(WX0 - LX, (WX0 + LX) / 2, -3.99, 0); band(5 - WX1, (WX1 + 5) / 2, -3.99, 0); band(3.0, 4.99, -2.6, -Math.PI / 2); band(4.5, 4.99, 2.75, -Math.PI / 2); }
+  // 绿色腰线以下：深色的旧木护墙板（竖条企口板，每条截取木纹的不同位置），底下踢脚线，上沿一道木压条托住绿线；以上仍是白瓷砖
+  { const BH = 1.075, BW = 0.096, T = 0.018;
+    const wood = pbr('wood_table_worn', 1, 1, { size: 1.0, rotate: Math.PI / 2, roughness: 0.62, color: 0xc4ad98 });
+    const trim = pbr('wood_table_worn', 1, 1, { size: 0.6, roughness: 0.55, color: 0x8a7462 });
+    const r = (() => { let n = 4242; return () => (n = (n * 16807) % 2147483647) / 2147483647; })();
+    const run = (a0, a1, axis, plane, dir) => {            // axis 'x' or 'z' along the wall; plane = wall face coordinate; dir = +1/-1 into the room
+      const L = a1 - a0, n = Math.floor(L / BW), bw = L / n;
+      for (let i = 0; i < n; i++) {
+        const g = new THREE.BoxGeometry(axis === 'x' ? bw - 0.004 : T, BH - 0.12, axis === 'x' ? T : bw - 0.004), uv = g.attributes.uv, du = r() * 3, dv = r() * 3;
+        for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * 0.1 + du, uv.getY(k) + dv);
+        const c = a0 + (i + 0.5) * bw, o = new THREE.Mesh(g, wood);
+        o.position.set(axis === 'x' ? c : plane + dir * T / 2, 0.12 + (BH - 0.12) / 2, axis === 'x' ? plane + dir * T / 2 : c); room.add(o);
+      }
+      const mid = (a0 + a1) / 2;
+      box(axis === 'x' ? L : 0.026, 0.12, axis === 'x' ? 0.026 : L, trim, axis === 'x' ? mid : plane + dir * 0.013, 0.06, axis === 'x' ? plane + dir * 0.013 : mid, room);        // skirting
+      box(axis === 'x' ? L : 0.034, 0.032, axis === 'x' ? 0.034 : L, trim, axis === 'x' ? mid : plane + dir * 0.017, BH - 0.006, axis === 'x' ? plane + dir * 0.017 : mid, room);   // cap rail under the green band
+    };
+    run(-4, OFFICE.DZ0, 'z', LX, 1); run(OFFICE.DZ1, 5, 'z', LX, 1);                                    // left wall, broken by the office door
+    run(LX, -4.95, 'x', -4.0, 1); run(-3.85, 5, 'x', -4.0, 1);                                            // back wall, broken by the staff door
+    run(-4.1, -1.1, 'z', 5.0, -1); run(0.5, 5, 'z', 5.0, -1);                                             // right wall, broken by the processing-room curtain
+    run(1.25, 5, 'x', 5.0, -1); run(LX, -5.05, 'x', 5.0, -1);                                            // front wall: the solid stretches either side of the glass
+    for (const [w, x] of [[3.75, 3.125], [-5.05 - LX, (LX - 5.05) / 2]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, 0.02), pbr('long_white_tiles', w, 0.15, { size: 2.6, rotate: Math.PI / 2, color: 0x3e7458, roughness: 0.5 })); b.position.set(x, 1.15, 4.99); room.add(b); }
+  }
   // 传菜窗的不锈钢圆角框
   {
     const sh = new THREE.Shape(); sh.moveTo(-0.82, -0.56); sh.lineTo(0.82, -0.56); sh.lineTo(0.82, 0.56); sh.lineTo(-0.82, 0.56); sh.lineTo(-0.82, -0.56);
