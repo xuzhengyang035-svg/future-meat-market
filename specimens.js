@@ -323,4 +323,93 @@ function jar() {
   return { group: g, center: new THREE.Vector3(0, H / 2, 0), view: [0.15, -0.6, 0] };
 }
 
-export const SPECIMENS = { fbs, vial, frozen, eartag: earTag, grn, order, handover, sample, photo, jar };
+// ---------------------------------------------------------------- 橱窗里的风干香肠：Ø 45 mm × 300 mm，肠衣起皱、带白霜，麻绳网，一张手写吊牌
+function salami() {
+  const g = new THREE.Group();
+  const casing = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 512; const x = c.getContext('2d');
+    const gr = x.createLinearGradient(0, 0, 256, 0); gr.addColorStop(0, '#3a1410'); gr.addColorStop(.5, '#6a2418'); gr.addColorStop(1, '#3a1410'); x.fillStyle = gr; x.fillRect(0, 0, 256, 512);
+    for (let i = 0; i < 1400; i++) { x.fillStyle = `rgba(${215 + Math.random() * 30},${200 + Math.random() * 30},${185 + Math.random() * 25},${.15 + Math.random() * .45})`; x.beginPath(); x.ellipse(Math.random() * 256, Math.random() * 512, 1 + Math.random() * 2.5, 1 + Math.random() * 2, 0, 0, 7); x.fill(); }
+    for (let i = 0; i < 300; i++) { x.strokeStyle = `rgba(20,6,4,${.2 + Math.random() * .3})`; x.lineWidth = .8 + Math.random(); const y = Math.random() * 512, px = Math.random() * 256; x.beginPath(); x.moveTo(px, y); x.bezierCurveTo(px + 10, y + 3, px + 20, y - 3, px + 34, y + 2); x.stroke(); }
+    x.fillStyle = 'rgba(235,232,220,.22)'; for (let i = 0; i < 40; i++) x.fillRect(Math.random() * 256, Math.random() * 512, 20 + Math.random() * 60, 3 + Math.random() * 10);   // white bloom of the cure
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+  const pts = []; for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push(new THREE.Vector3(Math.sin(t * Math.PI) * 0.025, -t * 0.3, 0)); }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const geo = new THREE.TubeGeometry(curve, 40, 0.0225, 24, false);
+  const p = geo.attributes.position, n = geo.attributes.normal;                            // wrinkled, uneven casing
+  for (let i = 0; i < p.count; i++) { const k = 1 + Math.sin(i * 1.7) * 0.03 + Math.sin(Math.floor(i / 25) * 2.3) * 0.04; p.setXYZ(i, p.getX(i) + n.getX(i) * 0.0225 * (k - 1), p.getY(i) + n.getY(i) * 0.0225 * (k - 1), p.getZ(i) + n.getZ(i) * 0.0225 * (k - 1)); }
+  geo.computeVertexNormals();
+  const skin = new THREE.MeshStandardMaterial({ map: casing, roughness: 0.62 });
+  g.add(new THREE.Mesh(geo, skin));
+  for (const t of [0, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.0225, 20, 12), skin); e.position.copy(curve.getPoint(t)); g.add(e); }
+  const twine = new THREE.MeshStandardMaterial({ color: 0xc8b088, roughness: 1 });
+  for (let k = 0; k < 9; k++) { const c = curve.getPoint(0.06 + k * 0.11); const r = new THREE.Mesh(new THREE.TorusGeometry(0.0235, 0.0012, 4, 24), twine); r.position.copy(c); r.rotation.x = Math.PI / 2; g.add(r); }
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0015, 4, 16), twine); loop.position.set(0, 0.03, 0); g.add(loop);
+  const tag = sheet(0.05, 0.075, 7000, (c, W, H) => {
+    c.beginPath(); c.arc(W / 2, 40, 14, 0, 7); c.fillStyle = '#7a7060'; c.fill();
+    write(c, 'Salami', 30, 140, { size: 66, font: pen, color: INK, tilt: -0.02 });
+    write(c, 'line P-0932 · sow 4471', 30, 210, { size: 38, font: pen, color: INK });
+    write(c, 'grown 19 d', 30, 270, { size: 40, font: pen, color: INK });
+    write(c, 'cured 21 d', 30, 325, { size: 40, font: pen, color: INK });
+    write(c, '¥74 / 100 g', 30, 410, { size: 52, font: pen, color: RED, tilt: -0.03 });
+  }, { tint: '#e9dcc0' });
+  const back = sheet(0.05, 0.075, 7000, (c) => {
+    write(c, 'She is still alive.', 26, 150, { size: 44, font: pen, color: INK, tilt: -0.02 });
+    write(c, 'One biopsy, 2019.', 26, 220, { size: 40, font: pen, color: INK });
+    write(c, 'Hale Farm, pen 3.', 26, 280, { size: 40, font: pen, color: INK });
+    write(c, '— ask at the counter', 26, 380, { size: 34, font: pen, color: '#6a6458' });
+  }, { tint: '#e9dcc0' });
+  const tf = plane(0.05, 0.075, tag, { roughness: 0.9 }); tf.position.set(0.04, -0.03, 0.03); tf.rotation.set(0, 0.2, 0.12); g.add(tf);
+  const tb = plane(0.05, 0.075, back, { roughness: 0.9 }); tb.position.copy(tf.position); tb.rotation.set(0, 0.2 + Math.PI, -0.12); tb.position.z -= 0.0005; g.add(tb);
+  return { group: g, center: new THREE.Vector3(0.01, -0.13, 0), view: [0.1, -0.3, 0.1] };
+}
+// ---------------------------------------------------------------- 门口黑板下面夹着的一张印好的菜单：A5 卡纸，正面价目，背面是细胞系的来历
+function menucard() {
+  const g = new THREE.Group(), W = 0.148, H = 0.21;
+  const front = sheet(W, H, 3200, (c, w, h) => {
+    text(c, 'FUTURE MEAT MARKET', w / 2, 70, 30, { weight: 800, align: 'center' });
+    text(c, 'Grown, not raised · since 2024', w / 2, 102, 16, { weight: 500, align: 'center' });
+    c.fillStyle = BLACK; c.fillRect(40, 124, w - 80, 2);
+    const rows = [['Beef steak, line B-0417', '¥132'], ['Pork chop, line P-0932', '¥98'], ['Chicken breast, line G-0221', '¥68'], ['Salami, cured 21 d', '¥148'], ['Lunch set, chop + rice', '¥32']];
+    rows.forEach(([a, b], i) => { const y = 190 + i * 64; text(c, a, 40, y, 21, { weight: 600 }); text(c, b, w - 40, y, 21, { weight: 700, align: 'right' }); text(c, 'per 200 g · grown 14–28 days', 40, y + 24, 14, { weight: 400, color: '#5a5a5a' }); });
+    c.fillStyle = BLACK; c.fillRect(40, 520, w - 80, 1);
+    text(c, 'GROW YOUR OWN', 40, 566, 22, { weight: 800, color: RED });
+    text(c, 'Order at the fridge screen. Ready in 14–28 days.', 40, 594, 15, { weight: 500 });
+    write(c, 'Happy hour 5–7 · 2nd steak half price', 40, 650, { size: 30, color: INK, tilt: -0.02 });
+  }, { tint: '#f1ecdf' });
+  const back = sheet(W, H, 3200, (c, w) => {
+    text(c, 'WHERE YOUR MEAT COMES FROM', 40, 80, 20, { weight: 800 });
+    const lines = ['Every cut starts as a few cells taken', 'from a living animal by biopsy.', '', 'B-0417 — a Hereford cow, rump.', 'P-0932 — sow 4471, Hale Farm.', 'G-0221 — a hen. She died in 2023;', '         her cells are still growing.', '', 'The cells grow in serum and broth', 'for 2–4 weeks. Nothing is slaughtered', 'for your dinner — but the serum', 'in the tanks still comes from somewhere.'];
+    lines.forEach((t, i) => text(c, t, 40, 130 + i * 30, 17, { weight: 500 }));
+    write(c, 'ask us about the serum →', 40, 560, { size: 30, color: RED, tilt: -0.03 });
+  }, { tint: '#f1ecdf' });
+  const card = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.0006), new THREE.MeshStandardMaterial({ color: 0xf1ecdf, roughness: 0.8 })); g.add(card);
+  const f = plane(W, H, front, { roughness: 0.8 }); f.position.z = 0.0004; g.add(f);
+  const b = plane(W, H, back, { roughness: 0.8 }); b.position.z = -0.0004; b.rotation.y = Math.PI; g.add(b);
+  return { group: g, center: new THREE.Vector3(0, 0, 0), view: [0, 0, 0] };
+}
+// ---------------------------------------------------------------- 气瓶上挂着的牌子：69 × 104 mm 卡片，正面是气体和批次，背面写着这瓶气是干什么用的
+function gastag() {
+  const g = new THREE.Group(), W = 0.069, H = 0.104;
+  const front = sheet(W, H, 6000, (c, w, h) => {
+    c.fillStyle = '#2a8a3a'; c.fillRect(0, 0, w, 90);
+    text(c, 'CO₂  E290', 28, 64, 40, { weight: 800, color: '#fff' });
+    text(c, 'FOOD GRADE', 28, 150, 30, { weight: 800 });
+    text(c, 'BATCH C-2611 · 25 kg', 28, 200, 22, { font: MONO, weight: 500 });
+    text(c, 'FILLED 18 / 11', 28, 236, 22, { font: MONO, weight: 500 });
+    c.fillStyle = BLACK; c.fillRect(28, 262, w - 56, 2);
+    ['EMPTY', 'IN USE', 'FULL'].forEach((t, i) => { c.strokeStyle = BLACK; c.lineWidth = 3; c.strokeRect(28, 300 + i * 70, 40, 40); text(c, t, 86, 332 + i * 70, 26, { weight: 700 }); });
+    write(c, 'X', 30, 404, { size: 60, font: marker, color: RED });
+    c.beginPath(); c.arc(w / 2, 560, 18, 0, 7); c.fillStyle = '#555'; c.fill();
+  }, { tint: '#eeeae0' });
+  const back = sheet(W, H, 6000, (c) => {
+    text(c, 'USE', 28, 70, 28, { weight: 800 });
+    ['Modified-atmosphere packing:', 'flushes the trays so the grown', 'meat stays red on the shelf', 'for 9 days instead of 3.', '', 'Captured from an ethanol', 'plant. Also used to stun', 'pigs at slaughter.'].forEach((t, i) => text(c, t, 28, 120 + i * 34, 19, { weight: 500 }));
+    write(c, 'same gas, different end', 28, 440, { size: 38, font: pen, color: INK, tilt: -0.03 });
+  }, { tint: '#eeeae0' });
+  const card = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.0005), new THREE.MeshStandardMaterial({ color: 0xeeeae0, roughness: 0.8 })); g.add(card);
+  const f = plane(W, H, front); f.position.z = 0.0003; g.add(f);
+  const b = plane(W, H, back); b.position.z = -0.0003; b.rotation.y = Math.PI; g.add(b);
+  return { group: g, center: new THREE.Vector3(0, 0, 0), view: [0, 0, 0] };
+}
+
+export const SPECIMENS = { fbs, vial, frozen, eartag: earTag, grn, order, handover, sample, photo, jar, salami, menucard, gastag };

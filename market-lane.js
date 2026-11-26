@@ -1,6 +1,7 @@
 // Neighbouring premises modelled in metres. Each pivot is the centre of its street frontage.
 import * as T from 'three';
-import { decal, pbr } from './assets.js';
+import { decal, pbr, model, modelSize } from './assets.js';
+import { billboard } from './billboards.js';
 import { canvasTexture } from './textures.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 // Scanned PBR surfaces mapped in world space: one texture set per surface, brick courses run on across every piece.
@@ -180,15 +181,14 @@ export function addMarketLane(root) {
   function oval(g,x,y,z,a,b,c,m){
     const o=new T.Mesh(olive,m);o.position.set(x,y,z);o.scale.set(a,b,c);g.add(o);return o;
   }
+  // Real scanned house plants (Poly Haven), picked per spot and sized to the old placeholder's height.
+  const PLANTS=['potted_plant_01','potted_plant_04','fern_02','calathea_orbifolia_01','pachira_aquatica_01','anthurium_botany_01','potted_plant_02'];
+  const plantH={};
   function plant(g,x,y,z,size,seed){
-    const group=new T.Group();group.position.set(x,y,z);group.scale.setScalar(size);g.add(group);
-    rod(group,[0,0,0],[0,.34,0],.14,clay,.21);rod(group,[0,.30,0],[0,.36,0],.22,clay);
-    for(let j=0;j<9;j++){
-      const angle=j*2.4+seed,h=.49+.34*(.5+.5*Math.sin(j*2+seed)),rad=.12+.08*(j%3);
-      const dx=rad*Math.cos(angle),dz=rad*Math.sin(angle);
-      rod(group,[0,.30,0],[dx,h,dz],.011,moss[0],.006,5);
-      for(let k=0;k<3;k++){const t=.4+.27*k;const leaf=oval(group,dx*t,h-(1-t)*.21,dz*t,.09,.05,.14,moss[(j+k)%4]);leaf.rotation.set(.38,angle+k,.24);}
-    }
+    const name=PLANTS[Math.abs(Math.round(seed*7+x*3))%PLANTS.length];
+    if(plantH[name]===undefined){const b=modelSize(name);plantH[name]=b?b.max[1]-b.min[1]:.6;}
+    const target=.62*size*(name==='pachira_aquatica_01'?1.5:1);
+    return model(name,{pos:[x,y,z],rot:seed*1.7,scale:target/Math.max(.1,plantH[name]),parent:g});
   }
   const prints=new Map();
   function picture(g,name,x,y,z,w,h,glow=.22){
@@ -721,6 +721,11 @@ export function addMarketLane(root) {
     piece(g,x,y+.09,z,.46,.15,.27,iron);piece(g,x,y,z,.32,.065,.19,bulb);
     const light=new T.PointLight(0xffc08c,5.2,6,2);light.position.set(x,y-.14,z+.25);g.add(light);
   }
+  // LED advertising screens: a roadside 48-sheet on the loading shed roof, a portrait screen on the viaduct pier,
+  // another 48-sheet on the corner mill facing back up the street.
+  billboard(root,{pos:[19.9,6.4+1.6+1.53,-1.7],w:6.1,h:3.05,ads:['verdant','subscribe','pods','donor'],hold:7,glow:0x9ad8b8,seed:1});
+  billboard(bridge,{pos:[-13.2,4.9,.24],w:2.2,h:4.2,ads:['tall1','tall2'],hold:9,leds:72,gain:1.5,glow:0xff8090,seed:2,frame:false});
+  billboard(corner,{pos:[2,10.2+1.6+1.53,-1.6],w:6.1,h:3.05,ads:['donor','pods','verdant','subscribe'],hold:8,glow:0xc8b8ff,seed:3});
   for (const x of [-14.7,-8.6]) {
     const flank=new T.Group();flank.position.set(x,0,-5.95);root.add(flank);
     piece(flank,0,3.2,0,.65,6.4,12,surface('ashlar',12,6.4));

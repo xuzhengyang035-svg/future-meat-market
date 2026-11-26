@@ -7,6 +7,7 @@
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
 import { addMarketLane } from './market-lane.js';
+import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { meatGeometry, meatMaterial } from './meat.js';
@@ -99,11 +100,13 @@ export function createStreet(env) {
   { const st = canvasTexture(1600, 1400, (g, W, H) => { g.clearRect(0, 0, W, H); grimeLayer(g, W, H, R(77), { stains: 14, drips: 120, rust: 10, mould: 2, unit: 500, dripCol: '24,26,24' }); });
     plane(BW, TOP - GH, new THREE.MeshStandardMaterial({ map: st, transparent: true, depthWrite: false, roughness: 0.9 }), 0, GH + (TOP - GH) / 2, 0.012, 0, root); }
   const darkWin = new THREE.MeshStandardMaterial({ color: 0x0c1014, roughness: 0.05, metalness: 0.6, envMapIntensity: 2 });
-  const leafM = new THREE.MeshStandardMaterial({ color: 0x3a5a2e, roughness: 0.7, side: THREE.DoubleSide });
-  const flowerM = [0xb83a3a, 0xd8a03a, 0xe8e0d0].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
-  const leafG = new THREE.SphereGeometry(0.055, 8, 5); leafG.scale(1, 0.3, 1.6);
-  const bush = (x, y, z, w, d, n, flowers = 0) => { for (let i = 0; i < n; i++) { const l = new THREE.Mesh(leafG, leafM); l.position.set(x + (rnd() - 0.5) * w, y + rnd() * 0.3, z + (rnd() - 0.5) * d); l.rotation.set(rnd() * 2, rnd() * 6, rnd() * 2); l.scale.setScalar(0.7 + rnd() * 0.8); root.add(l); } for (let i = 0; i < flowers; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 4), flowerM[i % 3]); f.position.set(x + (rnd() - 0.5) * w, y + 0.2 + rnd() * 0.15, z + (rnd() - 0.5) * d); root.add(f); } };
-  const vine = (x, y, z, len, n) => { for (let k = 0; k < n; k++) { const ox = (rnd() - 0.5) * 0.6; for (let i = 0; i < len / 0.06; i++) { const l = new THREE.Mesh(leafG, leafM); l.position.set(x + ox + Math.sin(i * 0.7 + k) * 0.04, y - i * 0.06, z + 0.05 + rnd() * 0.05); l.rotation.set(rnd() * 2, rnd() * 6, rnd()); l.scale.setScalar(0.6 + rnd() * 0.6); root.add(l); } } };
+
+
+
+  // planting and ivy are leaf cards cut from real leaf shapes (foliage.js)
+  let fseed = 1;
+  const bush = (x, y, z, w, d, n, flowers = 0) => shrub(root, { x, y, z, w, d, h: 0.32, n: n * 6, flowers: flowers * 2, seed: fseed++ });
+  const vine = (x, y, z, len, n) => ivy(root, { x, y, z: z + 0.02, len, strands: n + 2, spread: 0.7, seed: fseed++ });
   // 每扇亮着的窗是一间不同的屋子：钨丝灯的暖黄、厨房日光灯的青白、电视的蓝光在闪、红灯罩、只开一盏台灯的暗屋、百叶窗……亮度和冷暖都不一样
   const roomTex = (kind, seed) => canvasTexture(128, 256, (g, W, H) => {
     const r = R(seed), P = {
@@ -291,11 +294,48 @@ export function createStreet(env) {
   model('potted_plant_02', { pos: [2.4, 0.15, 0.55], scale: 1.0, parent: root });
 
   // ---------------------------------------------------------------- 右边：两只高气瓶、告示、墨绿色侧门、门上的小灯、木箱、排风口
-  for (const [x, z] of [[3.55, 0.3], [3.95, 0.35]]) {
-    cyl(0.12, 0.12, 1.55, M.co2, x, 0.15 + 0.78, z, root, 20); cyl(0.07, 0.12, 0.16, M.co2top, x, 1.78, z, root, 16); cyl(0.035, 0.035, 0.14, M.steel, x, 1.92, z, root, 10);
-    const lb = canvasTexture(128, 64, (g) => { g.fillStyle = '#e4e0d4'; g.fillRect(0, 0, 128, 64); g.fillStyle = '#222'; g.font = `700 28px ${SANS}`; g.fillText('CO₂', 14, 42); }); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.121, 0.121, 0.18, 20, 1, true, -0.8, 1.6), lit(lb)); l.position.set(x, 1.2, z); l.rotation.y = -Math.PI / 2 + 0.3; root.add(l);
+  // Two food-grade CO₂ cylinders (for the meat's modified-atmosphere packs): seamless steel, black body, grey shoulder,
+  // brass valve with handwheel and a guard ring, a wrap label, a hazard diamond, a tag on string, chained to a wall bracket.
+  { const prof = [[0, 0], [0.09, 0], [0.112, 0.012], [0.116, 0.04], [0.116, 1.36], [0.112, 1.43], [0.098, 1.49], [0.074, 1.535], [0.042, 1.56], [0.03, 1.575], [0.03, 1.6], [0, 1.6]].map(([r, y]) => new THREE.Vector2(r, y));
+    const shoulderAt = 1.34;
+    const bodyM = pbr('PaintedMetal012', 0.73, 1.4, { size: 0.45, metalness: 0.6, roughness: 1, color: 0x2e3032 });
+    const greyM = pbr('PaintedMetal012', 0.73, 0.3, { size: 0.45, metalness: 0.5, roughness: 1, color: 0x5e605c });
+    const brass = new THREE.MeshStandardMaterial({ color: 0xb08a48, metalness: 1, roughness: 0.35 });
+    const wheelM = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
+    const split = (lo, hi) => prof.filter(([r, y]) => true).map((v) => new THREE.Vector2(v.x, THREE.MathUtils.clamp(v.y, lo, hi)));
+    const label = canvasTexture(512, 192, (g, W, H) => {
+      g.fillStyle = '#e8e4d6'; g.fillRect(0, 0, W, H); g.fillStyle = '#1a1a1a'; g.font = `800 34px ${SANS}`; g.fillText('CARBON DIOXIDE', 24, 52);
+      g.font = `600 20px ${SANS}`; g.fillText('FOOD GRADE · E290 · UN 1013', 24, 84); g.fillText('Liquefied · 25 kg · 57 bar', 24, 112);
+      g.font = `500 16px ${SANS}`; g.fillText('Gas for modified-atmosphere packs. Keeps the meat pink.', 24, 150);
+      g.save(); g.translate(430, 92); g.rotate(Math.PI / 4); g.fillStyle = '#2a8a3a'; g.fillRect(-46, -46, 92, 92); g.restore();
+      g.fillStyle = '#fff'; g.font = `800 26px ${SANS}`; g.textAlign = 'center'; g.fillText('2', 430, 128); g.textAlign = 'left';
+      ageCanvas(g, W, H, { amount: 1.6, seed: 61 });
+    });
+    const labelM = new THREE.MeshStandardMaterial({ map: label, roughness: 0.8 });
+    [[3.52, 0.32, 0.4], [3.96, 0.36, -0.6]].forEach(([x, z, turn], k) => {
+      const c = new THREE.Group(); c.position.set(x, 0.15, z); c.rotation.y = turn; root.add(c);
+      c.add(new THREE.Mesh(new THREE.LatheGeometry(split(0, shoulderAt), 32), bodyM));
+      c.add(new THREE.Mesh(new THREE.LatheGeometry(split(shoulderAt, 1.6), 32), greyM));
+      const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.1172, 0.1172, 0.24, 32, 1, true, -1.1, 2.2), labelM); lb.position.y = 0.98; c.add(lb);
+      cyl(0.024, 0.026, 0.09, brass, 0, 1.64, 0, c, 16);
+      const out = cyl(0.012, 0.012, 0.06, brass, 0.035, 1.635, 0, c, 10); out.rotation.z = Math.PI / 2;
+      const hw = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 18), wheelM); hw.rotation.x = Math.PI / 2; hw.position.y = 1.7; c.add(hw);
+      for (let s = 0; s < 3; s++) { const sp = box(0.06, 0.006, 0.006, wheelM, 0, 1.7, 0, c); sp.rotation.y = s * Math.PI / 3; }
+      const guard = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 6, 24), greyM); guard.rotation.x = Math.PI / 2; guard.position.y = 1.73; c.add(guard);
+      for (let s = 0; s < 3; s++) { const a = s * Math.PI * 2 / 3; cyl(0.006, 0.006, 0.16, greyM, Math.cos(a) * 0.07, 1.65, Math.sin(a) * 0.07, c, 6); }
+      // tag on string
+      const tag = canvasTexture(128, 200, (g, W, H) => { g.fillStyle = k ? '#e8c84a' : '#e8e6dc'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `800 22px ${SANS}`; g.fillText(k ? 'IN USE' : 'FULL', 14, 40);
+        g.font = `500 14px ${SANS}`; ['Batch C-2611', 'Filled 18/11', 'Return to BOC'].forEach((t, i) => g.fillText(t, 14, 80 + i * 24)); g.beginPath(); g.arc(W / 2, 14, 6, 0, 7); g.fillStyle = '#666'; g.fill(); ageCanvas(g, W, H, { amount: 1.4, seed: 70 + k }); });
+      const tg = plane(0.06, 0.094, lit(tag, { side: THREE.DoubleSide }), 0.06, 1.53, 0.05, 0.3, c); tg.rotation.z = 0.12;
+      cyl(0.0008, 0.0008, 0.11, wheelM, 0.045, 1.6, 0.03, c, 3).rotation.z = 0.5;
+      decal('Leaking007', c, { pos: [0, 0.2, 0.118], w: 0.24, h: 0.4, color: 0x3a2a1a, opacity: 0.6, rot: [0, 0, Math.PI] });
+    });
+    // wall bracket and a chain across the front of both cylinders
+    box(0.7, 0.05, 0.08, M.iron, 3.74, 1.2, 0.05, root);
+    const chainM = new THREE.MeshStandardMaterial({ color: 0x8a8a84, metalness: 1, roughness: 0.45 });
+    const ch = new THREE.CatmullRomCurve3([[3.38, 1.2, 0.08], [3.5, 1.16, 0.46], [3.74, 1.12, 0.52], [3.98, 1.16, 0.5], [4.1, 1.2, 0.08]].map((p) => new THREE.Vector3(...p)));
+    for (let i = 0; i < 40; i++) { const t = i / 39, p = ch.getPoint(t), d = ch.getTangent(t); const l = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0035, 5, 10), chainM); l.position.copy(p); l.lookAt(p.clone().add(d)); l.rotateY(Math.PI / 2); if (i % 2) l.rotateX(Math.PI / 2); l.scale.set(1.5, 1, 1); root.add(l); }
   }
-  box(0.04, 0.04, 0.9, M.iron, 3.75, 1.25, 0.15, root);
   const note = (t, s, seed) => canvasTexture(200, 260, (g, W, H) => { g.fillStyle = '#ddd6c2'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 36px ${SANS}`; g.textAlign = 'center'; g.fillText(t, W / 2, 60); g.font = `400 20px ${SANS}`; s.forEach((l, i) => g.fillText(l, W / 2, 110 + i * 30)); ageCanvas(g, W, H, { amount: 1.2, seed }); });
   for (const [x, y, t, l] of [[4.55, 2.05, 'NOTICE', ['Basement works', 'at night']], [4.85, 1.65, 'HIRING', ['Night packers', 'paid daily']], [4.45, 1.45, 'REGULARS', ['Use side door', 'knock 3 times']], [5.0, 2.3, 'LOST CAT', ['Grey · female', 'reward']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
   const SDX = 6.4;
@@ -416,6 +456,49 @@ export function createStreet(env) {
     const sw3 = new THREE.Mesh(new THREE.PlaneGeometry(30, 4.2), pbr('stone_pavers', 30, 4.2, { size: 2.0, roughness: 0.92, envMapIntensity: 0.2, color: 0x8a8a88 })); sw3.rotation.x = -Math.PI / 2; sw3.position.set(0, 0.149, 2.1); sw3.scale.x = 5; root.add(sw3); }
   // 对街的两盏铸铁路灯
   for (const x of [-9, 9]) { cyl(0.06, 0.1, 4.2, M.iron, x, 2.1, 19.6, root, 10); const lt = cyl(0.16, 0.1, 0.4, M.warm, x, 4.4, 19.6, root, 6); const l = new THREE.PointLight(0xffd09b, 1.9, 9, 2); l.position.set(x, 4.3, 19.4); root.add(l); }
+
+  // ---------------------------------------------------------------- ground: puddles of every size, potholes, cracked and sunken pavers, grime, weeds, leaves
+  { const gr = R(91);
+    const wet = (x, y, z, w, d, rot, seed, deep = false) => {
+      const pd = puddleDecal(seed); const m = new THREE.MeshStandardMaterial({ map: pd.map, roughnessMap: pd.roughnessMap, roughness: deep ? 0.06 : 0.14, metalness: 0.05, envMapIntensity: deep ? 1.1 : 0.8, opacity: deep ? 0.85 : 0.7, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 });
+      const o = new THREE.Mesh(new THREE.PlaneGeometry(w, d), m); o.rotation.set(-Math.PI / 2, 0, rot); o.position.set(x, y, z); root.add(o); return o; };
+    // road: big and small puddles, a run of water along each gutter
+    for (const [x, z, w, d] of [[-12, 6.2, 1.2, .7], [-3.6, 10.5, .6, .4], [2.4, 13.8, 2.2, 1.1], [8.6, 11.2, .5, .35], [11.5, 6.0, 1.6, .8], [-7.6, 15.6, .9, .5], [6.2, 16.5, 3.2, 1.4], [-14.5, 12.4, .45, .3], [15.8, 14.2, 1.1, .6], [0.6, 7.4, .35, .25]])
+      wet(x, 0.004, z, w, d, gr() * 3, 40 + Math.round(x * 7 + z));
+    for (const [z, y] of [[4.5, 0.004], [19.85, 0.004]]) for (let x = -18; x < 18; x += 3.1 + gr() * 2) wet(x, y, z, 1.4 + gr() * 1.4, 0.22, 0, 70 + Math.round(x), true);
+    // potholes: broken surface ring with water standing in the hollow
+    for (const [x, z, s] of [[-5.2, 8.9, 0.9], [4.1, 9.7, 0.6], [9.8, 14.8, 1.1], [-10.4, 16.8, 0.7], [13.2, 8.4, 0.5]]) {
+      wet(x, 0.0055, z, s * 1.25, s * 1.0, gr() * 3, 200 + Math.round(x * 3), true);
+      const hole = new THREE.Mesh(new THREE.CircleGeometry(s * 0.42, 18), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: 0.04, metalness: 0.2, envMapIntensity: 1.2, polygonOffset: true, polygonOffsetFactor: -4 }));
+      const hp = hole.geometry.attributes.position; for (let i = 1; i < hp.count; i++) { const k = 0.75 + gr() * 0.4; hp.setXY(i, hp.getX(i) * k, hp.getY(i) * k * 0.8); }
+      hole.rotation.set(-Math.PI / 2, 0, gr() * 3); hole.position.set(x, 0.006, z); root.add(hole);
+    }
+    // pavements: cracked flags, sunken corners holding water, grime and gum
+    for (const [zc, zw] of [[2.1, 3.8], [21.2, 2.2]]) {
+      for (let i = 0; i < 9; i++) decal(['decal_10', 'decal_17'][i % 2], root, { pos: [-17 + gr() * 34, 0.153, zc + (gr() - 0.5) * zw], rot: [-Math.PI / 2, 0, gr() * 6], w: 0.6 + gr() * 0.8, h: 0.6 + gr() * 0.8, color: 0x141310, opacity: 0.8 });
+      for (let i = 0; i < 14; i++) decal(['SurfaceImperfections005', 'SurfaceImperfections009', 'SurfaceImperfections015', 'decal_10', 'decal_17'][i % 5], root, { pos: [-18 + gr() * 36, 0.152, zc + (gr() - 0.5) * zw], rot: [-Math.PI / 2, 0, gr() * 6], w: 0.7 + gr() * 1.6, h: 0.7 + gr() * 1.6, color: 0x1c1b18, opacity: 0.45 + gr() * 0.25 });
+      for (let i = 0; i < 5; i++) wet(-16 + gr() * 32, 0.1535, zc + (gr() - 0.5) * zw * 0.8, 0.25 + gr() * 0.5, 0.18 + gr() * 0.3, gr() * 3, 120 + i + Math.round(zc));
+    }
+    // weeds: along both kerbs, at the foot of the buildings, and in a few paving joints
+    const tufts = [];
+    for (let x = -19; x < 19; x += 0.35 + gr() * 1.4) tufts.push([x, 0.002, 4.47 + gr() * 0.05, 0.8 + gr() * 0.6]);
+    for (let x = -19; x < 19; x += 0.4 + gr() * 1.6) tufts.push([x, 0.002, 19.95 - gr() * 0.05, 0.8 + gr() * 0.6]);
+    for (let x = -18; x < 18; x += 0.5 + gr() * 2.2) if (Math.abs(x + 1.1) > 1.2) tufts.push([x, 0.152, 0.06 + gr() * 0.05, 0.7 + gr() * 0.8]);
+    for (let x = -18; x < 18; x += 0.6 + gr() * 2.4) tufts.push([x, 0.152, 22.35 - gr() * 0.05, 0.7 + gr() * 0.8]);
+    for (let i = 0; i < 26; i++) tufts.push([-17 + gr() * 34, 0.152, 0.6 + gr() * 3.4, 0.35 + gr() * 0.3]);
+    weeds(root, tufts, 5);
+    // street plane trees in cast-iron pits, leaves on the ground beneath and washed into the gutter
+    for (const [x, z, h, seed] of [[-9.7, 3.6, 8.4, 3], [9.2, 3.62, 7.6, 7], [-8.15, 21.0, 8.8, 11], [0.86, 21.05, 7.9, 13]]) {
+      planeTree(root, { x, y: 0.152, z, h, seed });
+      fallenLeaves(root, { x, y: 0.152, z, rx: 2.2, rz: 1.1, n: 70, seed });
+      fallenLeaves(root, { x: x + 1, y: 0.003, z: z < 10 ? 4.55 : 19.8, rx: 3, rz: 0.12, n: 45, seed: seed + 50 });
+    }
+    // chairs: a café set outside the bookshop, two plastic chairs by the launderette, one by our side door
+    model('outdoor_table_chair_set_01', { pos: [-1.3, 0.15, 21.05], rot: Math.PI + 0.3, jitter: 0.1, parent: root });
+    model('plastic_monobloc_chair_01', { pos: [-13.7, 0.15, 21.25], rot: Math.PI + 0.35, parent: root });
+    model('plastic_monobloc_chair_01', { pos: [-12.9, 0.15, 21.55], rot: Math.PI - 0.5, parent: root });
+    model('plastic_monobloc_chair_01', { pos: [5.45, 0.15, 1.25], rot: -0.7, parent: root }).traverse((o) => { if (o.material && !o.material.userData.aged) { o.material.color.setHex(0xb4ae9e); o.material.userData.aged = true; } });   // years of rain: grey-beige, not white
+  }
 
   // ---------------------------------------------------------------- 雨
   const RN = 3200, rainPos = new Float32Array(RN * 6), rainSeed = new Float32Array(RN * 3);
