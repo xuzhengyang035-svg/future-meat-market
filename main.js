@@ -163,7 +163,7 @@ const LAB_HOME = LAB_EYE.clone();   // 看批次、数据墙、须知、终端�
 const look = { yaw: 0, pitch: -2, tYaw: 0, tPitch: -2, fov: 62 };
 const labLook = { yaw: -6, pitch: -6, tYaw: -6, tPitch: -6, fov: 60 };
 // 店外和仓库：同样是站在原地环顾
-const STREET_EYE = new THREE.Vector3(-0.8, 1.7, 11.5);
+const STREET_EYE = new THREE.Vector3(-1.0, 1.65, 7.2);   // standing on the kerb side of the road, close enough to read the shop
 const WH_EYE = new THREE.Vector3(-1.3, 1.65, 2.6);
 const streetLook = { yaw: 0, pitch: 11, tYaw: 0, tPitch: 11, fov: 62 };
 const whLook = { yaw: -12, pitch: -6, tYaw: -12, tPitch: -6, fov: 64 };
@@ -992,7 +992,7 @@ function showCallouts(list) {
     const el = box.children[i], v = new THREE.Vector3(...c.at);
     el.addEventListener('pointerenter', () => hoverOn(el, v, 0.5));
     el.addEventListener('pointerleave', () => hoverOff(el));
-    el.addEventListener('click', () => { if (c.action) location.hash = c.action[1]; else if (c.item) { hoverOff(el); inspector.open(c.item, v, c.title, { order: state.order }); } });
+    el.addEventListener('click', () => { if (c.act) { placeOf(state.view)?.onAction?.(c.act); setMarquee(c.title + ' · '); } else if (c.action) location.hash = c.action[1]; else if (c.item) { hoverOff(el); inspector.open(c.item, v, c.title, { order: state.order }); } });
     return { c, el, v };
   });
   calloutLayer.classList.add('on');

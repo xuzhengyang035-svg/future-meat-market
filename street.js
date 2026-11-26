@@ -10,7 +10,7 @@ import { addMarketLane } from './market-lane.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
-import { meatGeometry, meatMaterial } from './meat.js';
+import { meatGeometry, meatMaterial, texturedMeat } from './meat.js';
 import { grimeMap, ageCanvas, blobShadow, puddleDecal, grimeLayer, brushedSteelMaps } from './materials.js';
 
 const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
@@ -56,6 +56,7 @@ function ham(mat) {
 }
 
 export function createStreet(env) {
+  let valve = null, nowT = 0;
   const scene = new THREE.Scene();
   scene.background = canvasTexture(16, 512, (g, W, H) => {                  // 雨夜的天：上面深蓝黑，往下一点点被城市的灯光照成暖灰
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#05080c'); gr.addColorStop(0.55, '#141b22'); gr.addColorStop(0.8, '#2a2a28'); gr.addColorStop(1, '#3a3228'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
@@ -195,17 +196,15 @@ export function createStreet(env) {
   const inFloor = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, ID), userMat('floor_checker.webp', SX1 - SX0, ID, { size: 3.0, roughness: 0.5, bump: 0.6, envMapIntensity: 1.2, color: 0xb8b4ac }));
   inFloor.rotation.x = -Math.PI / 2; inFloor.position.set((SX0 + SX1) / 2, 0.16, -ID / 2); root.add(inFloor);
   const tiles = (w, h) => pbr('long_white_tiles', w, h, { size: 2.4, rotate: Math.PI / 2, roughness: 0.6, color: 0xa89c88 });
-  box(SX1 - SX0, SH + 0.6, 0.1, tiles(SX1 - SX0, SH), (SX0 + SX1) / 2, (SH + 0.6) / 2, -ID, root);
-  box(0.1, SH + 0.6, ID, tiles(ID, SH), SX0, (SH + 0.6) / 2, -ID / 2, root); box(0.1, SH + 0.6, ID, tiles(ID, SH), SX1, (SH + 0.6) / 2, -ID / 2, root);
-  box(SX1 - SX0, 0.1, ID, new THREE.MeshStandardMaterial({ color: 0x3a3028, roughness: 0.9 }), (SX0 + SX1) / 2, SH + 0.6, -ID / 2, root);
-  { const wood = pbr('wood_table_worn', 1, 1, { size: 1.0, color: 0x9a7a5a });
-    const jarMats = [0x8a3a1a, 0xa86a2a, 0x5a6a2a, 0xd8c8a0].map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.17 }));
-    for (const [x0, x1] of [[SX0 + 0.4, -2.4], [0.2, SX1 - 0.4]]) for (const y of [1.55, 2.05, 2.55]) {
-      box(x1 - x0, 0.04, 0.3, wood, (x0 + x1) / 2, y, -ID + 0.2, root);
-      for (let x = x0 + 0.1; x < x1 - 0.05; x += 0.14 + rnd() * 0.06) { const h = 0.12 + rnd() * 0.1; cyl(0.045, 0.045, h, jarMats[Math.floor(rnd() * 4)], x, y + 0.02 + h / 2, -ID + 0.2, root, 12); cyl(0.047, 0.047, 0.02, M.iron, x, y + h + 0.03, -ID + 0.2, root, 12); }
-    } }
-  for (const x of [-4.2, -1.1, 1.5]) { model('hanging_industrial_lamp', { pos: [x, SH + 0.5, -1.4], scale: 0.8, parent: root }); const l = new THREE.PointLight(0xffb468, 3.2, 6, 1.6); l.position.set(x, 2.6, -1.4); root.add(l); }
-  { const l = new THREE.PointLight(0xffc888, 3.5, 6, 1.6); l.position.set(-1.1, 2.0, 0.6); root.add(l); }
+  // Behind the left window and the door is the real shop (room.js), rendered from this street once and baked:
+  // room = street + (1.65, 0, 5); the picture plane sits 1.3 m inside, near-clipped there, framed for an eye at (−1.1, 1.65, 6.5).
+  { const IN = 1.3, tex = new THREE.TextureLoader().load('assets/street/interior.jpg'); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, 3.75), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: false, color: new THREE.Color(0.92, 0.9, 0.88) }));
+    back.position.set((SX0 + SX1) / 2, 0.15 + 3.75 / 2, -IN); root.add(back);
+    inFloor.scale.y = IN / ID; inFloor.position.z = -IN / 2;
+    box(SX1 - SX0, 0.1, IN, new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.9 }), (SX0 + SX1) / 2, 3.9, -IN / 2, root);
+    for (const x of [SX0, SX1]) box(0.1, 3.9, IN, M.stone(IN, 3.9), x, 1.95, -IN / 2, root);
+    const l = new THREE.PointLight(0xffc888, 3.5, 6, 1.6); l.position.set(-1.1, 2.0, 0.6); root.add(l); }
   const G = M.green();
   box(WL1 - WL0 + 0.3, 0.8, 0.14, M.green(4, 0.8), (WL0 + WL1) / 2, 0.55, 0.07, root);
   box(WR1 - WR0 + 0.3, 0.8, 0.14, M.green(3, 0.8), (WR0 + WR1) / 2, 0.55, 0.07, root);
@@ -233,30 +232,64 @@ export function createStreet(env) {
     box(w - 0.18, 0.7, 0.02, M.green(0.8, 0.7), s * w / 2, 0.5, 0.035, d); box(0.04, 0.18, 0.06, M.steel, s * (w - 0.08), 1.1, 0.05, d);
   }
   box(DX1 - DX0 + 0.3, 0.05, 0.5, M.stone(2, 0.5), (DX0 + DX1) / 2, 0.16, 0.25, root);
-  // 左橱窗：冷藏肉柜
-  { const dc = new THREE.Group(); dc.position.set((WL0 + WL1) / 2, 0.5, -0.8); root.add(dc);
-    box(WL1 - WL0 - 0.3, 0.36, 0.8, new THREE.MeshStandardMaterial({ color: 0x2a1a14, roughness: 0.8 }), (WL0 + WL1) / 2, 0.33, -0.8, root);   // 肉柜下面的垫台
-    const L = WL1 - WL0 - 0.3;
-    box(L, 0.75, 0.85, new THREE.MeshStandardMaterial({ color: 0x4a1c18, roughness: 0.4, map: grimeMap(50) }), 0, 0.375, 0, dc);
-    box(L, 0.04, 0.92, M.steel, 0, 0.77, 0, dc);
-    const gc = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, L, 24, 1, true, 0, Math.PI / 2), M.glass); gc.rotation.z = Math.PI / 2; gc.position.set(0, 0.79, 0); dc.add(gc);
-    box(L, 0.03, 0.42, M.steel, 0, 1.21, -0.22, dc);
-    box(L - 0.1, 0.02, 0.03, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 1.4, 1.7) }), 0, 1.19, -0.08, dc);
-    const pk = new THREE.PointLight(0xff8aa0, 3, 2.4, 2); pk.position.set(0, 1.1, 0.1); dc.add(pk);
-    for (let i = 0; i < 10; i++) { const sp = i % 3 === 1 ? 'pork' : 'beef'; const m = new THREE.Mesh(meatGeometry(sp), meatMaterial(sp)); m.scale.setScalar(0.3 + rnd() * 0.06); m.position.set(-L / 2 + 0.3 + (i % 5) * (L - 0.6) / 4, 0.82 + (i < 5 ? 0 : 0.03), (i < 5 ? 0.14 : -0.16)); m.rotation.set(-0.35, rnd() * 0.6 - 0.3, 0); dc.add(m); }   // 一块块真实大小的牛排、猪排，朝外斜放
-    for (let i = 0; i < 7; i++) { const t = plane(0.08, 0.05, lit(canvasTexture(80, 50, (g) => { g.fillStyle = '#efeadc'; g.fillRect(0, 0, 80, 50); g.fillStyle = '#222'; g.font = '600 22px sans-serif'; g.fillText(`€${(8 + i * 3.5).toFixed(2)}`, 6, 32); })), -L / 2 + 0.2 + i * (L - 0.4) / 6, 0.85, 0.32, 0, dc); t.rotation.x = -0.7; }
-    model('potted_plant_02', { pos: [(WL0 + WL1) / 2 + 1.0, 1.25, -2.9], scale: 0.6, parent: root }); }
+  // 左橱窗：店里糊在玻璃内侧的旧报纸（和店里同一批、同一个位置），从街上看到的是正面；缝里看得见店里
+  { const r = R(301), heads = ['PIG FARMS FACE CLOSURE', 'LAB MEAT ON SALE FROM MONDAY', 'COUNCIL VOTES ON SLAUGHTER BAN', 'DONOR COW TURNS TWELVE', 'MARKET HALL TO BE SOLD', 'THE LAST BUTCHER OF CABLE ST', 'SERUM PRICES DOUBLE', 'RAIN UNTIL SUNDAY', 'WHERE DOES IT COME FROM?', 'NIGHT BUSES CUT', 'HALE FARM: ONE PIG LEFT'];
+    const paper = (k) => canvasTexture(420, 560, (g, W, H) => {
+      g.fillStyle = ['#d8cfb4', '#cfc6aa', '#ddd4ba', '#c8bea0'][k % 4]; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#222'; g.font = `900 34px ${'Georgia, serif'}`; g.textAlign = 'center'; g.fillText(['The Evening Post', 'Daily Ledger', 'The Courier', 'Market Gazette'][k % 4], W / 2, 44); g.textAlign = 'left';
+      g.fillRect(16, 56, W - 32, 3); g.font = '800 30px Georgia, serif';
+      const words = heads[k % heads.length].split(' '); let line = '', y = 100; for (const w of words) { if (g.measureText(line + w).width > W - 40) { g.fillText(line, 20, y); line = ''; y += 34; } line += w + ' '; } g.fillText(line, 20, y);
+      g.fillStyle = 'rgba(40,36,30,.75)'; g.fillRect(20, y + 18, W * 0.55, 150);
+      for (let c = 0; c < 3; c++) for (let l = 0; l < 26; l++) { const cy = y + 22 + l * 13; if (c === 0 && cy < y + 172) continue; g.fillStyle = 'rgba(30,30,30,.55)'; g.fillRect(20 + c * 130, cy, 112 - r() * 30, 4); }
+      ageCanvas(g, W, H, { amount: 2.2, seed: 300 + k });
+    });
+    const mats = [0, 1, 2, 3, 4, 5].map((k) => lit(paper(k), { roughness: 0.95 }));
+    const tape = new THREE.MeshStandardMaterial({ color: 0xd8c890, roughness: 0.6, transparent: true, opacity: 0.7 });
+    const sheet = (w, h, x, y, rz, k) => {
+      const geo = new THREE.PlaneGeometry(w, h, 6, 8), gp = geo.attributes.position;
+      for (let i = 0; i < gp.count; i++) { const u = gp.getX(i) / w, v = gp.getY(i) / h; gp.setZ(i, -(0.006 * (u * u + v * v)) + Math.sin(u * 9 + k) * 0.002); } geo.computeVertexNormals();
+      const p = new THREE.Mesh(geo, mats[k % mats.length]); p.position.set(x, y, 0.0); p.rotation.z = -rz; root.add(p);
+      for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { if ((k + sx + sy) % 5 === 0) continue; const t = plane(0.1, 0.035, tape, x + sx * w / 2 * 0.95, y + sy * h / 2 * 0.95, 0.002, 0, root); t.rotation.z = sx * sy * 0.7; }
+    };
+    // same draw order and spacing as the sheets inside (room.js), shifted by the street ↔ shop offset
+    for (let i = 0; i < 7; i++) sheet(0.6 + r() * 0.12, 0.8 + r() * 0.12, -4.6 + i * 0.66 - 1.65 + (r() - 0.5) * 0.05, 0.6 + (i % 2) * 0.85, (r() - 0.5) * 0.08, i);
+    for (let i = 0; i < 4; i++) sheet(0.6, 0.78, -4.4 + i * 1.1 - 1.65, 1.85 + r() * 0.15, (r() - 0.5) * 0.1, i + 7);
+  }
+  // 右橱窗：店里这一段是实墙，所以是一个封了背板的浅橱窗，只挂肉
   // 右橱窗：香肠和火腿、切片机、罐子
-  { const sm = new THREE.MeshPhysicalMaterial({ map: sausageTex(), roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.35, sheen: 0.3 });
-    const hm = new THREE.MeshPhysicalMaterial({ map: hamTex(), roughness: 0.5, clearcoat: 0.35, clearcoatRoughness: 0.5 });
+  { box(WR1 - WR0 + 0.2, 2.9, 0.06, tiles(WR1 - WR0, 2.9), (WR0 + WR1) / 2, 1.45 + 0.15, -0.78, root);              // tiled backboard: the shop wall is right behind it
+    box(WR1 - WR0 + 0.2, 0.06, 0.8, new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.9 }), (WR0 + WR1) / 2, 3.05, -0.4, root);
+    model('hanging_industrial_lamp', { pos: [(WR0 + WR1) / 2, 3.05, -0.4], scale: 0.7, parent: root });
+    { const l = new THREE.PointLight(0xffc080, 2.6, 3.5, 1.8); l.position.set((WR0 + WR1) / 2, 2.6, -0.3); root.add(l); }
+    // every sausage its own: casing colour, girth, length, bend, white bloom, a ring, a tied pair
+    const casing = (seed, base, bloom) => new THREE.MeshPhysicalMaterial({ map: canvasTexture(256, 512, (g, W, H) => {
+      const r = R(seed); const gr = g.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, base[0]); gr.addColorStop(0.5, base[1]); gr.addColorStop(1, base[0]); g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${200 + r() * 40},${170 + r() * 50},${150 + r() * 40},${0.2 + r() * 0.4})`; g.beginPath(); g.ellipse(r() * W, r() * H, 1 + r() * 2.5, 1 + r() * 2, 0, 0, 7); g.fill(); }
+      for (let i = 0; i < 260; i++) { g.strokeStyle = `rgba(15,5,2,${0.15 + r() * 0.3})`; g.lineWidth = 0.6 + r() * 1.2; const x = r() * W, y = r() * H; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 8, y + 4, x + 14, y - 3, x + 24 + r() * 18, y + r() * 6); g.stroke(); }
+      if (bloom) for (let i = 0; i < 140; i++) { g.fillStyle = `rgba(236,232,220,${0.15 + r() * 0.35})`; g.beginPath(); g.ellipse(r() * W, r() * H, 4 + r() * 22, 3 + r() * 14, r() * 3, 0, 7); g.fill(); }
+    }), roughness: bloom ? 0.85 : 0.45, clearcoat: bloom ? 0 : 0.4, clearcoatRoughness: 0.4 });
+    const C = [casing(11, ['#3a120c', '#6a2216'], false), casing(12, ['#5a1a10', '#8e3220'], false), casing(13, ['#2a0e0a', '#4a1a12'], true), casing(14, ['#6a2a18', '#a8502e'], false), casing(15, ['#4a2418', '#7a4430'], true)];
+    const ring = (r0, t, m) => { const g = new THREE.Group(); const o = new THREE.Mesh(new THREE.TorusGeometry(r0, t, 12, 36, Math.PI * 1.8), m); o.rotation.z = Math.PI / 2 + 0.3; o.position.y = -r0; g.add(o); return g; };
+    const hook = (x, z) => { const h = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.003, 5, 12, Math.PI * 1.5), M.steel); h.position.set(x, 2.7, z); h.rotation.z = Math.PI * 0.25; root.add(h); };
     const bar = cyl(0.012, 0.012, WR1 - WR0 - 0.1, M.steel, (WR0 + WR1) / 2, 2.75, -0.35, root, 8); bar.rotation.z = Math.PI / 2;
-    let x = WR0 + 0.12;
-    while (x < WR1 - 0.1) {
-      const isHam = rnd() < 0.22;
+    let x = WR0 + 0.14, k = 0; const rr = R(77);
+    const cuts = [[1, 0.5], [3, 0.46], [0, 0.48]];                              // real-texture cuts from the shop's own counter: marbled beef, pork belly, lean beef
+    while (x < WR1 - 0.12) {
+      const pick = k % 7;
       cyl(0.003, 0.003, 0.08, M.steel, x, 2.71, -0.35, root, 4);
-      const o = isHam ? ham(hm) : sausage(0.3 + rnd() * 0.25, 0.028 + rnd() * 0.012, sm, (rnd() - 0.5) * 0.08);
-      o.position.set(x, 2.67, -0.35); o.rotation.y = rnd() * 3; o.rotation.z = (rnd() - 0.5) * 0.08; root.add(o);
-      x += isHam ? 0.3 : 0.1 + rnd() * 0.06;
+      if (pick === 2 || pick === 5) {                                             // a whole cut hung on an S-hook, face to the street
+        // hung by one end, long side down, the cut face to the street, swinging a little off true
+        const [ti, sc] = cuts[(k >> 1) % 3]; const m = texturedMeat(ti, 31 + k); m.scale.setScalar(sc * 0.8); m.rotation.x = Math.PI / 2 - 0.06;
+        const hold = new THREE.Group(); hold.add(m); hold.rotation.z = Math.PI / 2 + (rr() - 0.5) * 0.12; hold.updateMatrixWorld(true);
+        const b = new THREE.Box3().setFromObject(hold); hold.position.set(x - (b.max.x + b.min.x) / 2, 2.64 - b.max.y, -0.33); root.add(hold); hook(x, -0.35);
+        x += 0.17;
+      } else if (pick === 4) { const o = ring(0.1 + rr() * 0.03, 0.022, C[k % 5]); o.position.set(x, 2.69, -0.35); o.rotation.y = rr() * 0.6 - 0.3; root.add(o); x += 0.16; }
+      else {
+        const pair = pick === 6, n = pair ? 2 : 1;
+        for (let j = 0; j < n; j++) { const o = sausage(0.22 + rr() * 0.32, 0.02 + rr() * 0.02, C[(k + j) % 5], (rr() - 0.5) * 0.1); o.position.set(x + j * 0.05, 2.67, -0.35); o.rotation.y = rr() * 3; o.rotation.z = (rr() - 0.5) * 0.1; root.add(o); }
+        x += (pair ? 0.15 : 0.09) + rr() * 0.05;
+      }
+      k++;
     }
     box(WR1 - WR0, 0.05, 0.6, M.steel, (WR0 + WR1) / 2, 1.0, -0.45, root);
     const sl = new THREE.Group(); sl.position.set(WR0 + 0.7, 1.03, -0.45); sl.rotation.y = 0.5; root.add(sl);
@@ -298,8 +331,16 @@ export function createStreet(env) {
   // brass valve with handwheel and a guard ring, a wrap label, a hazard diamond, a tag on string, chained to a wall bracket.
   { const prof = [[0, 0], [0.09, 0], [0.112, 0.012], [0.116, 0.04], [0.116, 1.36], [0.112, 1.43], [0.098, 1.49], [0.074, 1.535], [0.042, 1.56], [0.03, 1.575], [0.03, 1.6], [0, 1.6]].map(([r, y]) => new THREE.Vector2(r, y));
     const shoulderAt = 1.34;
-    const bodyM = pbr('PaintedMetal012', 0.73, 1.4, { size: 0.45, metalness: 0.6, roughness: 1, color: 0x2e3032 });
-    const greyM = pbr('PaintedMetal012', 0.73, 0.3, { size: 0.45, metalness: 0.5, roughness: 1, color: 0x5e605c });
+    // satin enamel on steel: knocks and scrapes down to bare metal, rust where it stands in water
+    const paintTex = (base, seed, rust) => canvasTexture(512, 512, (g, W, H) => {
+      const r = R(seed); g.fillStyle = base; g.fillRect(0, 0, W, H);
+      for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(255,255,255,${r() * 0.05})`; g.fillRect(0, r() * H, W, 1 + r() * 4); }
+      for (let i = 0; i < 90; i++) { g.strokeStyle = `rgba(170,170,165,${0.25 + r() * 0.5})`; g.lineWidth = 0.6 + r() * 1.4; const x = r() * W, y = r() * H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 60, y + (r() - 0.5) * 14); g.stroke(); }
+      for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(150,150,145,${0.4 + r() * 0.4})`; g.beginPath(); g.ellipse(r() * W, r() * H, 2 + r() * 6, 1 + r() * 4, r() * 3, 0, 7); g.fill(); }
+      if (rust) for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(${110 + r() * 50},${50 + r() * 30},20,${0.3 + r() * 0.5})`; g.beginPath(); g.ellipse(r() * W, H * (0.88 + r() * 0.12), 1 + r() * 5, 1 + r() * 3, 0, 0, 7); g.fill(); }
+    });
+    const bodyM = new THREE.MeshPhysicalMaterial({ map: paintTex('#1c1d1f', 81, true), roughness: 0.55, metalness: 0.2, clearcoat: 0.35, clearcoatRoughness: 0.45 });
+    const greyM = new THREE.MeshPhysicalMaterial({ map: paintTex('#4a4e50', 82, false), roughness: 0.42, metalness: 0.2, clearcoat: 0.35, clearcoatRoughness: 0.45 });
     const brass = new THREE.MeshStandardMaterial({ color: 0xb08a48, metalness: 1, roughness: 0.35 });
     const wheelM = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6 });
     const split = (lo, hi) => prof.filter(([r, y]) => true).map((v) => new THREE.Vector2(v.x, THREE.MathUtils.clamp(v.y, lo, hi)));
@@ -311,7 +352,8 @@ export function createStreet(env) {
       g.fillStyle = '#fff'; g.font = `800 26px ${SANS}`; g.textAlign = 'center'; g.fillText('2', 430, 128); g.textAlign = 'left';
       ageCanvas(g, W, H, { amount: 1.6, seed: 61 });
     });
-    const labelM = new THREE.MeshStandardMaterial({ map: label, roughness: 0.8 });
+    const labelM = new THREE.MeshStandardMaterial({ map: label, roughness: 0.85, color: 0xb8b2a4 });
+    const wheels = [], outlets = [];
     [[3.52, 0.32, 0.4], [3.96, 0.36, -0.6]].forEach(([x, z, turn], k) => {
       const c = new THREE.Group(); c.position.set(x, 0.15, z); c.rotation.y = turn; root.add(c);
       c.add(new THREE.Mesh(new THREE.LatheGeometry(split(0, shoulderAt), 32), bodyM));
@@ -319,22 +361,28 @@ export function createStreet(env) {
       const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.1172, 0.1172, 0.24, 32, 1, true, -1.1, 2.2), labelM); lb.position.y = 0.98; c.add(lb);
       cyl(0.024, 0.026, 0.09, brass, 0, 1.64, 0, c, 16);
       const out = cyl(0.012, 0.012, 0.06, brass, 0.035, 1.635, 0, c, 10); out.rotation.z = Math.PI / 2;
-      const hw = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 18), wheelM); hw.rotation.x = Math.PI / 2; hw.position.y = 1.7; c.add(hw);
-      for (let s = 0; s < 3; s++) { const sp = box(0.06, 0.006, 0.006, wheelM, 0, 1.7, 0, c); sp.rotation.y = s * Math.PI / 3; }
+      const hwG = new THREE.Group(); hwG.position.y = 1.7; c.add(hwG); wheels.push(hwG);
+      const hw = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 18), wheelM); hw.rotation.x = Math.PI / 2; hwG.add(hw);
+      for (let s = 0; s < 3; s++) { const sp = box(0.06, 0.006, 0.006, wheelM, 0, 0, 0, hwG); sp.rotation.y = s * Math.PI / 3; }
+      outlets.push(c.localToWorld(new THREE.Vector3(0.068, 1.635, 0)));
       const guard = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 6, 24), greyM); guard.rotation.x = Math.PI / 2; guard.position.y = 1.73; c.add(guard);
       for (let s = 0; s < 3; s++) { const a = s * Math.PI * 2 / 3; cyl(0.006, 0.006, 0.16, greyM, Math.cos(a) * 0.07, 1.65, Math.sin(a) * 0.07, c, 6); }
       // tag on string
       const tag = canvasTexture(128, 200, (g, W, H) => { g.fillStyle = k ? '#e8c84a' : '#e8e6dc'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `800 22px ${SANS}`; g.fillText(k ? 'IN USE' : 'FULL', 14, 40);
         g.font = `500 14px ${SANS}`; ['Batch C-2611', 'Filled 18/11', 'Return to BOC'].forEach((t, i) => g.fillText(t, 14, 80 + i * 24)); g.beginPath(); g.arc(W / 2, 14, 6, 0, 7); g.fillStyle = '#666'; g.fill(); ageCanvas(g, W, H, { amount: 1.4, seed: 70 + k }); });
-      const tg = plane(0.06, 0.094, lit(tag, { side: THREE.DoubleSide }), 0.06, 1.53, 0.05, 0.3, c); tg.rotation.z = 0.12;
-      cyl(0.0008, 0.0008, 0.11, wheelM, 0.045, 1.6, 0.03, c, 3).rotation.z = 0.5;
+      const tg = plane(0.06, 0.094, lit(tag, { side: THREE.DoubleSide }), 0.13, 1.5, 0, Math.PI / 2, c); tg.rotation.z = 0.06;   // hangs off the outlet, clear of the shoulder
+      const st = new THREE.Mesh(new THREE.TubeGeometry(new THREE.LineCurve3(new THREE.Vector3(0.066, 1.635, 0), new THREE.Vector3(0.13, 1.548, 0)), 2, 0.0008, 3), wheelM); c.add(st);
       decal('Leaking007', c, { pos: [0, 0.2, 0.118], w: 0.24, h: 0.4, color: 0x3a2a1a, opacity: 0.6, rot: [0, 0, Math.PI] });
     });
     // wall bracket and a chain across the front of both cylinders
-    box(0.7, 0.05, 0.08, M.iron, 3.74, 1.2, 0.05, root);
+    box(0.86, 0.05, 0.08, M.iron, 3.70, 1.2, 0.05, root);
     const chainM = new THREE.MeshStandardMaterial({ color: 0x8a8a84, metalness: 1, roughness: 0.45 });
-    const ch = new THREE.CatmullRomCurve3([[3.38, 1.2, 0.08], [3.5, 1.16, 0.46], [3.74, 1.12, 0.52], [3.98, 1.16, 0.5], [4.1, 1.2, 0.08]].map((p) => new THREE.Vector3(...p)));
-    for (let i = 0; i < 40; i++) { const t = i / 39, p = ch.getPoint(t), d = ch.getTangent(t); const l = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0035, 5, 10), chainM); l.position.copy(p); l.lookAt(p.clone().add(d)); l.rotateY(Math.PI / 2); if (i % 2) l.rotateX(Math.PI / 2); l.scale.set(1.5, 1, 1); root.add(l); }
+    const ch = new THREE.CatmullRomCurve3([[3.29, 1.2, 0.08], [3.32, 1.18, 0.3], [3.4, 1.16, 0.44], [3.52, 1.15, 0.458], [3.74, 1.13, 0.48], [3.96, 1.15, 0.498], [4.09, 1.16, 0.44], [4.11, 1.18, 0.3], [4.11, 1.2, 0.08]].map((p) => new THREE.Vector3(...p)));
+    for (let i = 0; i < 64; i++) { const t = i / 63, p = ch.getPoint(t), d = ch.getTangent(t); const l = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0035, 5, 10), chainM); l.position.copy(p); l.lookAt(p.clone().add(d)); l.rotateY(Math.PI / 2); if (i % 2) l.rotateX(Math.PI / 2); l.scale.set(1.5, 1, 1); root.add(l); }
+    // the valve: crack it open and the handwheel turns, a cold white jet hisses out of the outlet for a few seconds
+    const puffMap = canvasTexture(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
+    const puffs = []; for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffMap, transparent: true, depthWrite: false, opacity: 0, color: 0xe8eef0 })); sp.userData.ph = i / 40; root.add(sp); puffs.push(sp); }
+    valve = { wheels, outlets, puffs, t0: -99 };
   }
   const note = (t, s, seed) => canvasTexture(200, 260, (g, W, H) => { g.fillStyle = '#ddd6c2'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 36px ${SANS}`; g.textAlign = 'center'; g.fillText(t, W / 2, 60); g.font = `400 20px ${SANS}`; s.forEach((l, i) => g.fillText(l, W / 2, 110 + i * 30)); ageCanvas(g, W, H, { amount: 1.2, seed }); });
   for (const [x, y, t, l] of [[4.55, 2.05, 'NOTICE', ['Basement works', 'at night']], [4.85, 1.65, 'HIRING', ['Night packers', 'paid daily']], [4.45, 1.45, 'REGULARS', ['Use side door', 'knock 3 times']], [5.0, 2.3, 'LOST CAT', ['Grey · female', 'reward']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
@@ -525,6 +573,18 @@ export function createStreet(env) {
     }
     rainGeo.attributes.position.needsUpdate = true;
     sideLamp.intensity = 3.5 * (t % 5.1 > 4.85 ? 0.3 : 1);
+    nowT = t;
+    if (valve) {                                                           // valve open for ~3.5 s: wheel turns, jet streams out, then shut
+      const e = t - valve.t0, open = e > 0 && e < 3.6 ? Math.min(1, e * 2, (3.6 - e) * 2) : 0;
+      valve.wheels[0].rotation.y = -Math.min(1, Math.max(0, e) / 0.6) * Math.PI * 1.5 + (e > 3.2 ? Math.min(1, (e - 3.2) / 0.6) * Math.PI * 1.5 : 0);
+      for (const sp of valve.puffs) {
+        const p = ((t * 1.6 + sp.userData.ph) % 1), o = valve.outlets[0];
+        sp.position.set(o.x + 0.05 + p * 0.55, o.y + p * p * 0.25, o.z + 0.05 + p * 0.3 + Math.sin(p * 9 + sp.userData.ph * 20) * 0.03);
+        sp.scale.setScalar(0.03 + p * 0.28);
+        sp.material.opacity = open * 0.5 * (1 - p) * Math.min(1, p * 8);
+      }
+    }
   }
-  return { scene, tick };
+  return { scene, tick,
+    onAction(act) { if (act === 'valve' && valve && nowT - valve.t0 > 5) valve.t0 = nowT; } };
 }
