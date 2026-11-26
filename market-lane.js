@@ -1,6 +1,35 @@
 // Neighbouring premises modelled in metres. Each pivot is the centre of its street frontage.
 import * as T from 'three';
-import { decal } from './assets.js';
+import { decal, pbr } from './assets.js';
+import { canvasTexture } from './textures.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+// Scanned PBR surfaces mapped in world space: one texture set per surface, brick courses run on across every piece.
+const WORLD = {};
+function worldMat(name, { size = 2, color, roughness = 1, metalness = 0, normalScale = 1, env = 1, rough = true } = {}) {
+  const key = [name, size, color, roughness, metalness, normalScale].join('|');
+  if (WORLD[key]) return WORLD[key];
+  const m = pbr(name, 1, 1, { size: 1, color, roughness, metalness, normalScale, envMapIntensity: env, ao: false });
+  if (!rough) m.roughnessMap = null;
+  const k = (1 / size).toFixed(4);
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', `#include <uv_vertex>
+      { vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz; vec3 wn = normalize(mat3(modelMatrix) * normal);
+        vec2 wu = abs(wn.y) > 0.7 ? wp.xz : (abs(wn.x) > abs(wn.z) ? vec2(-wp.z * sign(wn.x), wp.y) : vec2(wp.x * sign(wn.z), wp.y));
+        wu *= ${k};
+        #ifdef USE_MAP
+          vMapUv = wu;
+        #endif
+        #ifdef USE_NORMALMAP
+          vNormalMapUv = wu;
+        #endif
+        #ifdef USE_ROUGHNESSMAP
+          vRoughnessMapUv = wu;
+        #endif
+      }`);
+  };
+  m.customProgramCacheKey = () => 'world' + k;
+  return (WORLD[key] = m);
+}
 export function addMarketLane(root) {
   const loader = new T.TextureLoader();
   function texture(name) {
@@ -10,22 +39,53 @@ export function addMarketLane(root) {
     return t;
   }
   const mat = (color, roughness=.78, metalness=0) => new T.MeshStandardMaterial({color, roughness, metalness});
-  const iron = mat(0x444a46,.48,.52), coping = mat(0x77736a), timber = mat(0x484338), slate = mat(0x465453,.61);
-  const frame = mat(0x5a5a52), dark = mat(0x232e30,.29,.35), cream = mat(0xc2b598);
+  const iron = worldMat('PaintedMetal012',{size:.8,color:0x3a3e3c,metalness:1,roughness:1});
+  const coping = worldMat('concrete_wall_008',{size:1.4,color:0x9a958a,rough:false});
+  const timber = worldMat('rough_wood',{size:.9,color:0x6e5e4c,rough:false});
+  const slate = worldMat('grey_roof_tiles',{size:2,color:0x4a4e52,roughness:1,env:.5});
+  const slateFlat = mat(0x465453,.61);
+  const frame = worldMat('green_rough_planks',{size:.8,color:0x8e948a,rough:false}), frameFlat = mat(0x5a5a52);
+  const dark = mat(0x232e30,.29,.35), cream = mat(0xc2b598);
   const unit = new T.BoxGeometry();
   function piece(g,x,y,z,w,h,d,m) {
     const o=new T.Mesh(unit,m); o.position.set(x,y,z); o.scale.set(w,h,d); g.add(o); return o;
   }
-  function surface(name,w,h) {
-    const t=texture(name); t.wrapS=t.wrapT=T.RepeatWrapping; t.repeat.set(w/3.2,h/3.2);
-    const tone={ashlar:0x979087,limewash:0xb3ae91,'kiln-brick':0xc5ae9d,zinc:0xa0a59f}[name]??0xffffff;
-    return new T.MeshStandardMaterial({map:t,color:tone,roughness:name==='zinc'?.56:.88,metalness:name==='zinc'?.42:0});
+  const SKIN={'kiln-brick':['red_brick_plaster_patch_02',1.45,0xb4a196],limewash:['painted_plaster_wall',2.6,0xc8c0a4],
+    ashlar:['plastered_stone_wall',2.2,0x9a948a],zinc:['corrugated_iron',1.7,0xaab0aa],shed:['factory_wall',2.2,0x8a9a8a]};
+  function surface(name,w,h,tone){
+    const [scan,size,base]=SKIN[name];
+    return worldMat(scan,{size,color:tone??base,metalness:name==='zinc'?.45:0,roughness:name==='zinc'?.8:1,normalScale:name==='kiln-brick'?1.3:1});
   }
-  // Lit rooms differ in colour temperature and brightness: tungsten, fluorescent, TV blue, red shade, a dim lamp.
-  const panes=[dark,...[[0xe0a060,.9],[0xc8e0d8,.55],[0x6a8ad8,.45],[0xd86a50,.5],[0xb07840,.22],[0xf0c890,1.1]].map(([c,k])=>new T.MeshStandardMaterial({color:0x202020,emissive:c,emissiveIntensity:k,roughness:.42}))];
+  const hash=(n)=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v);};
+  // What is behind each lit pane: an office under strip lights, a store room, blinds, a lived-in flat, a stairwell, a TV.
+  const paneTex=(kind,seed)=>canvasTexture(128,128,(g,W,H)=>{
+    let n=seed;const r=()=>(n=(n*16807)%2147483647)/2147483647;
+    const P={office:['#1c2226','#9fb4b0','#e8fff8'],store:['#140e08','#5a4026','#e0b070'],blinds:['#2a2016','#c8a070','#ffe0b0'],
+      flat:['#1a0e08','#a0643a','#ffc890'],stair:['#0e120e','#3a4a3a','#b8d0a0'],tv:['#05080e','#203a6a','#90b8ff']}[kind];
+    g.fillStyle=P[0];g.fillRect(0,0,W,H);
+    const hx=W*(.2+r()*.6),hy=H*(.15+r()*.3),gr=g.createRadialGradient(hx,hy,2,hx,hy,W*(kind==='stair'?.6:1));
+    gr.addColorStop(0,P[2]);gr.addColorStop(.4,P[1]);gr.addColorStop(1,P[0]);g.fillStyle=gr;g.fillRect(0,0,W,H);
+    g.fillStyle='rgba(0,0,0,.6)';
+    if(kind==='office'){g.fillStyle=P[2];for(const x of [.2,.65])g.fillRect(W*x,6,W*.22,4);g.fillStyle='rgba(0,0,0,.6)';
+      for(let k=0;k<3;k++){const x=6+k*42+r()*6;g.fillRect(x,H*.62,36,5);g.fillRect(x+10,H*.48,16,12);g.fillStyle='rgba(160,200,255,.5)';g.fillRect(x+12,H*.5,12,8);g.fillStyle='rgba(0,0,0,.6)';}
+      g.fillRect(W*.05,H*.35,10,H*.65);}
+    if(kind==='store'){for(let k=0;k<9;k++){const x=r()*W*.9,h=10+r()*18,y=H-h-(k%3)*18;g.fillStyle=`rgba(${60+r()*40},${40+r()*30},20,.85)`;g.fillRect(x,y,14+r()*16,h);}
+      g.fillStyle='rgba(0,0,0,.7)';g.fillRect(hx-.5,0,1,hy);}
+    if(kind==='blinds'){for(let y=0;y<H*(.5+r()*.5);y+=5){g.fillStyle='rgba(30,20,10,.55)';g.fillRect(0,y,W,1.6);}}
+    if(kind==='flat'){g.fillRect(4,H*.3,24,H*.7);g.fillRect(W*.45,H*.7,40,7);g.fillRect(W*.45+2,H*.7,4,H*.3);
+      for(let k=0;k<3;k++){g.strokeStyle='rgba(0,0,0,.5)';g.strokeRect(W*.4+k*16,H*.25+(k%2)*6,11,14);}}
+    if(kind==='stair'){g.strokeStyle='rgba(0,0,0,.7)';g.lineWidth=3;g.beginPath();g.moveTo(0,H*.9);g.lineTo(W,H*.35);g.stroke();
+      g.lineWidth=1.5;for(let x=8;x<W;x+=14){g.beginPath();g.moveTo(x,H*.9-x*.43);g.lineTo(x,H*.9-x*.43+18);g.stroke();}}
+    if(kind==='tv'){g.fillStyle='rgba(0,0,0,.75)';g.beginPath();g.ellipse(W*.5,H*.82,22,18,0,Math.PI,0);g.fill();g.fillRect(W*.2,H*.82,W*.6,H*.18);}
+    g.fillStyle='rgba(0,0,0,.35)';g.fillRect(0,0,W,3);g.fillRect(0,H-3,W,3);
+  });
+  const PANES=[['office',.95,0xffffff],['office',.5,0xd8f0ff],['store',.55,0xffffff],['blinds',.85,0xffffff],['flat',1,0xffffff],
+    ['flat',.6,0xffd8b0],['stair',.45,0xffffff],['tv',.7,0xffffff],['blinds',.45,0xffe8c8]].map(([kind,k,tint],i)=>
+    new T.MeshStandardMaterial({color:0x101010,emissive:tint,emissiveMap:paneTex(kind,11+i*17),emissiveIntensity:k,roughness:.12,metalness:.4}));
+  const panes=[dark,...PANES];
   function window(g,x,y,w,h,z,id) {
     piece(g,x,y,z,w+.17,h+.17,.18,frame);
-    piece(g,x,y,z+.11,w,h,.07,panes[[0,1,0,2,5,0,3,0,4,6,0][Math.abs(id)%11]]);
+    {const r=hash(id);piece(g,x,y,z+.11,w,h,.07,r<.42?dark:PANES[Math.floor(hash(id+7.3)*PANES.length)]);}
     piece(g,x,y+h*.19,z+.16,w,.057,.035,timber);
     piece(g,x,y,z+.16,.048,h,.035,timber);
     piece(g,x,y-h/2-.09,z+.09,w+.29,.13,.36,coping);
@@ -73,7 +133,7 @@ export function addMarketLane(root) {
         piece(g,x,.98,z,1.09,1.52,.91,enamel);
         piece(g,x,1.53,z+.46,.97,.19,.04,frame);
         rod(g,[x,.96,z+.45],[x,.96,z+.51],.40,rubber,.4,32);
-        rod(g,[x,.96,z+.51],[x,.96,z+.54],.30,slate,.30,32);
+        rod(g,[x,.96,z+.51],[x,.96,z+.54],.30,slateFlat,.30,32);
         const ring=new T.Mesh(new T.TorusGeometry(.34,.041,8,36),iron);ring.position.set(x,.96,z+.55);g.add(ring);
         piece(g,x-.27,1.53,z+.5,.21,.07,.025,dark);piece(g,x+.26,1.53,z+.5,.07,.07,.03,brass);
       }
@@ -103,7 +163,7 @@ export function addMarketLane(root) {
         const x=display+(j-1)*1.15;
         piece(g,x,.94,-1.02,1.07,.46,.95,enamel);
         for(let i=0;i<3;i++){
-          const fish=new T.Mesh(new T.SphereGeometry(1,12,7),i===1?slate:frame);fish.scale.set(.36,.09,.105);fish.position.set(x,1.2,-.75-i*.25);fish.rotation.y=.13*(i-1);g.add(fish);
+          const fish=new T.Mesh(new T.SphereGeometry(1,12,7),i===1?slateFlat:frameFlat);fish.scale.set(.36,.09,.105);fish.position.set(x,1.2,-.75-i*.25);fish.rotation.y=.13*(i-1);g.add(fish);
           const tail=new T.Mesh(new T.ConeGeometry(.12,.22,3),iron);tail.rotation.z=Math.PI/2;tail.position.set(x+.33,1.2,fish.position.z);g.add(tail);
         }
       }
@@ -155,33 +215,93 @@ export function addMarketLane(root) {
     rod(g,[x,y,z],[x,y-drop,z],.014,iron);rod(g,[x,y-drop-.145,z],[x,y-drop,z],.23,greenPaint,.055);
     rod(g,[x,y-drop-.154,z],[x,y-drop-.14,z],.19,cool?porcelain:amber);
   }
+  // Every flat is somebody's: its own wallpaper, light, furniture and window dressing.
+  const ROOM_KINDS=['study','living','kitchen','bedroom','plants','tv','empty'];
+  const roomMats=new Map();
+  function roomWall(kind,seed){
+    const key=kind+seed;if(roomMats.has(key))return roomMats.get(key);
+    let n=seed*7919+13;const r=()=>(n=(n*16807)%2147483647)/2147483647;
+    const PAPER=[['#6a4a3a','#7a5644'],['#3e5246','#48604f'],['#7a6a4a','#86764f'],['#5a4a5a','#665468'],['#8a7a62','#968670'],['#4a5a66','#546876'],['#86705a','#927a62']];
+    const [base,alt]=PAPER[Math.floor(r()*PAPER.length)];
+    const map=canvasTexture(256,192,(g,W,H)=>{
+      g.fillStyle=base;g.fillRect(0,0,W,H);
+      const pat=kind==='kitchen'?'tile':kind==='empty'?'bare':['stripe','floral','diamond','plain','frames'][Math.floor(r()*5)];
+      g.fillStyle=alt;g.strokeStyle=alt;
+      if(pat==='stripe')for(let x=0;x<W;x+=14){g.fillRect(x,0,5,H);g.fillRect(x+8,0,1.5,H);}
+      if(pat==='floral')for(let y=6;y<H;y+=16)for(let x=(y/16%2)*9;x<W;x+=18){g.beginPath();for(let k=0;k<5;k++){const t=k*1.2566;g.ellipse(x+Math.cos(t)*3,y+Math.sin(t)*3,2.4,2.4,0,0,7);}g.fill();}
+      if(pat==='diamond'){g.lineWidth=1.5;for(let x=-H;x<W;x+=16){g.beginPath();g.moveTo(x,0);g.lineTo(x+H,H);g.moveTo(x+H,0);g.lineTo(x,H);g.stroke();}}
+      if(pat==='tile'){g.fillStyle='#c8ccc0';g.fillRect(0,H*.35,W,H*.4);g.strokeStyle='rgba(60,60,50,.6)';g.lineWidth=1;
+        for(let y=H*.35;y<H*.75;y+=10){g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}for(let x=0;x<W;x+=10){g.beginPath();g.moveTo(x,H*.35);g.lineTo(x,H*.75);g.stroke();}}
+      if(pat==='bare'){for(let i=0;i<30;i++){g.fillStyle=`rgba(${r()<.5?40:200},${r()<.5?36:190},30,${.1+r()*.15})`;g.beginPath();g.ellipse(r()*W,r()*H,10+r()*40,6+r()*20,r()*3,0,7);g.fill();}
+        g.fillStyle='rgba(0,0,0,.45)';g.fillRect(W*.3,H*.2,W*.3,H*.25);}                                      // a pale square where a picture hung
+      if(pat==='frames'||kind==='living'||kind==='bedroom')for(let k=0;k<2+Math.floor(r()*3);k++){
+        const fw=14+r()*26,fh=12+r()*22,fx=W*(.15+r()*.65),fy=H*(.15+r()*.25);g.fillStyle='#2a2018';g.fillRect(fx-2,fy-2,fw+4,fh+4);
+        g.fillStyle=`hsl(${r()*360},${20+r()*30}%,${35+r()*30}%)`;g.fillRect(fx,fy,fw,fh);}
+      if(kind==='kitchen'){g.fillStyle='#d8d4c4';g.fillRect(0,0,W,H*.3);g.strokeStyle='rgba(0,0,0,.4)';for(let x=0;x<W;x+=W/4)g.strokeRect(x+2,2,W/4-4,H*.3-4);}
+      if(kind==='tv'){const tg=g.createRadialGradient(W*.5,H*.7,4,W*.5,H*.7,W*.6);tg.addColorStop(0,'rgba(120,160,255,.55)');tg.addColorStop(1,'rgba(0,0,40,0)');g.fillStyle=tg;g.fillRect(0,0,W,H);}
+      const lx=W*(.2+r()*.6),ly=H*(.15+r()*.4),lg=g.createRadialGradient(lx,ly,4,lx,ly,W*(kind==='tv'||kind==='empty'?.5:.9));  // the room's own light falls off into the corners
+      lg.addColorStop(0,'rgba(255,240,210,.35)');lg.addColorStop(.5,'rgba(0,0,0,0)');lg.addColorStop(1,'rgba(0,0,0,.55)');g.fillStyle=lg;g.fillRect(0,0,W,H);
+      g.fillStyle='rgba(0,0,0,.35)';g.fillRect(0,H-10,W,10);g.fillRect(0,0,W,4);
+    });
+    const LIGHT={study:[0xffd8a8,.62],living:[0xffc890,.7],kitchen:[0xe8fff4,.85],bedroom:[0xffb070,.38],plants:[0xf0f0d0,.6],tv:[0x9ab8ff,.32],empty:[0xffffff,.07]}[kind];
+    const k=LIGHT[1]*(.8+r()*.45);
+    const m=new T.MeshStandardMaterial({map,emissiveMap:map,emissive:LIGHT[0],emissiveIntensity:k,roughness:.93});
+    // Reveals, ceiling and floor are lit by the room, not by the street.
+    m.userData.shell=new T.MeshStandardMaterial({color:0x000000,emissive:new T.Color(base).lerp(new T.Color(LIGHT[0]),.4),emissiveIntensity:k*.55,roughness:1});
+    m.userData.floor=new T.MeshStandardMaterial({color:0x000000,emissive:0x3a2a1c,emissiveIntensity:k*.7,roughness:1});
+    roomMats.set(key,m);return m;
+  }
+  const cloths=[linen,blueCloth,mat(0x7a3a30,.95),mat(0x4a5a3a,.95),mat(0xa08850,.95),mat(0x5a4a62,.95)];
+  const net=new T.MeshStandardMaterial({color:0xe8e4d8,roughness:1,transparent:true,opacity:.55,side:T.DoubleSide,depthWrite:false});
+  const fridgeMat=mat(0xd8d8cc,.4),sofaMat=[mat(0x6a3a2a,.95),mat(0x3a4a5a,.95),mat(0x6a6a4a,.95)];
+  function rbox(g,x,y,z,w,h,d,m,r=.03){const o=new T.Mesh(new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/2,h/2,d/2)),m);o.position.set(x,y,z);g.add(o);return o;}
   function flat(g,x,y,w,h,id){
-    const ax=Math.abs(id), back=-1.62, floor=y-h/2, ceiling=y+h/2;
-    const roomMat=ax%3===0?'cool-room':'warm-room';
-    picture(g,roomMat,x,y,back,w,h,.66);piece(g,x,floor,back/2,w,.08,-back,timber);
-    piece(g,x,ceiling,back/2,w,.09,-back,cream);
-    for(const s of [-1,1])piece(g,x+s*w/2,y,back/2,.07,h,-back,cream);
+    const ax=Math.abs(id), back=-1.62, floor=y-h/2, ceiling=y+h/2, hv=(k)=>hash(ax*3.7+k);
+    const kind=ROOM_KINDS[Math.floor(hv(1)*ROOM_KINDS.length)];
+    const rw=roomWall(kind,ax);
+    {const o=new T.Mesh(new T.PlaneGeometry(w,h),rw);o.position.set(x,y,back);g.add(o);}
+    piece(g,x,floor,back/2,w,.08,-back,rw.userData.floor);
+    piece(g,x,ceiling,back/2,w,.09,-back,rw.userData.shell);
+    for(const s of [-1,1])piece(g,x+s*w/2,y,back/2,.07,h,-back,rw.userData.shell);
     // Furniture is set back from the sill. The frame masks it differently on each approach.
-    const dx=x+(ax%2?.19:-.18)*w;
-    piece(g,dx,floor+.52,-1.08,w*.57,.07,.56,timber);
-    for(const sx of [-1,1])piece(g,dx+sx*w*.23,floor+.24,-1.05,.055,.48,.08,timber);
-    if(ax%3===0){
-      piece(g,dx,floor+.83,-1.15,.58,.35,.09,iron);piece(g,dx,floor+.83,-1.094,.52,.29,.012,blueCloth);
-      for(let j=0;j<3;j++)piece(g,dx-.32,floor+.61+j*.058,-.98,.2,.05,.15,spines[(j+ax)%6]);
-    }else if(ax%3===1){
-      rod(g,[dx,floor+.57,-1.05],[dx,floor+.89,-1.05],.026,brass);
-      rod(g,[dx,floor+.86,-1.05],[dx,floor+1.15,-1.05],.24,amber,.12);
+    const side=hv(2)<.5?-1:1, dx=x+side*.2*w;
+    if(kind==='study'){
+      piece(g,dx,floor+.52,-1.08,w*.57,.07,.56,timber);
+      for(const sx of [-1,1])piece(g,dx+sx*w*.23,floor+.24,-1.05,.055,.48,.08,timber);
+      rod(g,[dx,floor+.57,-1.05],[dx,floor+.89,-1.05],.026,brass);rod(g,[dx,floor+.86,-1.05],[dx,floor+1.15,-1.05],.24,amber,.12);
+      for(let j=0;j<4;j++)piece(g,dx-.3,floor+.6+j*.055,-.98,.22,.05,.16,spines[(j+ax)%6]);
+      piece(g,x-side*.32*w,floor+.9,-1.45,.5,1.8,.3,timber);for(let k=0;k<4;k++)for(let j=0;j<5;j++)piece(g,x-side*.32*w-.18+j*.09,floor+.35+k*.42,-1.38,.07,.3,.18,spines[(k*5+j+ax)%6]);
+    }else if(kind==='living'){
+      rbox(g,dx,floor+.32,-1.25,w*.7,.62,.5,sofaMat[ax%3],.08);rbox(g,dx,floor+.68,-1.45,w*.7,.4,.14,sofaMat[ax%3],.06);
+      rod(g,[x-side*.38*w,floor,-1.3],[x-side*.38*w,floor+1.4,-1.3],.015,brass);rod(g,[x-side*.38*w,floor+1.32,-1.3],[x-side*.38*w,floor+1.58,-1.3],.2,amber,.12);
+    }else if(kind==='kitchen'){
+      piece(g,x,floor+.45,-1.32,w,.9,.56,cream);piece(g,x,floor+.92,-1.3,w,.04,.6,timber);
+      piece(g,x+side*.38*w,floor+.95,-1.25,.6,1.8,.62,fridgeMat);
+      rod(g,[x-side*.1,floor+.94,-1.2],[x-side*.1,floor+1.14,-1.2],.08,porcelain,.07);pendant(g,x,ceiling,-1.1,.18,true);
+    }else if(kind==='bedroom'){
+      rbox(g,dx,floor+.75,-1.55,w*.62,.8,.06,timber,.03);rbox(g,dx,floor+.28,-1.1,w*.62,.36,.9,cloths[(ax+2)%6],.08);
+      piece(g,x-side*.36*w,floor+1.0,-1.38,.55,2.0,.45,timber);
+      rod(g,[dx+side*.42*w,floor+.45,-1.4],[dx+side*.42*w,floor+.7,-1.4],.12,amber,.07);
+    }else if(kind==='plants'){
+      pendant(g,x,ceiling,-.98,.28);plant(g,dx,floor+.57,-1,.54,id);piece(g,dx,floor+.52,-1.08,w*.57,.07,.56,timber);
+      plant(g,x-side*.3*w,floor+.08,-1.2,.8,id+3);
+    }else if(kind==='tv'){
+      rbox(g,dx,floor+.32,-.95,w*.7,.62,.5,sofaMat[(ax+1)%3],.08);
+      piece(g,x-side*.15*w,floor+.65,-1.52,.7,.42,.06,dark);
     }else{
-      pendant(g,x,ceiling,-.98,.28);plant(g,dx,floor+.57,-1,.54,id);
+      for(let k=0;k<5;k++)piece(g,x+(hv(10+k)-.5)*w*.7,floor+.2+(k>2?.38:0),-1.1-hv(20+k)*.4,.4,.36,.36,spines[(k+ax)%6]);
     }
-    piece(g,x-.18*w,y+.12,back+.045,.34,.44,.07,timber);piece(g,x-.18*w,y+.12,back+.09,.27,.35,.01,blueCloth);
-    if(ax%3===1){for(let k=0;k<6;k++)piece(g,x,ceiling-.1-k*.095,-.12,w*.94,.064,.05,linen).rotation.x=.28;}
-    else {for(const s of [-1,1])curtain(g,x+s*w*.39,y,-.24,w*(s===1?.21:.25),h*.97,ax%2?blueCloth:linen,id+s);}
+    // Window dressing: curtains drawn to different widths, blinds at different heights, nets, or nothing.
+    const dress=hv(3);
+    if(kind==='empty'){}
+    else if(dress<.38){const cm=cloths[Math.floor(hv(4)*6)];for(const s of [-1,1])curtain(g,x+s*w*(.36+hv(5+s)*.08),y,-.24,w*(.16+hv(6+s)*.16),h*.97,cm,id+s);}
+    else if(dress<.62){const drop=1+Math.floor(hv(7)*9);for(let k=0;k<drop;k++)piece(g,x,ceiling-.1-k*.095,-.12,w*.94,.064,.05,hv(8)<.5?linen:cloths[4]).rotation.x=.28;}
+    else if(dress<.82){const nh=h*(.45+hv(9)*.3);const o=new T.Mesh(new T.PlaneGeometry(w*.96,nh,8,1),net);o.position.set(x,floor+nh/2+.05,-.1);g.add(o);}
     for(const s of [-1,1])piece(g,x+s*w/2,y,.025,.105,h,.14,frame);
     piece(g,x,ceiling,.035,w+.17,.1,.17,frame);piece(g,x,floor,.12,w+.23,.13,.32,coping);
     piece(g,x,y+.22,.055,w,.048,.085,timber);piece(g,x,y,.065,.047,h,.09,timber);
-    if(ax%3===0)plant(g,x+w*.24,floor+.08,.17,.58,id);
-    if(ax%4===1){piece(g,x,floor-.13,.27,w+.26,.09,.55,iron);
+    if(hv(11)<.35)plant(g,x+w*(hv(12)-.5)*.6,floor+.08,.17,.5+hv(13)*.2,id);
+    if(hv(14)<.3){piece(g,x,floor-.13,.27,w+.26,.09,.55,iron);
       for(let k=0;k<8;k++)piece(g,x+w*(k/7-.5),floor+.17,.51,.025,.57,.028,iron);
       piece(g,x,floor+.47,.51,w+.12,.044,.045,iron);
     }
@@ -251,33 +371,90 @@ export function addMarketLane(root) {
       for(const dx of [-.31,.31])for(const dz of [-1,1])rod(stand,[dx,0,dz*.22],[dx,.99,0],.027,timber);
     }
   }
+  // ---- vehicles: rounded panels, clear-coated paint, chrome, glass, lamps, plates, road grime
+  const chrome=new T.MeshStandardMaterial({color:0xd8dcdc,metalness:1,roughness:.18});
+  const steel=new T.MeshStandardMaterial({color:0x8a8e8c,metalness:.85,roughness:.42});
+  const seam=mat(0x0c0d0e,.9);
+  const tint=new T.MeshStandardMaterial({color:0x12181c,metalness:.6,roughness:.06,envMapIntensity:1.6,polygonOffset:true,polygonOffsetFactor:-2});
+  const lampLens=new T.MeshStandardMaterial({color:0xdde2dc,metalness:.2,roughness:.1,emissive:0xfff2d8,emissiveIntensity:.05});
+  const tailLens=new T.MeshStandardMaterial({color:0x6a0e0a,roughness:.25,emissive:0xff2010,emissiveIntensity:.25});
+  const amberLens=new T.MeshStandardMaterial({color:0xb06010,roughness:.25,emissive:0xff8a20,emissiveIntensity:.08});
+  const paintOf=(c)=>new T.MeshPhysicalMaterial({color:c,roughness:.42,metalness:.2,clearcoat:.9,clearcoatRoughness:.18});
+  function plate(g,text,yellow,x,y,z,ry=0){
+    const map=canvasTexture(256,56,(c,W,H)=>{c.fillStyle=yellow?'#e8c02a':'#eeeee6';c.fillRect(0,0,W,H);c.fillStyle='#111';c.font='bold 40px "Arial Narrow", Arial, sans-serif';
+      c.textAlign='center';c.textBaseline='middle';c.fillText(text,W/2,H/2+2);c.strokeStyle='#222';c.lineWidth=3;c.strokeRect(2,2,W-4,H-4);
+      c.fillStyle='rgba(40,30,20,.25)';for(let i=0;i<60;i++)c.fillRect(Math.random()*W,H*.6+Math.random()*H*.4,3,2);});
+    const o=new T.Mesh(new T.PlaneGeometry(.52,.114),new T.MeshStandardMaterial({map,roughness:.5,metalness:.1}));o.position.set(x,y,z);o.rotation.y=ry;g.add(o);return o;
+  }
+  function wheel(g,x,y,z,r=.33,wd=.19){
+    const w=new T.Group();w.position.set(x,y,z);g.add(w);const sx=Math.sign(x)||1;
+    const prof=[[r*.62,-wd/2],[r*.9,-wd/2],[r*.98,-wd*.42],[r,-wd*.25],[r,wd*.25],[r*.98,wd*.42],[r*.9,wd/2],[r*.62,wd/2]].map(([a,b])=>new T.Vector2(a,b));
+    const tyre=new T.Mesh(new T.LatheGeometry(prof,40),rubber);tyre.rotation.z=Math.PI/2;w.add(tyre);
+    for(let k=0;k<20;k++){const a=k/20*Math.PI*2;const t=piece(w,0,Math.sin(a)*r*1.001,Math.cos(a)*r*1.001,wd*.78,.012,.03,seam);t.rotation.x=-a;}   // tread blocks
+    rod(w,[sx*wd*.3,0,0],[sx*wd*.46,0,0],r*.64,steel,r*.62,28);
+    rod(w,[sx*wd*.46,0,0],[sx*wd*.52,0,0],r*.3,chrome,r*.26,24);
+    for(let k=0;k<4;k++){const a=k*Math.PI/2+.4;rod(w,[sx*wd*.46,Math.sin(a)*r*.42,Math.cos(a)*r*.42],[sx*wd*.5,Math.sin(a)*r*.42,Math.cos(a)*r*.42],.014,chrome,.014,6);}
+    return w;
+  }
+  const linerMat=new T.MeshStandardMaterial({color:0x0a0a0a,roughness:.95,side:T.DoubleSide});
+  function liner(g,z,y,r,width){                                       // the dark inside of a wheel arch
+    const q=new T.Mesh(new T.CylinderGeometry(r,r,width,24,1,true,0,Math.PI),linerMat);q.rotation.z=Math.PI/2;q.position.set(0,y,z);g.add(q);return q;
+  }
+  function quad(g,a,b,c,d,m){const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute([...a,...b,...c,...d],3));
+    geo.setIndex([0,1,2,0,2,3]);geo.computeVertexNormals();const o=new T.Mesh(geo,m);m.side=T.DoubleSide;g.add(o);return o;}
   function estateCar(){
     const c=new T.Group();c.position.set(11,.015,17.98);c.rotation.y=1.49;root.add(c);
-    const paint=mat(0x4f685f,.44,.32),glass=mat(0x3e5158,.37,.19);
-    // Profile rings run from tailgate to bonnet. Separate inset panes follow the cabin taper.
-    const rings=[[-2.1,.78,.83],[-1.97,.9,1.02],[-1.58,.91,1.13],[.78,.91,1.1],[1.67,.87,.96],[2.05,.73,.82]];
-    function hull(sections,low,material){
-      const pos=[],indices=[];
-      for(const [z,w,y] of sections)pos.push(-w,low,z,w,low,z,w,y-.11,z,w*.91,y,z,-w*.91,y,z,-w,y-.11,z);
-      for(let i=1;i<sections.length;i++)for(let j=0;j<6;j++){
-        const a=(i-1)*6+j,b=(i-1)*6+(j+1)%6;indices.push(a,b,a+6,b,b+6,a+6);}
-      for(const [start,rev] of [[0,false],[(sections.length-1)*6,true]])for(let k=1;k<5;k++)indices.push(start,start+(rev?k+1:k),start+(rev?k:k+1));
-      const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setIndex(indices);geo.computeVertexNormals();
-      material.side=T.DoubleSide;c.add(new T.Mesh(geo,material));
+    const paint=paintOf(0x3e5a50), W=1.74, wb=1.42, R=.33, AR=.4;
+    // Lower body: side profile with the two wheel arches cut out of the sill line.
+    const sh=new T.Shape();sh.moveTo(-2.32,.3);sh.lineTo(-wb-AR,.3);sh.absarc(-wb,.32,AR,Math.PI,0,true);sh.lineTo(wb-AR,.3);sh.absarc(wb,.32,AR,Math.PI,0,true);
+    sh.lineTo(2.3,.3);sh.quadraticCurveTo(2.42,.32,2.42,.46);sh.lineTo(2.42,.74);sh.quadraticCurveTo(2.41,.84,2.3,.85);sh.lineTo(1.0,.93);sh.lineTo(-2.3,.95);
+    sh.quadraticCurveTo(-2.4,.94,-2.4,.86);sh.lineTo(-2.4,.42);sh.quadraticCurveTo(-2.4,.3,-2.32,.3);
+    const bv=.06,geo=new T.ExtrudeGeometry(sh,{depth:W-2*bv,bevelEnabled:true,bevelThickness:bv,bevelSize:bv,bevelSegments:4,curveSegments:28});
+    geo.rotateY(-Math.PI/2);geo.translate((W-2*bv)/2,0,0);c.add(new T.Mesh(geo,paint));
+    for(const z of [-wb,wb])liner(c,z,.32,AR-.01,W-.06);
+    // Cabin: roof and pillars in paint, glass set into each opening.
+    const GW=1.5,gb=.045;
+    const cab=new T.Shape();cab.moveTo(-2.31,.9);cab.lineTo(-2.27,1.39);cab.quadraticCurveTo(-2.24,1.44,-2.1,1.445);cab.lineTo(.28,1.445);cab.quadraticCurveTo(.36,1.44,.42,1.39);cab.lineTo(1.02,.9);cab.closePath();
+    const cg=new T.ExtrudeGeometry(cab,{depth:GW-2*gb,bevelEnabled:true,bevelThickness:gb,bevelSize:gb,bevelSegments:3,curveSegments:12});
+    cg.rotateY(-Math.PI/2);cg.translate((GW-2*gb)/2,0,0);c.add(new T.Mesh(cg,paint));
+    const sx=GW/2+.004;
+    for(const s of [-1,1]){
+      const X=s*sx;
+      // side glass between A, B, C and D pillars
+      for(const P of [[[.06,.99],[.86,.99],[.38,1.38],[.06,1.38]],[[-1.08,.99],[-.08,.99],[-.08,1.38],[-1.08,1.38]],[[-2.18,.99],[-1.22,.99],[-1.22,1.38],[-2.15,1.36]]])
+        quad(c,...P.map(([z,y])=>[X,y,z]),tint);
+      for(const z of [0,-1.14])piece(c,s*(sx+.002),1.19,z,.012,.42,z===0?.1:.14,paint);
+      // door shut lines, handles, rubbing strip, mirror
+      for(const z of [.98,0,-1.14])piece(c,s*(W/2+.004),.62,z,.006,.62,.006,seam);
+      piece(c,s*(W/2+.004),.93,-.08,.006,.006,2.12,seam);
+      for(const z of [-.12,-1.24])piece(c,s*(W/2+.012),.84,z,.02,.03,.16,chrome);
+      piece(c,s*(W/2+.012),.79,0,.022,.04,4.6,rubber);
+      rod(c,[s*.74,1.0,.86],[s*.93,1.03,.8],.012,paint);rbox(c,s*.97,1.06,.78,.06,.11,.16,paint,.025);piece(c,s*.995,1.06,.78,.006,.09,.13,chrome);
+      piece(c,s*.55,1.475,-.9,.035,.03,2.6,chrome);                                         // roof rails
+      // lamps
+      rbox(c,s*.6,.64,2.425,.3,.17,.04,lampLens,.02);rbox(c,s*.82,.64,2.415,.09,.12,.04,amberLens,.015);
+      rbox(c,s*.73,.66,-2.425,.2,.32,.04,tailLens,.02);rbox(c,s*.73,.49,-2.425,.2,.06,.04,amberLens,.01);
     }
-    hull(rings,.45,paint);
-    hull([[-1.75,.82,1.12],[-1.44,.77,1.63],[-1.1,.75,1.71],[.45,.75,1.69],[1.09,.84,1.1]],1.04,glass);
-    piece(c,-.01,1.683,-.38,1.38,.055,1.92,paint);
-    for(const sx of [-1,1]){
-      for(const z of [-1.11,-.42,.43])rod(c,[sx*.824,1.085,z],[sx*.737,1.65,z-.018],.034,paint);
-      for(const z of [-1.37,1.32]){
-        rod(c,[sx*.74,.35,z],[sx*.92,.35,z],.34,rubber,.34,24);
-        rod(c,[sx*.93,.35,z],[sx*.95,.35,z],.19,iron,.19,20);
-      }
-      piece(c,sx*.88,1.18,.66,.17,.12,.23,paint);piece(c,sx*.61,.76,2.045,.28,.12,.04,porcelain);
-      piece(c,sx*.62,.79,-2.106,.24,.13,.035,spines[0]);
-    }
-    piece(c,0,.56,2.06,.6,.13,.024,cream);
+    // windscreen and tailgate glass
+    quad(c,[-.66,.99,1.0],[.66,.99,1.0],[.66,1.4,.4],[-.66,1.4,.4],tint);
+    quad(c,[-.66,1.0,-2.33],[.66,1.0,-2.33],[.64,1.37,-2.29],[-.64,1.37,-2.29],tint);
+    for(const s of [-1,1])rod(c,[s*.05,1.01,.99],[s*.62,1.03,.93],.007,seam);                  // wipers
+    // bumpers, grille, plates
+    for(const z of [2.46,-2.46]){rbox(c,0,.42,z,1.78,.13,.12,chrome,.05);rbox(c,0,.42,z+Math.sign(z)*.01,1.6,.05,.12,rubber,.02);}
+    rbox(c,0,.64,2.43,.82,.17,.03,seam,.02);for(let k=0;k<4;k++)piece(c,0,.585+k*.038,2.447,.78,.008,.01,chrome);
+    plate(c,'F214 KWD',false,0,.5,2.53);plate(c,'F214 KWD',true,0,.56,-2.47,Math.PI);
+    piece(c,0,.95,-2.415,1.4,.006,.006,seam);                                               // tailgate shut line
+    // inside: seats, a paper on the dash, a parking ticket under the wiper
+    for(const z of [.05,-.95])for(const s of [-1,1])rbox(c,s*.36,1.02,z,.46,.5,.12,rubber,.04);
+    piece(c,.3,1.0,.78,.28,.01,.2,cream).rotation.y=.3;
+    { const t=piece(c,-.45,1.06,.86,.1,.13,.004,mat(0xe8d050,.6));t.rotation.x=-.85; }
+    // wheels; the near front one turned a little towards the kerb
+    for(const s of [-1,1])for(const z of [-wb,wb]){const w=wheel(c,s*.76,R,z,R);if(z>0)w.rotation.y=s>0?-.12:-.12;}
+    // road spray along the sills and fallen leaves on the bonnet and roof
+    for(const s of [-1,1])decal('Leaking007',c,{pos:[s*(W/2+.008),.52,0],rot:[0,s*Math.PI/2,Math.PI],w:4.4,h:.45,color:0x2a241c,opacity:.55});
+    const leaf=mat(0x6a4a20,.9);leaf.side=T.DoubleSide;
+    for(let k=0;k<9;k++){const o=new T.Mesh(new T.CircleGeometry(.035,5),leaf);o.scale.y=1.6;o.rotation.set(-Math.PI/2+.1,0,hash(k)*6);
+      o.position.set((hash(k+3)-.5)*1.3,k<5?1.452:.93+(hash(k)*.02),k<5?-1.6+hash(k+5)*1.6:1.3+hash(k+9)*.8);c.add(o);}
   }
   function cycle(){
     const g=new T.Group();g.position.set(-11.1,.16,20.75);g.rotation.y=-.27;g.rotation.z=.065;root.add(g);
@@ -288,9 +465,9 @@ export function addMarketLane(root) {
     piece(g,-.24,.805,0,.22,.055,.105,rubber);rod(g,head,[.33,.89,0],.021,iron);rod(g,[.33,.89,-.18],[.33,.89,.18],.022,iron);
   }
   // Street-facing side is local +Z. The opposite pavement is rotated as a unit.
-  function premise({x,z,yaw=0,w,h,d=6,shop,skin,kind,rows=1,cols=2}) {
+  function premise({x,z,yaw=0,w,h,d=6,shop,skin,kind,rows=1,cols=2,tone}) {
     const g=new T.Group(); g.name=shop; g.position.set(x,0,z); g.rotation.y=yaw; root.add(g);
-    const wall=surface(skin,w,h);
+    const wall=surface(skin,w,h,tone);
     const dwelling = kind==='bay'||kind==='terrace';
     if(dwelling){
       piece(g,0,(h+3.55)/2,-(d+1.72)/2,w,h-3.55,d-1.72,wall);
@@ -352,12 +529,12 @@ export function addMarketLane(root) {
   }
   const back=Math.PI;
   [
-    {x:11.3,z:-.12,w:6.42,h:10.35,rows:2,cols:2,kind:'bay',skin:'kiln-brick',shop:'moran'},
+    {x:11.3,z:-.12,w:6.42,h:10.35,rows:2,cols:2,kind:'bay',skin:'kiln-brick',shop:'moran',tone:0xb09a90},
     {x:19.9,z:-1.1,w:10.2,h:6.4,cols:4,kind:'mill',skin:'zinc',shop:'loading'},
-    {x:-19.65,z:.22,w:8.9,h:8.1,cols:3,kind:'terrace',skin:'limewash',shop:'keane'},
+    {x:-19.65,z:.22,w:8.9,h:8.1,cols:3,kind:'terrace',skin:'limewash',shop:'keane',tone:0xc8b898},
     {x:-12.2,z:22.52,yaw:back,w:7.8,h:4.65,rows:0,kind:'flat',skin:'ashlar',shop:'wash'},
-    {x:-3.6,z:22.65,yaw:back,w:8.8,h:11.65,rows:3,cols:3,kind:'terrace',skin:'kiln-brick',shop:'paper'},
-    {x:5.05,z:22.51,yaw:back,w:8.3,h:7.1,cols:2,kind:'bay',skin:'limewash',shop:'tide'}
+    {x:-3.6,z:22.65,yaw:back,w:8.8,h:11.65,rows:3,cols:3,kind:'terrace',skin:'kiln-brick',shop:'paper',tone:0x9a8478},
+    {x:5.05,z:22.51,yaw:back,w:8.3,h:7.1,cols:2,kind:'bay',skin:'limewash',shop:'tide',tone:0xb8c0b0}
   ].forEach(premise);
   cycle();estateCar();
   // A pavement bench with bolted feet and separate slats, and two bike hoops outside the wash.
@@ -366,7 +543,7 @@ export function addMarketLane(root) {
     piece(bench,x,.21,0,.08,.42,.48,iron);
     piece(bench,x,.6,.22,.065,.79,.065,iron);
   }
-  const board=surface('limewash',1.85,.12); board.color.setHex(0x806143);
+  const board=timber;
   for(let i=0;i<4;i++) piece(bench,0,.44,-.21+i*.14,1.85,.065,.12,board);
   for(let i=0;i<2;i++) piece(bench,0,.7+i*.18,.22,1.85,.125,.055,board);
   for(const dx of [-.62,.62]){
@@ -378,24 +555,70 @@ export function addMarketLane(root) {
   const bridge=new T.Group(); bridge.position.set(-24.3,0,10); bridge.rotation.y=Math.PI/2; root.add(bridge);
   const arch=new T.Shape(); arch.moveTo(-17,0); arch.lineTo(-4,0); arch.lineTo(-4,2.7);
   arch.absarc(0,2.7,4,Math.PI,0,true); arch.lineTo(4,0); arch.lineTo(17,0); arch.lineTo(17,8.3); arch.lineTo(-17,8.3); arch.closePath();
-  const masonry=surface('ashlar',3.2,3.2); masonry.map.repeat.set(.32,.32); masonry.color.setHex(0x55524c);
+  const masonry=surface('kiln-brick',1,1,0x6e6058), ring=surface('kiln-brick',1,1,0x4a4448);
   const vault=new T.Mesh(new T.ExtrudeGeometry(arch,{depth:4.3,bevelEnabled:false,curveSegments:24}),masonry); vault.position.z=-4.3; bridge.add(vault);
   piece(bridge,0,8.37,-2.12,34,.23,4.7,coping);
   for(let i=-15;i<=15;i+=3.4) decal(['Leaking007','Leaking008','Leaking009'][Math.abs(Math.round(i))%3],bridge,{pos:[i,6.6,.012],w:3.6,h:3.4,color:0x1c1a18,opacity:.7,flipX:i>0});
   for(const sx of [-1,1]) decal('Leaking006',bridge,{pos:[sx*5.2,3.4,.012],w:1.1,h:5.5,color:0x1c1a18,opacity:.6});
   decal('Leaking009',bridge,{pos:[0,.9,.012],w:34,h:1.8,color:0x1c1a18,opacity:.65});
-  for(let i=0;i<24;i++){const a=(i+.5)*Math.PI/24; piece(bridge,4.2*Math.cos(a),2.7+4.2*Math.sin(a),.03,.53,.42,.2,coping).rotation.z=a-Math.PI/2;}
+  for(let i=0;i<24;i++){const a=(i+.5)*Math.PI/24; piece(bridge,4.2*Math.cos(a),2.7+4.2*Math.sin(a),.03,.53,.42,.2,ring).rotation.z=a-Math.PI/2;}
   for(let i=-16;i<=16;i+=2) piece(bridge,i,8.97,-.25,.07,1.02,.07,iron);
   piece(bridge,0,9.46,-.25,32,.075,.075,iron);
+  // Fly-posting on the viaduct, layered and torn, and the headroom plate over the arch.
+  function poster(lines,bg,fg,seed){
+    return canvasTexture(256,360,(c,W,H)=>{let n=seed;const r=()=>(n=(n*16807)%2147483647)/2147483647;
+      c.fillStyle=bg;c.fillRect(0,0,W,H);c.fillStyle=fg;c.textAlign='center';
+      lines.forEach(([t,sz,y])=>{c.font=`800 ${sz}px Impact, "Arial Black", sans-serif`;c.fillText(t,W/2,y);});
+      c.fillStyle='rgba(60,50,30,.18)';for(let i=0;i<40;i++)c.fillRect(0,r()*H,W,1+r()*3);                // paste wrinkles
+      c.globalCompositeOperation='destination-out';c.beginPath();c.moveTo(0,H);for(let x=0;x<=W;x+=16)c.lineTo(x,H-r()*H*.35*(x/W));c.lineTo(W,H);c.fill();   // torn corner
+      for(let i=0;i<120;i++){c.fillStyle='rgba(0,0,0,.8)';c.fillRect(r()*W,r()*H,2+r()*8,1+r()*4);}
+    });
+  }
+  const POSTERS=[[[['THE WET',52,90],['PAVEMENTS',46,140],['LIVE AT THE ARCHES',22,200],['SAT 11 NOV · 8PM',26,250]],'#d8c8a0','#1a1a1a'],
+    [[['LOST CAT',58,80],['GINGER · ANSWERS TO',20,130],['BISCUIT',48,180],['PLEASE CALL 07700 900461',16,240]],'#f0eee4','#222'],
+    [[['CLEAR-OUT',50,90],['SALE',80,170],['EVERYTHING MUST GO',20,220]],'#e8d040','#a01a14'],
+    [[['NO',90,110],['SLAUGHTER',40,170],['GROWN NOT RAISED',20,220],['FUTURE MEAT MARKET',18,320]],'#7a1a1a','#f0e0c0'],
+    [[['CLUB',60,90],['VELVET',60,160],['FRIDAYS',30,220]],'#202848','#e8a0c0']];
+  const posterMats=POSTERS.map(([l,bg,fg],i)=>new T.MeshStandardMaterial({map:poster(l,bg,fg,31+i*13),transparent:true,roughness:.95,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3}));
+  for(let k=0;k<14;k++){
+    const side=k<7?-1:1,x=side*(6.2+((k%7)*1.05))+(hash(k)-.5)*.3,y=1.35+(hash(k+1)-.5)*.5+(k%3===0?.9:0);
+    const o=new T.Mesh(new T.PlaneGeometry(.62,.87),posterMats[(k*3+1)%5]);o.position.set(x,y,.012+k*.0004);o.rotation.z=(hash(k+2)-.5)*.06;bridge.add(o);
+  }
+  { const map=canvasTexture(512,128,(c,W,H)=>{c.fillStyle='#e8c22a';c.fillRect(0,0,W,H);c.fillStyle='#111';for(let x=-H;x<W;x+=48){c.beginPath();c.moveTo(x,0);c.lineTo(x+24,0);c.lineTo(x+24+H,H);c.lineTo(x+H,H);c.fill();}
+      c.fillStyle='#e8c22a';c.fillRect(24,18,W-48,H-36);c.fillStyle='#111';c.font='800 64px "Arial Black", sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText("21'-11\"   6.7 m",W/2,H/2+2);});
+    const o=new T.Mesh(new T.PlaneGeometry(2.2,.55),new T.MeshStandardMaterial({map,roughness:.6}));o.position.set(0,7.25,.03);bridge.add(o);
+    decal('Leaking006',bridge,{pos:[0,6.5,.025],w:.8,h:1.4,color:0x2a1a10,opacity:.7}); }
+  // Pipes and a cable tray along the viaduct face, rust bleeding from the brackets.
+  rod(bridge,[-17,7.6,.12],[17,7.6,.12],.05,iron,.05,10);
+  for(let x=-16;x<=16;x+=2.4){piece(bridge,x,7.6,.06,.08,.16,.14,iron);decal('Leaking006',bridge,{pos:[x+.05,6.9,.014],w:.3,h:1.4,color:0x3a2210,opacity:.55});}
   // The backs of buildings have their own offsets, so they overlap differently as the viewer turns.
-  function mill(g,x,z,w,h,d,cols,rows){
-    const m=surface('kiln-brick',w,h);piece(g,x,h/2,z-d/2,w,h,d,m);
+  // A painted trade sign, faded and flaking off the brick.
+  function ghostSign(g,x,y,z,w,h,lines){
+    const map=canvasTexture(1024,Math.round(1024*h/w),(c,W,H)=>{
+      c.clearRect(0,0,W,H);c.fillStyle='rgba(225,215,190,.78)';c.textAlign='center';c.textBaseline='middle';
+      lines.forEach(([t,size],i)=>{c.font=`700 ${size*H}px Georgia, serif`;c.fillText(t,W/2,H*(i+.5)/lines.length);});
+      c.strokeStyle='rgba(225,215,190,.6)';c.lineWidth=H*.025;c.strokeRect(W*.02,H*.04,W*.96,H*.92);
+      c.globalCompositeOperation='destination-out';let n=lines.length*97;const r=()=>(n=(n*16807)%2147483647)/2147483647;
+      for(let i=0;i<900;i++){c.fillStyle=`rgba(0,0,0,${.3+r()*.7})`;c.fillRect(r()*W,r()*H,2+r()*30,1+r()*6);}
+      for(let i=0;i<40;i++){c.fillStyle='rgba(0,0,0,.9)';c.beginPath();c.ellipse(r()*W,r()*H,10+r()*60,6+r()*30,r()*3,0,7);c.fill();}
+    });
+    const m=new T.MeshStandardMaterial({map,transparent:true,depthWrite:false,roughness:1,polygonOffset:true,polygonOffsetFactor:-3});
+    const o=new T.Mesh(new T.PlaneGeometry(w,h),m);o.position.set(x,y,z);g.add(o);return o;
+  }
+  function mill(g,x,z,w,h,d,cols,rows,{tone,sign}={}){
+    const m=surface('kiln-brick',w,h,tone);piece(g,x,h/2,z-d/2,w,h,d,m);
     piece(g,x,h+.11,z-d/2,w+.3,.24,d+.32,coping);
     for(let k=0;k<=cols;k++)piece(g,x+w*(k/cols-.5),h/2,z+.1,.3,h,.35,m);
-    for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){
-      const xx=x+w*((i+.5)/cols-.5), yy=3.4+j*3;
-      window(g,xx,yy,w/cols*.7,1.52,z+.1,i+j*cols+Math.round(x));
+    for(let j=0;j<rows;j++){
+      if(sign&&j===rows-1){ghostSign(g,x,3.4+j*3,z+.012,w*.86,2.3,sign);continue;}
+      for(let i=0;i<cols;i++){
+        const xx=x+w*((i+.5)/cols-.5), yy=3.4+j*3, id=i+j*cols+Math.round(x*3+z);
+        window(g,xx,yy,w/cols*.7,1.52,z+.1,id);
+        if(hash(id+2)<.5)decal(['Leaking003','Leaking004','Leaking005'][id%3],g,{pos:[xx,yy-1.3,z+.012],w:1.4,h:1.1,color:0x1e1c1a,opacity:.6,flipX:id%2===1});
+      }
     }
+    decal(['Leaking007','Leaking008','Leaking009'][Math.abs(Math.round(x))%3],g,{pos:[x,h-.9,z+.011],w,h:1.8,color:0x1c1a18,opacity:.6});
+    decal('Leaking009',g,{pos:[x,.8,z+.011],w,h:1.6,color:0x1c1a18,opacity:.6});
   }
   function chimney(g,x,z,h){
     const brick=surface('kiln-brick',5,h);
@@ -407,7 +630,7 @@ export function addMarketLane(root) {
       piece(g,x+a*1.48,y+2,z+b*1.48,.16,4,.16,iron);
       rod(g,[x-a*1.48,y+.1,z+b*1.48],[x+a*1.48,y+3.8,z+b*1.48],.06,iron);
     }
-    const skin=surface('zinc',8,4);rod(g,[x,y+4,z],[x,y+7.7,z],2.2,skin,2.2,32);
+    const skin=worldMat('rusty_painted_metal',{size:1.5,color:0x9a9a92});rod(g,[x,y+4,z],[x,y+7.7,z],2.2,skin,2.2,32);
     for(const h of [4,5.15,6.4,7.72])rod(g,[x,y+h,z],[x,y+h+.09,z],2.24,iron,2.24,32);
     rod(g,[x,y+7.75,z],[x,y+8.3,z],2.34,slate,.08,32);
   }
@@ -416,9 +639,9 @@ export function addMarketLane(root) {
     const c=new T.CatmullRomCurve3([a,mid,b].map(v=>new T.Vector3(...v)));
     g.add(new T.Mesh(new T.TubeGeometry(c,20,.032,6,false),rubber));
   }
-  mill(bridge,-12,-9,13,13.8,7,4,4);
-  mill(bridge,12,-15,11,16,7,3,4);
-  mill(bridge,.8,-24,14,10.1,5,4,3);
+  mill(bridge,-12,-9,13,13.8,7,4,4,{tone:0x9a847a,sign:[['J. HARGREAVE & SONS',.32],['TANNERS · CURRIERS',.2],['EST. 1886',.16]]});
+  mill(bridge,12,-15,11,16,7,3,4,{tone:0x7e706a});
+  mill(bridge,.8,-24,14,10.1,5,4,3,{tone:0xa89078});
   chimney(bridge,-9,-22,23.2);tank(bridge,11,16.15,-18);
   for(const j of [-10,8]){
     piece(bridge,j,4.25,.25,.42,8.5,.62,masonry);piece(bridge,j,7,.57,.78,.2,.33,coping);
@@ -428,14 +651,18 @@ export function addMarketLane(root) {
   for(const k of [-1,1])piece(bridge,k*4.5,.12,-10,1.25,.24,18,coping);
   // East end: cross-street with a deep-set industrial shed and loading canopy.
   const yard=new T.Group(); yard.position.set(31,0,9); yard.rotation.y=-Math.PI/2; root.add(yard);
-  piece(yard,0,3.4,-3,25,6.8,6,surface('kiln-brick',25,6.8));
-  piece(yard,-3,2,.07,6,3.8,.16,surface('zinc',6,3.8));
+  piece(yard,0,3.4,-3,25,6.8,6,surface('kiln-brick',25,6.8,0x8a7468));
+  piece(yard,-3,2,.07,6,3.8,.16,worldMat('rusty_metal_shutter',{size:2.4,color:0x9a9890,metalness:.4,roughness:.7}));
   piece(yard,-3,4.25,1.15,8,.19,2.4,slate).rotation.x=.05;
   for(const px of [-6.65,.65]) piece(yard,px,2,2.21,.1,4,.1,iron);
   for(let i=0;i<7;i++) window(yard,-10+i*3.1,5.45,2.15,.8,.07,i);
-  mill(yard,-15,-4,10.8,12.4,7,3,3);
-  mill(yard,12,-9.6,13,14.2,7,4,4);mill(yard,.5,-19,14,16.4,7,4,5);
+  mill(yard,-15,-4,10.8,12.4,7,3,3,{tone:0x8c7a70});
+  mill(yard,12,-9.6,13,14.2,7,4,4,{tone:0xa49488,sign:[['COLD STORE',.36],['ICE · BRINE · CARCASES',.2],['DELIVERIES AT REAR',.15]]});mill(yard,.5,-19,14,16.4,7,4,5,{tone:0x76665e});
   tank(yard,11,14.35,-13);chimney(yard,-9,-12,18);
+  decal('Leaking009',yard,{pos:[0,.9,.012],w:25,h:1.8,color:0x1c1a18,opacity:.7});
+  for(let i=0;i<6;i++)decal(['Leaking007','Leaking008','Leaking003'][i%3],yard,{pos:[-11+i*4.3,5.6,.012],w:3,h:2.6,color:0x1c1a18,opacity:.6,flipX:i%2===1});
+  decal('Leaking006',yard,{pos:[-3,3.4,.24],w:6,h:1.4,color:0x3a2210,opacity:.6});
+  for(let k=0;k<5;k++){const o=new T.Mesh(new T.PlaneGeometry(.62,.87),posterMats[(k*2+3)%5]);o.position.set(-9.6+k*.7+(hash(k+40)-.5)*.2,1.5+(hash(k+41)-.5)*.3,.014+k*.0004);o.rotation.z=(hash(k+42)-.5)*.06;yard.add(o);}
   const depotSign=new T.Group();depotSign.position.set(-3,0,0);yard.add(depotSign);
   label(depotSign,'depot',7,3.91,2.34);
   for(let k=0;k<4;k++){
@@ -446,27 +673,35 @@ export function addMarketLane(root) {
       for(const a of [-1,1])piece(yard,x+a*.31,.44+.44*j,z+.409,.055,.42,.016,frame);
     }
   }
-  // Delivery van, parked against the east kerb. Cab, cargo box and rubber tyres are separate.
+  // Delivery van, parked against the east kerb: box body, cab, glass, lamps, plates, a faded livery.
   const van=new T.Group();van.position.set(22.4,.02,17.8);van.rotation.y=-.24;root.add(van);
-  const paint=mat(0x818d81,.73),windshield=mat(0x384647,.58,.12);
-  piece(van,0,.7,0,1.95,.52,4.25,paint);piece(van,0,1.65,-.65,1.98,1.65,2.92,paint);
-  piece(van,0,1.4,1.34,1.87,1.04,1.35,paint);piece(van,0,1.76,2.025,1.58,.52,.045,windshield).rotation.x=-.13;
-  piece(van,0,2.02,1.28,1.96,.12,1.58,paint);
-  for(const a of [-1,1]){
-    piece(van,a*.944,1.75,1.38,.034,.48,1.02,windshield);
-    piece(van,a*1.04,1.61,1.86,.19,.16,.21,rubber);
-    piece(van,a*.65,.89,2.144,.36,.16,.05,cream);
-    for(const z of [-1.38,1.4]){
-      rod(van,[a*.83,.39,z],[a*1.02,.39,z],.39,rubber,.39,24);
-      rod(van,[a*1.02,.39,z],[a*1.034,.39,z],.19,iron,.19,20);
-    }
+  const vpaint=paintOf(0xb8bcb0);vpaint.roughness=.55;vpaint.clearcoat=.4;
+  rbox(van,0,1.74,-.62,2.0,2.24,3.0,vpaint,.08);                                                      // cargo box
+  rbox(van,0,1.16,1.32,1.94,1.1,1.35,vpaint,.12);rbox(van,0,1.88,1.12,1.9,.5,.95,vpaint,.1);          // cab and roof
+  rbox(van,0,.56,0,1.4,.2,4.0,rubber,.04);
+  quad(van,[-.84,1.5,2.0],[.84,1.5,2.0],[.82,2.06,1.62],[-.82,2.06,1.62],tint);
+  for(const s of [-1,1]){
+    const X=s*.976;quad(van,[X,1.5,1.9],[X,1.5,.92],[X,2.04,.92],[X,2.04,1.5],tint);
+    piece(van,s*.975,1.12,.9,.006,1.1,.006,seam);piece(van,s*.985,1.25,1.1,.02,.03,.14,chrome);
+    rod(van,[s*.95,1.6,1.82],[s*1.1,1.62,1.75],.014,iron);rbox(van,s*1.13,1.6,1.73,.06,.24,.14,rubber,.02);
+    rbox(van,s*.66,.98,2.0,.32,.18,.04,lampLens,.02);rbox(van,s*.88,.98,1.99,.09,.12,.04,amberLens,.015);
+    rbox(van,s*.85,.95,-2.13,.16,.34,.04,tailLens,.02);
+    for(const z of [-1.4,1.38])wheel(van,s*.9,.39,z,.39,.21);
+    decal('Leaking007',van,{pos:[s*1.008,.95,-.3],rot:[0,s*Math.PI/2,Math.PI],w:4.2,h:.6,color:0x2a241c,opacity:.6});
+    const liv=canvasTexture(512,160,(c,W,H)=>{c.clearRect(0,0,W,H);c.fillStyle='rgba(40,70,60,.85)';c.font='700 62px Georgia, serif';c.textAlign='center';c.fillText('HALLORAN',W/2,70);
+      c.font='600 30px Georgia, serif';c.fillText('LINEN · TOWELS · OVERALLS',W/2,122);c.globalCompositeOperation='destination-out';for(let i=0;i<500;i++){c.fillStyle='rgba(0,0,0,.6)';c.fillRect(Math.random()*W,Math.random()*H,2+Math.random()*10,1+Math.random()*3);}});
+    const lv=new T.Mesh(new T.PlaneGeometry(2.4,.75),new T.MeshStandardMaterial({map:liv,transparent:true,depthWrite:false,roughness:.6,polygonOffset:true,polygonOffsetFactor:-3}));
+    lv.position.set(s*1.003,2.0,-.62);lv.rotation.y=s*Math.PI/2;van.add(lv);
   }
-  piece(van,0,.59,2.15,1.93,.14,.12,rubber);
+  rbox(van,0,.62,2.15,1.96,.16,.14,rubber,.05);rbox(van,0,.62,-2.18,1.96,.16,.12,rubber,.05);
+  rbox(van,0,1.05,2.0,.9,.2,.03,seam,.02);for(let k=0;k<3;k++)piece(van,0,.98+k*.06,2.02,.86,.01,.01,chrome);
+  plate(van,'L908 HLT',false,0,.75,2.23);plate(van,'L908 HLT',true,0,.82,-2.25,Math.PI);
+  piece(van,0,1.62,-2.125,.006,2.2,.006,seam);for(const s of [-1,1])piece(van,s*.42,1.62,-2.13,.04,.14,.02,chrome);
   cable(yard,[-16,11.8,-4],[13,13.8,-10],2.1);
   // The opposite kerb used to disappear into black sky just to the right of the depot.
   const corner=new T.Group();corner.position.set(18.1,0,23);corner.rotation.y=Math.PI;root.add(corner);
-  mill(corner,0,0,15.5,10.2,6.3,4,3);
-  piece(corner,0,1.38,.05,6.1,2.55,.12,surface('zinc',6.1,2.55));
+  mill(corner,0,0,15.5,10.2,6.3,4,3,{tone:0x9c8c80});
+  piece(corner,0,1.38,.05,6.1,2.55,.12,surface('shed',6.1,2.55));
   piece(corner,0,2.84,.7,6.65,.19,1.65,slate).rotation.x=.08;
   for(const sx of [-3,3])rod(corner,[sx,1.77,.1],[sx,2.76,1.36],.042,iron);
   for(let j=0;j<3;j++){
