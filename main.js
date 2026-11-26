@@ -136,7 +136,18 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
 const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.25], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
 
 const $ = (s) => document.querySelector(s);
-const state = { view: 'boot', rfocus: null, sel: null, opts: null, order: null, busy: false, focus: null, batch: makeBatch(null) };
+const state = { view: 'boot', rfocus: null, sel: null, mode: null, fscreen: null, opts: null, order: null, basket: [], busy: false, focus: null, batch: makeBatch(null) };
+const hasCart = () => !!state.order || state.basket.length > 0;                // 现货袋子里有东西，或者下了培养单
+// 柜里每种肉最前面那一盒（现货）：都是给别人长的、没被取走的那份。不能定制，只能拿或不拿
+const STOCK = {
+  beef: { batch: 'B0417-1108', grown: 28, harvested: '2 days ago', grams: 214, best: 'NOV 19', for: 'FM-4471 · cancelled', tag: 'SURPLUS · CANCELLED ORDER  −30%', disc: 0.7 },
+  pork: { batch: 'P0932-1112', grown: 21, harvested: 'yesterday', grams: 236, best: 'NOV 20', for: 'FM-5093 · not collected', tag: 'NOT COLLECTED  −20%', disc: 0.8 },
+  chicken: { batch: 'G0221-1119', grown: 14, harvested: 'today, 06:40', grams: 198, best: 'NOV 22', for: 'standing order · café', tag: null, disc: 1 },
+  fish: { batch: 'F1180-1105', grown: 28, harvested: '4 days ago', grams: 182, best: 'TOMORROW', soon: true, for: 'FM-3920 · refused at door', tag: 'LAST DAY  −40%', disc: 0.6 },
+};
+function stockPack(k) { const p = STOCK[k], full = Math.round(SPECIES[k].price * p.grams / 200); return { ...p, price: Math.round(full * p.disc), was: p.disc < 1 ? full : null }; }
+const PLAN_EN = { std: 'Standard', a: 'Formula A', b: 'Formula B' };
+const NAME_EN = { beef: 'Cultivated beef steak', pork: 'Cultivated pork chop', chicken: 'Cultivated chicken breast', fish: 'Cultivated yellow croaker' };
 
 // ------------------------------------------------------------------ 滚动字幕
 function setMarquee(text) {
@@ -187,7 +198,7 @@ canvas.addEventListener('pointerup', endDrag);
 // 点培养肉那几行 → 在冷柜里打开这件商品下单；点堂食 → 去吧台试吃；划掉的那行今天没有
 const menuRay = new THREE.Raycaster(), menuNdc = new THREE.Vector2();
 function menuRow(e) {
-  if (!atFridge() || state.sel || state.busy) return null;
+  if (!atFridge() || state.sel || state.fscreen || state.busy) return null;
   const r = canvas.getBoundingClientRect();
   menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   menuRay.setFromCamera(menuNdc, camera);
@@ -211,11 +222,11 @@ canvas.addEventListener('click', (e) => {
   holdPad(false);
   canvas.style.cursor = ''; menuHover(-1);
   if (row.out) { toast('售罄'); return; }
-  location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : '#/' + row.go;
+  location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : row.go === 'grow' ? '#/fridge/grow' : '#/' + row.go;
 });
 // 选好的那块肉：屏幕上的商品页直接点（定制、份量、交付、下单、看它生长 / 去结算）
 function productAct(e) {
-  if (!atFridge() || !state.sel) return null;
+  if (!atFridge() || !(state.sel || state.fscreen)) return null;
   const r = canvas.getBoundingClientRect();
   menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   menuRay.setFromCamera(menuNdc, camera);
@@ -223,17 +234,18 @@ function productAct(e) {
   return h ? h.uv : null;
 }
 canvas.addEventListener('pointermove', (e) => {
-  if (!atFridge() || !state.sel) return;
+  if (!atFridge() || !(state.sel || state.fscreen)) return;
   const a = productScreen.hover(productAct(e));
   canvas.style.cursor = a ? 'pointer' : '';
 });
 canvas.addEventListener('click', (e) => {
-  if (!atFridge() || !state.sel) return;
+  if (!atFridge() || !(state.sel || state.fscreen)) return;
   const a = productScreen.pick(productAct(e));
   if (!a) return;
-  if (a.type === 'opt') { state.opts[a.key] = a.v; applyMeat(); drawProduct(); }
+  if (a.type === 'opt') { state.opts[a.key] = a.v; drawProduct(); }
   else if (a.type === 'qty') { state.opts.qty = THREE.MathUtils.clamp(state.opts.qty + a.d, 1, 10); drawProduct(); }
   else if (a.type === 'buy') placeOrder();
+  else if (a.type === 'take') takePack();
   else if (a.type === 'go') location.hash = a.hash;
   else if (a.type === 'close') location.hash = '#/fridge';
 });
@@ -272,7 +284,7 @@ function holdPad(on) {
   }
 }
 canvas.addEventListener('pointerdown', (e) => {                          // 先于点菜判断：没拿着时点到纸菜单 = 拿起来；拿着时点到纸外面 = 放回去
-  if (!atFridge() || state.sel || !fridge?.pad) return;
+  if (!atFridge() || state.sel || state.fscreen || !fridge?.pad) return;
   const r = canvas.getBoundingClientRect();
   menuNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   menuRay.setFromCamera(menuNdc, camera);
@@ -573,7 +585,7 @@ canvas.addEventListener('wheel', (e) => { if (!(FC.on && state.view === FC.view 
 
 function enterHotspot(h) {
   if (state.busy) return;
-  if (h.needsOrder && !state.order) return toast('购物车是空的');
+  if (h.needsOrder && !hasCart()) return toast('购物车是空的');
   if (room.spots[h.route]) { location.hash = '#/' + h.route; return; }
   const { yaw, pitch } = toYawPitch(h.pos);
   let target = yaw;
@@ -637,30 +649,72 @@ function fridgeOverlay(t) {
   }
 }
 
-function openProduct(k) {
+let productMat = null;
+const showScreen = (view) => { productMat ??= new THREE.MeshBasicMaterial({ map: productScreen.tex, toneMapped: false, color: screenTint }); fridge.screen.material = productMat; productScreen.draw(view); };
+function restoreKiosk() { state.fscreen = null; if (!state.sel) fridge.screen.material = new THREE.MeshBasicMaterial({ map: originalScreenMap, toneMapped: false, color: screenTint }); }
+// 屏幕上：培养定制第一步（选哪一种从细胞系开始长）
+function openGrowPick() {
+  holdPad(false);
+  if (state.sel) closeProduct(true);
+  state.fscreen = 'grow';
+  document.body.classList.add('product-open'); hideTutorial(); updateBack();
+  walkTo(FRIDGE_PRODUCT.eye, FRIDGE_PRODUCT.at, 40);
+  showScreen({ mode: 'grow', prices: Object.fromEntries(ORDER.map((k) => [k, Math.round(SPECIES[k].price * GROWTH.plan.b.price)])) });
+  setMarquee('培养定制 · 下单后开始培养 · 14–28 天 · ');
+}
+function fridgeRoute(sub, third) {
+  if (SPECIES[sub]) openProduct(sub, 'stock');
+  else if (sub === 'grow' && SPECIES[third]) openProduct(third, 'grow');
+  else if (sub === 'grow') openGrowPick();
+  else { closeProduct(); restoreKiosk(); document.body.classList.remove('product-open'); updateBack(); }
+}
+function openProduct(k, mode = 'stock') {
   holdPad(false);
   fridge.menu.setCurrent(k); fridge.pad?.setCurrent(k);                   // 看过的那件，屏幕上的菜单会把它圈出来
-  if (state.sel === k) return;
+  if (state.sel === k && state.mode === mode) return;
   if (state.sel) closeProduct(true);
-  state.sel = k;
+  state.fscreen = null;
+  state.sel = k; state.mode = mode;
   state.opts = defaults();
   const hero = heroOf(k);
+  hero.visible = true;
   gsap.killTweensOf([hero.position, hero.rotation, hero.scale]);
   hero.userData.home ??= { p: hero.position.clone(), r: hero.rotation.clone(), s: hero.scale.x };   // 架子上的原位只记一次（半路再点也不会记歪）
   document.body.classList.add('product-open');
   hideTutorial();
-  gsap.to(fridge.door.rotation, { y: -1.8, duration: 1.0, ease: 'power2.inOut' });
   walkTo(FRIDGE_PRODUCT.eye, FRIDGE_PRODUCT.at, 40);
   updateBack();
+  setFridgePosters(k);
+  if (mode === 'grow') {                                                          // 培养定制：柜里的现货不动，屏幕上从细胞系开始定
+    showScreen({ mode: 'product', k, opts: state.opts, options: OPTIONS[k], price: price(), base: SPECIES[k].price, x: GROWTH.plan[state.opts.plan].x });
+    setMarquee(`培养定制 · ${SPECIES[k].title} · 细胞系 ${SPECIES[k].id} · `);
+    return;
+  }
+  gsap.to(fridge.door.rotation, { y: -1.8, duration: 1.0, ease: 'power2.inOut' });   // 现货：开门把最前面那一盒拿出来给你看
   gsap.timeline()
     .to(hero.position, { z: 0.55, duration: 0.5, ease: 'power2.out', delay: 0.5 })
     .to(hero.position, { x: -0.22, y: 1.16, z: 0.62, duration: 0.9, ease: 'power3.inOut' })
     .to(hero.rotation, { x: 0.7, y: 0.25, duration: 0.9, ease: 'power3.inOut' }, '<')
     .to(hero.scale, { x: 1.5, y: 1.5, z: 1.5, duration: 0.9, ease: 'power3.inOut' }, '<');
-  fridge.screen.material = new THREE.MeshBasicMaterial({ map: productScreen.tex, toneMapped: false, color: screenTint });   // 商品页就画在这块玻璃屏上
-  setFridgePosters(k);
-  renderProduct();
-  setMarquee(`${SPECIES[k].title} · 细胞系 ${SPECIES[k].id} · 零屠宰 · `);
+  applyMeat();
+  showScreen({ mode: 'stock', k, pack: stockPack(k) });                        // 现货页就画在这块玻璃屏上
+  setMarquee(`现货 · ${SPECIES[k].title} · 批次 ${STOCK[k].batch} · `);
+}
+// 拿走这一盒：放进袋子（盒子往下收走），屏幕上换成“已放进袋子”
+function takePack() {
+  const k = state.sel; if (!k || state.mode !== 'stock') return;
+  const pack = stockPack(k);
+  if (!state.basket.some((b) => b.k === k)) state.basket.push({ k, ...pack });
+  const hero = heroOf(k);
+  gsap.killTweensOf([hero.position, hero.rotation, hero.scale]);
+  gsap.to(hero.position, { y: hero.position.y - 0.7, z: hero.position.z + 0.25, duration: 0.7, ease: 'power2.in', onComplete: () => { hero.visible = false; } });
+  gsap.to(hero.rotation, { x: 1.2, duration: 0.7 });
+  cartLabel();
+  showScreen({ mode: 'taken', k, pack, count: state.basket.length, total: state.basket.reduce((a, b) => a + b.price, 0) });
+}
+function cartLabel() {
+  document.body.classList.toggle('has-order', hasCart());
+  $('#cart').textContent = state.order ? `订单 ${state.order.no}` : `购物袋 ${state.basket.length}`;
 }
 
 function closeProduct(instant = false) {
@@ -674,10 +728,10 @@ function closeProduct(instant = false) {
   gsap.to(hero.position, { x: home.p.x, y: home.p.y, z: home.p.z, duration: d, ease: 'power2.inOut' });
   gsap.to(hero.rotation, { x: home.r.x, y: home.r.y, duration: d });
   gsap.to(hero.scale, { x: home.s, y: home.s, z: home.s, duration: d });
+  hero.visible = true;                                                             // 拿走的那一盒：店员又从后面补上一盒
   gsap.to(fridge.door.rotation, { y: 0, duration: instant ? 0 : 0.9, delay: instant ? 0 : 0.6, ease: 'power2.inOut' });
-  fridge.screen.material.map = originalScreenMap;
   fridge.screen.material = new THREE.MeshBasicMaterial({ map: originalScreenMap, toneMapped: false, color: screenTint });
-  state.sel = null;
+  state.sel = null; state.mode = null; state.fscreen = null;
   if (!instant && atFridge()) { const sp = room.spots.fridge; walkTo(sp.eye, sp.at, sp.fov); }
   updateBack();
   setMarquee();
@@ -740,10 +794,10 @@ const techBlock = (t, body) => `
 const productScreen = createProductScreen();
 function drawProduct() {
   const k = state.sel, o = state.opts;
-  if (!k) return;
+  if (!k || state.mode !== 'grow') return;
   productScreen.draw({ mode: 'product', k, opts: o, options: OPTIONS[k], price: price(), base: SPECIES[k].price, x: GROWTH.plan[o.plan].x });
 }
-function renderProduct() { drawProduct(); applyMeat(); }
+function renderProduct() { drawProduct(); }
 function renderProductHTML() {
   const k = state.sel, s = SPECIES[k], o = state.opts;
   screenBody.innerHTML = `
@@ -818,8 +872,7 @@ function placeOrder() {
   state.batch = makeBatch(state.order);
   lab?.setBatch(state.batch, state.order.opts);
   hudStatic();
-  document.body.classList.add('has-order');
-  $('#cart').textContent = `订单 ${state.order.no}`;
+  cartLabel();
   productScreen.draw({ mode: 'ordered', k, no: state.order.no, price: state.order.price, days: state.order.opts.cycle - (state.order.opts.delivery === 'priority' ? 5 : 0) });
   return;
   screenBody.innerHTML = `
@@ -1011,43 +1064,47 @@ const SURF = {
   },
   survey(el) {
     el.innerHTML = `<form class="tab">
-      <div class="th"><b>香煎培养牛排</b></div>
-      <div class="q"><label>口感打分</label><div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}">★</button>`).join('')}</div></div>
-      <div class="q"><label>和传统牛排相比</label><div class="seg"><button type="button">吃不出区别</button><button type="button">更好吃</button><button type="button">差一点</button></div></div>
-      <div class="q"><label>200 g 你愿意付多少</label><div class="range"><input type="range" min="40" max="200" step="2" value="120" aria-label="价格"><b>¥120</b></div></div>
-      <button class="submit" type="submit">提交评价，领 ¥30 券</button>
+      <div class="th"><b>Pan-seared cultivated steak</b></div>
+      <div class="q"><label>Rate the texture</label><div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}">★</button>`).join('')}</div></div>
+      <div class="q"><label>Compared with a regular steak</label><div class="seg"><button type="button">Can't tell</button><button type="button">Better</button><button type="button">Not as good</button></div></div>
+      <div class="q"><label>What would you pay for 200 g?</label><div class="range"><input type="range" min="40" max="200" step="2" value="120" aria-label="Price"><b>¥120</b></div></div>
+      <button class="submit" type="submit">Submit · get a ¥30 coupon</button>
     </form>`;
   },
   checkout(el) {
-    const o = state.order, s = SPECIES[o.species];
-    const lines = [
-      [s.title + ' × ' + o.opts.qty, '¥' + Math.round(s.price * GROWTH.plan[o.opts.plan].price * o.opts.qty)],
-      ['培养方案', `${o.opts.cycle} 天 · ${GROWTH.plan[o.opts.plan].label}`],
-      ...(o.opts.delivery === 'priority' ? [['优先交付', '¥48']] : []),
-      ...(o.boost ? [['加速包 ×1.5', '¥28']] : []),
-      ...(o.coupon ? [['新客券', '-¥' + o.coupon]] : []),
-    ];
+    const o = state.order, lines = [];
+    for (const b of state.basket) lines.push([`${NAME_EN[b.k]} · ${b.grams} g · ready-made`, '¥' + b.price]);
+    if (o) {
+      lines.push([`${NAME_EN[o.species]} × ${o.opts.qty} · grown to order`, '¥' + Math.round(SPECIES[o.species].price * GROWTH.plan[o.opts.plan].price * o.opts.qty)]);
+      lines.push(['Grow plan', `${o.opts.cycle} days · ${PLAN_EN[o.opts.plan]}`]);
+      if (o.opts.delivery === 'priority') lines.push(['Priority delivery', '¥48']);
+      if (o.boost) lines.push(['Growth boost ×1.5', '¥28']);
+      if (o.coupon) lines.push(['New customer coupon', '-¥' + o.coupon]);
+    }
+    const total = (o ? o.price : 0) + state.basket.reduce((a, b) => a + b.price, 0), no = o ? o.no : 'FM-' + (1000 + state.basket.length * 137 % 9000);
     el.innerHTML = `<div class="kiosk">
-      <div class="kh"><span>SELF CHECKOUT · 自助结算</span><span>订单 ${o.no}</span></div>
+      <div class="kh"><span>SELF CHECKOUT</span><span>ORDER ${no}</span></div>
       <div class="kl">${lines.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('')}</div>
-      <div class="kt"><span>合计</span><b>¥${o.price}</b></div>
-      <button class="pay">确认支付</button>
+      <div class="kt"><span>TOTAL</span><b>¥${total}</b></div>
+      <button class="pay">PAY NOW</button>
     </div>`;
+    const ids = [...new Set([...state.basket.map((b) => b.k), ...(o ? [o.species] : [])])].map((k) => SPECIES[k].id).join(' · ');
     receiptEl.innerHTML = `<div class="paper">
-      <div class="rh">FUTURE MEAT MARKET<br>${new Date().toLocaleString('zh-CN', { hour12: false })}</div>
+      <div class="rh">FUTURE MEAT MARKET<br>${new Date().toLocaleString('en-GB', { hour12: false })}</div>
       ${lines.map(([a, b]) => `<div class="rl"><span>${a}</span><span>${b}</span></div>`).join('')}
-      <div class="rl t"><span>合计</span><span>¥${o.price}</span></div>
-      <div class="rf">细胞系 ${s.id}<br>零屠宰 · 感谢惠顾<br>附：生物所有权证书 1 份</div></div>`;
+      <div class="rl t"><span>TOTAL</span><span>¥${total}</span></div>
+      <div class="rf">CELL LINE ${ids}<br>NO SLAUGHTER · THANK YOU<br>Encl.: certificate of biological ownership ×1</div></div>`;
+    state.payNo = no;
   },
   donor(el) {
     el.innerHTML = `<div class="flyer3d">
-      <h3>我们的供体动物</h3>
+      <h3>Our donor animals</h3>
       <div class="pols">${ORDER.map((k) => `
         <button class="pol" data-donor="${k}"><span class="in">
           <span class="front"><span class="ph" style="background-image:url(${PH.photos[k]})"></span><b>${SPECIES[k].id}</b></span>
           <span class="back">${DONOR_STEPS.map(([t]) => `<b>${t}</b>`).join('')}</span>
         </span></button>`).join('')}</div>
-      <button class="more" data-go="#/lab">参观加工间 →</button>
+      <button class="more" data-go="#/lab">Visit the processing hall →</button>
     </div>`;
   },
 };
@@ -1057,7 +1114,7 @@ function openRoomUI(id) {
   const sp = room.spots[id];
   if (id === 'fridge') {
     document.body.classList.add('at-fridge');
-    if (pendingProduct) { const k = pendingProduct; pendingProduct = null; openProduct(k); }
+    if (pendingProduct) { const [a, b] = pendingProduct; pendingProduct = null; fridgeRoute(a, b); }
     else if (firstFridge) { firstFridge = false; showTutorial('', '', 'tap'); }
     return;
   }
@@ -1071,6 +1128,7 @@ function closeRoomUI() {
   inspector.close();
   document.body.classList.remove('at-fridge');
   if (state.sel) closeProduct(true);
+  if (state.fscreen) { restoreKiosk(); document.body.classList.remove('product-open'); }
   for (const it of cssItems) { it.visible = false; it.el.style.display = 'none'; }
   receiptEl.classList.remove('print');
   clearInterval(filmTimer);
@@ -1162,24 +1220,24 @@ css.domElement.addEventListener('input', (e) => {
 css.domElement.addEventListener('submit', (e) => {
   e.preventDefault();
   state.coupon = 30;
-  e.target.innerHTML = `<div class="th"><span>THANK YOU</span><b>感谢你的评价！</b></div>
+  e.target.innerHTML = `<div class="th"><span>THANK YOU</span><b>Thanks for your feedback!</b></div>
     <p class="ok big">¥30</p>
-    <div class="acts"><button type="button" class="submit" data-go="#/fridge">去冷柜选一份</button><button type="button" data-go="#/">继续逛逛</button></div>`;
+    <div class="acts"><button type="button" class="submit" data-go="#/fridge">Pick one at the fridge</button><button type="button" data-go="#/">Keep looking</button></div>`;
 });
 // 结算：屏幕上换成证书，小票从出票口吐出来
 function pay() {
-  const o = state.order, s = SPECIES[o.species];
+  const s = SPECIES[state.order?.species || state.basket[0]?.k || 'beef'];
   surfaces.checkout.el.innerHTML = `<div class="kiosk cert3d">
-    <div class="kh"><span>支付成功 · ${o.no}</span><span class="seal">VERIFIED</span></div>
-    <h4>Certificate of Biological Ownership<small>生物所有权证书</small></h4>
+    <div class="kh"><span>PAYMENT OK · ${state.payNo || ''}</span><span class="seal">VERIFIED</span></div>
+    <h4>Certificate of Biological Ownership<small>issued with every purchase</small></h4>
     <table>
-      <tr><td>细胞样本管理权</td><td>Future Meat Market</td></tr>
-      <tr><td>衍生细胞使用权</td><td>Future Meat Market</td></tr>
-      <tr><td>来源信息展示权</td><td>Future Meat Market</td></tr>
-      <tr><td>产品所有权</td><td>你（顾客）</td></tr>
+      <tr><td>Custody of cell samples</td><td>Future Meat Market</td></tr>
+      <tr><td>Use of derived cells</td><td>Future Meat Market</td></tr>
+      <tr><td>Display of source information</td><td>Future Meat Market</td></tr>
+      <tr><td>Ownership of the product</td><td>You (customer)</td></tr>
     </table>
     <div class="cs"><div><span>Human Control</span><b>100%</b></div><div class="red"><span>Animal Agency</span><b>0%</b></div><div class="red"><span>Animal Consent</span><b>N/A</b></div></div>
-    <div class="sg"><div><b>Future Meat</b>生产方</div><div><b>你</b>购买方</div><div class="empty"><b>${s.id}</b>无签名栏位</div></div>
+    <div class="sg"><div><b>Future Meat</b>Producer</div><div><b>You</b>Buyer</div><div class="empty"><b>${s.id}</b>No signature field</div></div>
   </div>`;
   receiptObj.visible = true;
   requestAnimationFrame(() => receiptEl.classList.add('print'));
@@ -1433,7 +1491,7 @@ function unfocusLab(instant = false) {
   setMarquee(LAB_MARQUEE);
 }
 function updateBack() {
-  $('#back span:last-child').textContent = atFridge() && state.sel ? '鲜肉柜' : state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
+  $('#back span:last-child').textContent = atFridge() && (state.sel || state.fscreen) ? '鲜肉柜' : state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
 }
 
 // ------------------------------------------------------------------ 引导与提示
@@ -1465,7 +1523,7 @@ let firstRoom = true, firstFridge = true, firstLab = true, firstStreet = true, f
 const areaOf = (view) => (view === 'fridge' ? 'room' : view);
 const otherPlaceBuilt = (view) => Object.keys(building).some((v) => areaOf(v) !== areaOf(view));
 function moveOn() {
-  store.set('carry', JSON.stringify({ from: state.view, order: state.order, age: state.order ? performance.now() / 1000 - state.order.at : 0,
+  store.set('carry', JSON.stringify({ from: state.view, order: state.order, basket: state.basket, age: state.order ? performance.now() / 1000 - state.order.at : 0,
     batch: state.batch, coupon: state.coupon || 0, seen: [firstRoom, firstFridge, firstLab, firstStreet, firstWh] }));
   if (!store.get('carry')) return false;                                     // 隐私模式存不下：就留在这一页里
   location.reload();
@@ -1481,10 +1539,10 @@ function arriveWith() {
   state.batch = c.batch;
   state.coupon = c.coupon;
   [firstRoom, firstFridge, firstLab, firstStreet, firstWh] = c.seen;
-  if (!c.order) return;
+  state.basket = c.basket || [];
+  if (!c.order) { cartLabel(); return; }
   state.order = { ...c.order, at: performance.now() / 1000 - c.age };
-  document.body.classList.add('has-order');
-  $('#cart').textContent = `订单 ${state.order.no}`;
+  cartLabel();
   hudStatic();
 }
 // 转场：遮罩盖上 → 牛排线稿画出来、填色（这时在后面切场景）→ 一刀斜着切过去 → 遮罩揭开
@@ -1565,8 +1623,8 @@ function setView(v) {
 }
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
-  const [page, sub] = parts;
-  if (page === 'checkout' && !state.order) { location.replace('#/'); return toast('购物车是空的'); }
+  const [page, sub, third] = parts;
+  if (page === 'checkout' && !hasCart()) { location.replace('#/'); return toast('购物车是空的'); }
   if (page === 'live') { location.replace('#/lab' + (state.order ? '/batch' : '')); return; }
 
   if (page === 'lab') {
@@ -1627,7 +1685,7 @@ function route() {
       else if (fromOutside || state.view === 'boot') goStation(({ warehouse: 'storage', lab: 'right', fridge: 'fridge' })[state.view === 'boot' ? cameFrom : state.view] || 'door', true);   // 从外面进来站回门口，从仓库回来站在仓库门口
       setView('room');
       camera.fov = look.fov; camera.updateProjectionMatrix();
-      if (spot === 'fridge') pendingProduct = SPECIES[sub] ? sub : null;
+      if (spot === 'fridge') pendingProduct = sub ? [sub, third] : null;
       if (spot) focusRoom(spot);
       else if (firstRoom) {
         firstRoom = false;
@@ -1637,8 +1695,8 @@ function route() {
     return;
   }
   if (toOffice) { if (state.rfocus) unfocusRoom(true); goStation('office'); return; }
-  if (spot === 'fridge' && state.rfocus === 'fridge') { if (SPECIES[sub]) openProduct(sub); else closeProduct(); return; }
-  if (spot === 'fridge') pendingProduct = SPECIES[sub] ? sub : null;
+  if (spot === 'fridge' && state.rfocus === 'fridge') { fridgeRoute(sub, third); return; }
+  if (spot === 'fridge') pendingProduct = sub ? [sub, third] : null;
   if (spot) focusRoom(spot);
   else if (state.rfocus) unfocusRoom();
 }
@@ -1648,7 +1706,8 @@ $('#back').addEventListener('click', () => {
   if (paperEl.classList.contains('on')) { paperEl.classList.remove('on'); return; }
   if (state.sfocus) location.hash = '#/' + state.view;
   else if (state.view === 'room' && state.rfocus === 'survey') location.hash = '#/tasting';
-  else if (atFridge() && state.sel) location.hash = '#/fridge';
+  else if (atFridge() && state.sel && state.mode === 'grow') location.hash = '#/fridge/grow';
+  else if (atFridge() && (state.sel || state.fscreen)) location.hash = '#/fridge';
   else if (state.view === 'lab' && state.focus) location.hash = '#/' + labParent();
   else if (state.view === 'room' && !state.rfocus) location.hash = '#/street';
   else location.hash = '#/';
@@ -1692,7 +1751,7 @@ function placeHotspots(list, near = 0) {
     const lim = h.near || near, far = lim && Math.hypot(v.x - camera.position.x, v.z - camera.position.z) > lim;
     const wall = state.view === 'room' && (v.x < -7.05) !== (camera.position.x < -7.05);   // 办公室和大厅隔着墙：互相看不见对方的标签
     el.classList.toggle('hidden', !!(s.behind || far || wall || walking || (act !== null && h.show && !h.show.includes(act))));
-    el.classList.toggle('locked', !!h.locked || (!!h.needsOrder && !state.order));
+    el.classList.toggle('locked', !!h.locked || (!!h.needsOrder && !hasCart()));
   }
 }
 

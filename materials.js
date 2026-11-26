@@ -249,8 +249,8 @@ export function tapeLabel(lines, w = 300, h = 90) {
   g.fillStyle = 'rgba(0,0,0,.05)';
   for (let x = 0; x < w; x += 3) g.fillRect(x, 0, 1, h);
   g.fillStyle = '#1d2a6b';
-  g.font = `400 ${Math.round(h * 0.32)}px "Segoe Print", "Comic Sans MS", cursive`;
-  lines.forEach((l, i) => g.fillText(l, 10, h * (0.4 + i * 0.4)));
+  const px = Math.round(h * 0.32), F = (p) => `400 ${p}px "Segoe Print", "Comic Sans MS", cursive`;
+  lines.forEach((l, i) => { g.font = F(px); const k = Math.min(1, (w - 20) / Math.max(1, g.measureText(l).width)); if (k < 1) g.font = F(Math.floor(px * k)); g.fillText(l, 10, h * (0.4 + i * 0.4)); });
   return tex(c, { srgb: true });
 }
 

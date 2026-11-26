@@ -259,18 +259,32 @@ function createKiosk(root) {
   };
 }
 
-// 屏幕前的一层旧玻璃：斜着的一道反光 + 划痕 + 指纹（叠加，不挡屏幕的光）
-export function screenGlass(parent, w, h, { x = 0, y = 0, z = 0, ry = 0, seed = 1 } = {}) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
-  const glare = canvasTexture(512, Math.round(512 * h / w), (c, W, H) => {
-    const gr = c.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.3, 'rgba(255,255,255,0)'); gr.addColorStop(0.36, 'rgba(230,240,236,.1)'); gr.addColorStop(0.44, 'rgba(230,240,236,.03)'); gr.addColorStop(0.5, 'rgba(255,255,255,0)');
+// 屏幕前的一层旧玻璃：斜着的一道反光 + 划痕 + 指纹 + 一点擦过的油膜（叠加，不挡屏幕的光）
+// 每层都和屏幕一样大（压在边框里，不会大出一圈）；每块屏幕不一样靠的是从贴图上裁不同的一块（seed 决定裁哪里），
+// 裁的大小按屏幕的实际尺寸算，小屏幕上的划痕不会被放大成粗道子。rx / ry / rz：屏幕本身的朝向
+export function screenGlass(parent, w, h, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, seed = 1, wear = 1 } = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.set(rx, ry, rz); parent.add(g);
+  const r = ((n) => () => (n = (n * 16807) % 2147483647) / 2147483647)(Math.abs(seed * 7919) % 2147483646 + 1);
+  const glare = canvasTexture(256, Math.max(32, Math.round(256 * h / w)), (c, W, H) => {
+    const a = 0.25 + r() * 0.2, gr = c.createLinearGradient(0, 0, W, H); gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(a, 'rgba(255,255,255,0)'); gr.addColorStop(a + 0.06, 'rgba(230,240,236,.1)'); gr.addColorStop(a + 0.14, 'rgba(230,240,236,.03)'); gr.addColorStop(a + 0.2, 'rgba(255,255,255,0)');
     c.clearRect(0, 0, W, H); c.fillStyle = gr; c.fillRect(0, 0, W, H);
   });
-  const add = (m, dz, o) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m); p.position.set(o, -o * 0.5, dz); p.renderOrder = 8; g.add(p); };
-  add(new THREE.MeshBasicMaterial({ map: glare, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0.003, 0);
-  add(decalMat('Scratches003', { color: 0xc8d0cc, opacity: 0.45, roughness: 0.4 }), 0.0025, 0.1 * seed);
-  add(decalMat('Fingerprints002', { color: 0xb8bcb8, opacity: 0.35, roughness: 0.6 }), 0.0028, -0.05 * seed);
+  const add = (m, dz, cover) => {                                                    // cover：贴图一整张在现实里覆盖多宽（米）
+    const geo = new THREE.PlaneGeometry(w, h), uv = geo.attributes.uv;
+    const su = Math.min(1, w / cover), sv = Math.min(1, h / cover), ou = r() * (1 - su), ov = r() * (1 - sv), flip = r() < 0.5;
+    for (let i = 0; i < uv.count; i++) { const u = flip ? 1 - uv.getX(i) : uv.getX(i); uv.setXY(i, ou + u * su, ov + uv.getY(i) * sv); }
+    const p = new THREE.Mesh(geo, m); p.position.z = dz; p.renderOrder = 8; p.userData.glass = true; g.add(p); return p;
+  };
+  add(new THREE.MeshBasicMaterial({ map: glare, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), 0.0012, 1e-6);
+  add(decalMat(r() < 0.5 ? 'Scratches003' : 'Scratches001', { color: 0xc8d0cc, opacity: 0.4 * wear, roughness: 0.4 }), 0.0008, 0.9);
+  add(decalMat(['Fingerprints002', 'Fingerprints003', 'Fingerprints005'][Math.floor(r() * 3)], { color: 0xb8bcb8, opacity: 0.3 * wear, roughness: 0.6 }), 0.001, 0.5);
+  if (wear > 0.6) add(decalMat('Smear005', { color: 0xb0b4b0, opacity: 0.12 * wear, roughness: 0.6 }), 0.0009, 1.2);
   return g;
+}
+// 直接贴在一块屏幕平面（PlaneGeometry，正面朝本地 +z）上：大小从几何体读
+export function glassOn(screen, opts = {}) {
+  const prm = screen.geometry.parameters || {}, w = prm.width || 0.3, h = prm.height || 0.2;
+  return screenGlass(screen, w, h, { z: 0.0005, ...opts });
 }
 
 export function createSigns(root) {

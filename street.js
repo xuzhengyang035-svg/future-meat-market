@@ -250,7 +250,7 @@ export function createStreet(env) {
   }
   box(0.04, 0.04, 0.9, M.iron, 3.75, 1.25, 0.15, root);
   const note = (t, s, seed) => canvasTexture(200, 260, (g, W, H) => { g.fillStyle = '#ddd6c2'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 36px ${SANS}`; g.textAlign = 'center'; g.fillText(t, W / 2, 60); g.font = `400 20px ${SANS}`; s.forEach((l, i) => g.fillText(l, W / 2, 110 + i * 30)); ageCanvas(g, W, H, { amount: 1.2, seed }); });
-  for (const [x, y, t, l] of [[4.55, 2.05, '通知', ['本楼地下室', '夜间施工']], [4.85, 1.65, '招工', ['夜班分拣', '日结']], [4.45, 1.45, '熟客', ['请走侧门', '敲三下']], [5.0, 2.3, '寻猫', ['灰色 · 母', '酬谢']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
+  for (const [x, y, t, l] of [[4.55, 2.05, 'NOTICE', ['Basement works', 'at night']], [4.85, 1.65, 'HIRING', ['Night packers', 'paid daily']], [4.45, 1.45, 'REGULARS', ['Use side door', 'knock 3 times']], [5.0, 2.3, 'LOST CAT', ['Grey · female', 'reward']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
   const SDX = 6.4;
   // 仓库的 02 号门（和仓库里那扇是同一扇）：卷帘门拉起来一半，里面暖黄的灯照出来，看得见运输笼和托盘
   { const DW = 2.0, DTop = 3.15, OPEN = 1.35, y0 = 0.15;

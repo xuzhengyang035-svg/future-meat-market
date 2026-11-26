@@ -1,4 +1,6 @@
-// 冷柜触摸屏上的商品页：选完肉以后，定制、产量、份量、交付、下单都直接在这块玻璃屏上点（不再弹一层网页）。
+// 冷柜触摸屏上的商品页（都直接在这块玻璃屏上点，不弹网页）。两种买法：
+//   现货（stock）：柜里那一盒已经长好了——只看这一盒的批次、克重、保质期，拿走就行，不能定制
+//   培养定制（product）：从一份细胞系开始为你长一份，脂肪、纹理、颜色……都能选，14–28 天后取
 // 画在 600 × 1057 的画布上（屏幕 42 × 74 cm），字都是英文（场景里的字）；点到哪里由 uv 换算回画布坐标，返回一个动作交给 main.js。
 import * as THREE from 'three';
 
@@ -6,6 +8,7 @@ const SW = 600, SH = 1057, P = 28;
 const MONO = '"IBM Plex Mono", Consolas, monospace', SANS = '"Inter", "Helvetica Neue", Arial, sans-serif';
 const NAME = { beef: 'Cultivated beef steak', pork: 'Cultivated pork chop', chicken: 'Cultivated chicken breast', fish: 'Cultivated yellow croaker' };
 const LINE = { beef: 'B-0417', pork: 'P-0932', chicken: 'G-0221', fish: 'F-1180' };
+const TONE = { beef: ['#8e2a2a', '#c8505a'], pork: ['#c97a78', '#ecb2a8'], chicken: ['#d9a48c', '#f1d0bc'], fish: ['#d8c2a8', '#f3e6d4'] };
 const OPT = {
   fat: ['FAT', { low: 'Lean', mid: 'Balanced', high: 'Rich' }, 'FatBlend™'],
   form: ['FORM', { fillet: 'Fillet', steak: 'Steak' }, 'ShapeFab™'],
@@ -41,8 +44,9 @@ export function createProductScreen() {
 
   function product(v) {
     const { k, opts, options, price } = v;
-    frame('CUSTOMISE');
+    frame('GROW TO ORDER');
     g.fillStyle = '#f0ece4'; g.font = `600 32px ${SANS}`; g.fillText(NAME[k], P, 118);
+    swatch(SW - P - 92, 84, 92, 64, k, opts);
     g.fillStyle = '#8f949a'; g.font = `400 17px ${MONO}`; g.fillText(`CELL LINE ${LINE[k]} · ¥${v.base} / 200 g`, P, 148);
     // 三个数：培养天数、细胞量、屠宰动物
     const stats = [[String(opts.cycle), 'DAYS TO GROW'], ['×' + v.x, 'YIELD'], ['0', 'ANIMALS SLAUGHTERED*']];
@@ -72,6 +76,7 @@ export function createProductScreen() {
     g.fillStyle = '#7d8288'; g.font = `500 15px ${MONO}`; g.fillText('TOTAL', P, SH - 92);
     g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText('¥' + price, P, SH - 46);
     btn(SW - P - 250, SH - 104, 250, 72, 'START GROWING', true, { type: 'buy' }, { size: 24, red: true });
+    g.fillStyle = '#5f646a'; g.font = `400 13px ${MONO}`; g.fillText('grown for you from a cell line · not from the fridge', P, SH - 136);
     g.fillStyle = '#4c5056'; g.font = `400 12px ${MONO}`; g.fillText('*in the culture process. donor sampling not included.', P, SH - 12);
     scan();
   }
@@ -88,7 +93,73 @@ export function createProductScreen() {
     btn(P, 740, SW - 2 * P, 70, 'BACK TO THE SHOP', false, { type: 'go', hash: '#/' }, { size: 22 });
     scan();
   }
-  const draw = (v) => { last = v; (v.mode === 'ordered' ? ordered : product)(v); };
+  // 定制页右上角的小样：一块肉的剖面，颜色跟着 COLOUR、白色脂肪纹跟着 FAT 变（屏幕上的界面插图，不是柜里的那盒）
+  function swatch(x, y, w, h, k, o) {
+    const deep = o.shade === 'deep', [a, b] = TONE[k], gr = g.createLinearGradient(x, y, x + w, y + h);
+    gr.addColorStop(0, deep ? shade(a, -0.25) : a); gr.addColorStop(1, deep ? shade(b, -0.25) : b);
+    g.fillStyle = '#16191c'; g.fillRect(x - 6, y - 6, w + 12, h + 12);
+    g.save(); g.beginPath(); g.ellipse(x + w / 2, y + h / 2, w / 2 - 2, h / 2 - 4, -0.1, 0, 7); g.fillStyle = gr; g.fill(); g.clip();
+    const n = { low: 2, mid: 5, high: 9 }[o.fat] || 4; g.strokeStyle = 'rgba(255,244,232,.6)'; g.lineWidth = 1.6;
+    for (let i = 0; i < n; i++) { const yy = y + 8 + i * (h - 16) / n; g.beginPath(); g.moveTo(x + 4, yy + 4); g.quadraticCurveTo(x + w / 2, yy + (i % 2 ? 9 : -6), x + w - 4, yy + 2); g.stroke(); }
+    g.restore();
+    g.fillStyle = '#5f646a'; g.font = `400 11px ${MONO}`; g.textAlign = 'center'; g.fillText('PREVIEW', x + w / 2, y + h + 18); g.textAlign = 'left';
+  }
+  const shade = (hex, d) => { const n = parseInt(hex.slice(1), 16), f = (c) => Math.max(0, Math.min(255, Math.round(c * (1 + d)))); return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`; };
+  const fact = (y, k, v, red) => { g.fillStyle = '#7d8288'; g.font = `500 15px ${MONO}`; g.fillText(k, P, y); g.fillStyle = red ? '#e0474e' : '#f0ece4'; g.font = `500 22px ${SANS}`; g.textAlign = 'right'; g.fillText(v, SW - P, y); g.textAlign = 'left'; g.fillStyle = '#1e2124'; g.fillRect(P, y + 14, SW - 2 * P, 1); };
+  // 现货：柜里这一盒。没有任何可选项——只能拿或不拿
+  function stock(v) {
+    const { k, pack } = v;
+    frame('IN THE FRIDGE');
+    g.fillStyle = '#7d8288'; g.font = `500 17px ${MONO}`; g.fillText('READY TODAY · THIS PACK', P, 112);
+    g.fillStyle = '#f0ece4'; g.font = `600 34px ${SANS}`; g.fillText(NAME[k], P, 156);
+    let y = 196;
+    if (pack.tag) { g.fillStyle = '#b3262d'; g.fillRect(P, y, SW - 2 * P, 46); g.fillStyle = '#fff'; g.font = `600 17px ${MONO}`; g.fillText(pack.tag, P + 14, y + 29); y += 66; } else y += 10;
+    for (const [a, b, red] of [['BATCH', pack.batch], ['CELL LINE', LINE[k]], ['GROWN FOR', pack.grown + ' days'], ['HARVESTED', pack.harvested], ['WEIGHT', pack.grams + ' g'], ['BEST BEFORE', pack.best, pack.soon], ['ORIGINALLY FOR', pack.for]]) { y += 44; fact(y, a, b, red); }
+    y += 44; g.fillStyle = '#5f646a'; g.font = `400 14px ${MONO}`;
+    g.fillText('Ready-made. Fat, texture and colour are as grown.', P, y + 10); g.fillText('Want it your way? Grow your own below.', P, y + 32);
+    g.fillStyle = '#26292c'; g.fillRect(P, SH - 214, SW - 2 * P, 2);
+    g.fillStyle = '#7d8288'; g.font = `500 15px ${MONO}`; g.fillText('PRICE', P, SH - 178);
+    if (pack.was) { g.fillStyle = '#6a6e72'; g.font = `400 22px ${SANS}`; const w = g.measureText('¥' + pack.was).width; g.fillText('¥' + pack.was, P + 150, SH - 136); g.fillRect(P + 150, SH - 143, w, 2); }
+    g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText('¥' + pack.price, P, SH - 132);
+    btn(SW - P - 250, SH - 190, 250, 72, 'TAKE THIS PACK', true, { type: 'take' }, { size: 24, red: true });
+    btn(P, SH - 98, SW - 2 * P, 58, 'GROW YOUR OWN ' + NAME[k].split(' ').pop().toUpperCase() + ' INSTEAD ›', false, { type: 'go', hash: '#/fridge/grow/' + k }, { size: 19 });
+    g.fillStyle = '#4c5056'; g.font = `400 12px ${MONO}`; g.fillText('grown to someone\'s order · not collected · now in the fridge', P, SH - 14);
+    scan();
+  }
+  function taken(v) {
+    frame('IN YOUR BAG');
+    g.fillStyle = '#7d8288'; g.font = `500 17px ${MONO}`; g.fillText('ADDED', P, 130);
+    g.fillStyle = '#f0ece4'; g.font = `600 34px ${SANS}`; g.fillText(NAME[v.k], P, 176);
+    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`${v.pack.grams} g · batch ${v.pack.batch} · ¥${v.pack.price}`, P, 214);
+    g.fillStyle = '#16191c'; g.fillRect(P, 250, SW - 2 * P, 150);
+    g.fillStyle = '#f0ece4'; g.font = `200 96px ${SANS}`; g.fillText(String(v.count), P + 24, 360);
+    g.fillStyle = '#7d8288'; g.font = `500 18px ${MONO}`; g.fillText(v.count > 1 ? 'PACKS IN YOUR BAG' : 'PACK IN YOUR BAG', P + 24 + g.measureText(String(v.count)).width * 0 + 110, 340);
+    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`Total ¥${v.total}`, P + 134, 372);
+    btn(P, 450, SW - 2 * P, 84, 'CHECKOUT', true, { type: 'go', hash: '#/checkout' }, { size: 26, red: true });
+    btn(P, 550, SW - 2 * P, 70, 'KEEP SHOPPING', false, { type: 'go', hash: '#/fridge' }, { size: 22 });
+    btn(P, 636, SW - 2 * P, 70, 'GROW YOUR OWN ›', false, { type: 'go', hash: '#/fridge/grow' }, { size: 22 });
+    scan();
+  }
+  // 培养定制的第一步：选一种，从它的细胞系开始长
+  function growPick(v) {
+    frame('GROW TO ORDER');
+    g.fillStyle = '#f0ece4'; g.font = `600 34px ${SANS}`; g.fillText('Grow your own', P, 124);
+    g.fillStyle = '#8f949a'; g.font = `400 18px ${SANS}`; g.fillText('Started for you from a cell line. Choose fat, texture,', P, 160); g.fillText('colour and more. Ready in 14 – 28 days.', P, 186);
+    const TW = (SW - 2 * P - 18) / 2, TH = 250;
+    ['beef', 'pork', 'chicken', 'fish'].forEach((k, i) => {
+      const x = P + (i % 2) * (TW + 18), y = 220 + Math.floor(i / 2) * (TH + 18), act = { type: 'go', hash: '#/fridge/grow/' + k }, hot = hover && hover.hash === act.hash;
+      g.fillStyle = hot ? '#24282c' : '#181b1e'; g.fillRect(x, y, TW, TH); if (hot) { g.strokeStyle = '#6c7276'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, TW - 2, TH - 2); }
+      swatch(x + TW / 2 - 70, y + 30, 140, 84, k, { fat: 'mid', shade: 'light' });
+      g.fillStyle = '#f0ece4'; g.font = `600 24px ${SANS}`; g.fillText(NAME[k].replace('Cultivated ', '').replace(/^./, (c) => c.toUpperCase()), x + 16, y + 170);
+      g.fillStyle = '#8f949a'; g.font = `400 15px ${MONO}`; g.fillText(`CELL LINE ${LINE[k]}`, x + 16, y + 196);
+      g.fillStyle = '#e0474e'; g.font = `600 26px ${SANS}`; g.fillText(`from ¥${v.prices[k]}`, x + 16, y + 232);
+      regions.push({ x0: x, y0: y, x1: x + TW, y1: y + TH, act });
+    });
+    btn(P, SH - 110, SW - 2 * P, 64, '‹ BACK TO WHAT\'S IN THE FRIDGE', false, { type: 'go', hash: '#/fridge' }, { size: 20 });
+    scan();
+  }
+  const MODES = { ordered, stock, taken, grow: growPick, product };
+  const draw = (v) => { last = v; MODES[v.mode](v); };
   const at = (uv) => { if (!uv) return null; const x = uv.x * SW, y = (1 - uv.y) * SH; return regions.find((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1)?.act || null; };
   document.fonts?.ready.then(() => last && draw(last));
   return {

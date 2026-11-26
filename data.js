@@ -233,15 +233,15 @@ export const WH_HOTSPOTS = [
 
 // 品牌告示上的供体介绍。细胞库里的档案对消费者不公开。
 export const DONOR_PR = {
-  chicken: '林下散养。',
-  beef: '牧场放养。',
-  pork: '恒温猪舍饲养。',
-  fish: '深海网箱养殖。',
+  chicken: 'Free-range, under the trees.',
+  beef: 'Grazing on the farm.',
+  pork: 'Kept in a climate-controlled barn.',
+  fish: 'Raised in deep-sea net pens.',
 };
 export const DONOR_STEPS = [
-  ['来源', '合作牧场，已通过动物福利认证。'],
-  ['取样', '局部麻醉后取少量肌肉组织*。'],
-  ['取样后', '回到牧场继续饲养。'],
+  ['Source', 'Partner farms, animal-welfare certified.'],
+  ['Sampling', 'A little muscle tissue under local anaesthetic*.'],
+  ['Afterwards', 'Back to the farm, kept as before.'],
 ];
 
 // ------------------------------------------------------------------ 生长观察室（透明工坊参观廊）
@@ -373,4 +373,4 @@ export const BRAND_FILM = [
   { big: '24', unit: 'h', small: 'Our processing hall is open to visitors' },
   { big: 'Cells from<br>partner farms', small: 'Donor animals live on the farm.', poster: 'beef' },
 ];
-export const BRAND_FINE = '*1 指培养生产环节不涉及屠宰，不包括供体动物的选育、取样与饲养。 *2 参观范围为细胞培养车间。';
+export const BRAND_FINE = '*1 Refers to the culture process only; excludes breeding, sampling and keeping of donor animals.  *2 Visits cover the cell culture hall only.';

@@ -15,7 +15,7 @@ import { curve } from './growth.js';
 import { createCurtain } from './curtain.js';
 import { lightCone, glowColumn, hazeLayer, dustMotes } from './atmosphere.js';
 import { dressWard, dirtyCorridor, glassStickers, paperStack, dirtyHall } from './lab-dress.js';
-import { createSigns, screenGlass } from './lab-signs.js';
+import { createSigns, screenGlass, glassOn } from './lab-signs.js';
 import { columnVessel, jacketVessel, wearVessel, benchStain } from './lab-vessels.js';
 import { grimeWallMaps, grimeFloorMaps, grimeMap, ageCanvas, puddleDecal, bloodSplatter } from './materials.js';
 import { steelMaps, concreteMaps, epoxyMaps, wallMaps, slatMaps, smudgeMap, gratingAlpha, blobShadow, graduationMap, tapeLabel, gaugeMap } from './materials.js';
@@ -332,7 +332,7 @@ function vessel(species, frac, parent, label) {
   const path = new THREE.CatmullRomCurve3([[0.08, 0.6, 0], [0.13, 0.7, 0], [0.27, 0.64, 0], [0.33, 0.3, 0], [0.34, 0.13, 0]].map((p) => new THREE.Vector3(...p)));
   g.add(new THREE.Mesh(new THREE.TubeGeometry(path, 40, 0.0055, 8), M.tube));
   box(0.13, 0.12, 0.15, M.white, 0.36, 0.06, 0, g);
-  plane(0.1, 0.05, screenTex('PERFUSION', ['1.2 mL/min', 'O2  42%']), 0.36, 0.08, 0.0755, 0, g);
+  glassOn(plane(0.1, 0.05, screenTex('PERFUSION', ['1.2 mL/min', 'O2  42%']), 0.36, 0.08, 0.0755, 0, g), { seed: 41, wear: 1.2 });
   wearVessel(g, 0.1535, 0.395, 0.32, '176,92,84', 2);
   // 气泡
   const bubbles = new THREE.InstancedMesh(new THREE.SphereGeometry(0.0045, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }), 26);
@@ -512,9 +512,9 @@ export function createLab(env) {
     .map(([id, animal, x]) => ({ id, animal, x, pose: null }));
   const v = (x, y, z) => new THREE.Vector3(x, y, z - LAB_DEEP);
   const tankList = [
-    { name: 'HT-01', size: '高位罐', tissue: ['融合片层', 'LM-04'], pos: v(-1.95, 2.9, -9.3) },
-    { name: 'HT-02', size: '高位罐', tissue: ['富脂褶皱', 'FT-02'], pos: v(1.59, 3.1, -9.1) },
-    { name: 'HT-03', size: '高位罐', tissue: ['定向纤维', 'FB-07'], pos: v(5.48, 2.7, -9.5) },
+    { name: 'HT-01', size: 'HIGH TANK', tissue: ['FUSED SHEETS', 'LM-04'], pos: v(-1.95, 2.9, -9.3) },
+    { name: 'HT-02', size: 'HIGH TANK', tissue: ['FAT-RICH FOLDS', 'FT-02'], pos: v(1.59, 3.1, -9.1) },
+    { name: 'HT-03', size: 'HIGH TANK', tissue: ['ALIGNED FIBRES', 'FB-07'], pos: v(5.48, 2.7, -9.5) },
     { name: 'BR-04', size: '200 L', pos: v(0.8, 1.6, -7.95) }, { name: 'BR-05', size: '200 L', pos: v(3.0, 1.6, -7.95) }, { name: 'BR-06', size: '200 L', pos: v(5.2, 1.6, -7.95) },
   ];
 

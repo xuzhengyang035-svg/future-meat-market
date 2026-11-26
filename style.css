@@ -399,6 +399,12 @@ body.room-focus canvas#c { cursor: default; }
 #css3d > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; }
 .surf { overflow: hidden; font-family: var(--font); color: var(--ink); -webkit-font-smoothing: antialiased; }
 .surf button { cursor: pointer; }
+/* 屏幕类的表面（宣传片电视、评价平板、自助结算机）：盖一层旧玻璃——斜着一道反光、真实的划痕和指纹扫描图（白的地方用“滤色”叠上去，不挡字） */
+.surf-brand::after, .surf-survey::after, .surf-checkout::after { content: ""; position: absolute; inset: 0; z-index: 50; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(118deg, transparent 30%, rgba(230,240,236,.09) 36%, rgba(230,240,236,.03) 44%, transparent 50%),
+    url(assets/ph/decal/Scratches003/opacity.jpg) 37% 61% / 160% auto no-repeat, url(assets/ph/decal/Fingerprints002/opacity.jpg) 70% 30% / 110% auto no-repeat; opacity: .26; }
+.surf-survey::after { background-position: 0 0, 12% 80%, 20% 70%; opacity: .32; }
+.surf-checkout::after { background-position: 0 0, 80% 20%, 45% 55%; }
 
 /* 广告屏：品牌片 */
 .film { position: relative; width: 100%; height: 100%; background: #b3262d; color: #fff; }

@@ -10,10 +10,10 @@ const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
 const MONO = '"IBM Plex Mono", Consolas, monospace';
 
 export const POSTER_COPY = {
-  beef: { head: ['培养牛排，', '无需屠宰。'], animal: 'cow', sky: ['#9fc7e6', '#fdf1d8'] },
-  pork: { head: ['培养猪排，', '肥瘦可选。'], animal: 'pig', sky: ['#b9d6e8', '#fbeede'] },
-  chicken: { head: ['培养鸡胸肉，', '高蛋白低脂。'], animal: 'hen', sky: ['#a8d0e6', '#fff3d6'] },
-  fish: { head: ['培养大黄鱼，', '无刺。'], animal: 'fish', sky: ['#1d5f86', '#7fc4d8'] },
+  beef: { head: ['Cultivated steak.', 'No slaughter.'], animal: 'cow', sky: ['#9fc7e6', '#fdf1d8'] },
+  pork: { head: ['Cultivated pork.', 'Pick your fat.'], animal: 'pig', sky: ['#b9d6e8', '#fbeede'] },
+  chicken: { head: ['Cultivated chicken.', 'High protein.'], animal: 'hen', sky: ['#a8d0e6', '#fff3d6'] },
+  fish: { head: ['Cultivated croaker.', 'No bones.'], animal: 'fish', sky: ['#1d5f86', '#7fc4d8'] },
 };
 
 function gradientTexture(top, bottom) {
@@ -121,10 +121,10 @@ function compose(species, img) {
   g.fillText(DONOR_PR[species], 44, 140 + cp.head.length * 70 - 10);
   // 底部商品条
   g.fillStyle = 'rgba(251,248,242,.94)'; g.fillRect(0, 700, 600, 100);
-  g.fillStyle = '#2a2b2d'; g.font = `500 26px ${SANS}`; g.fillText(s.title, 40, 744);
+  g.fillStyle = '#2a2b2d'; g.font = `500 26px ${SANS}`; g.fillText({ beef: 'Cultivated beef steak', pork: 'Cultivated pork chop', chicken: 'Cultivated chicken breast', fish: 'Cultivated yellow croaker' }[species], 40, 744);
   g.fillStyle = '#b3262d'; g.font = `500 26px ${SANS}`; g.textAlign = 'right'; g.fillText('¥' + s.price, 560, 744);
   g.textAlign = 'left'; g.fillStyle = '#8a8580'; g.font = `400 12.5px ${SANS}`;
-  g.fillText('*图片仅为示意。产品由细胞培养而成，与图中动物无直接关联。', 40, 776);
+  g.fillText('*Image for illustration. Grown from cells; not directly related to the animal shown.', 40, 776);
   return c;
 }
 

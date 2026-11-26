@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { makeLedger, makeWhiteboard } from './office-paper.js';
+import { glassOn } from './lab-signs.js';
 
 export const OFFICE = { X0: -10.6, X1: -7.1, Z0: 1.2, Z1: 5.0, H: 2.9, DZ0: 3.5, DZ1: 4.4, DH: 2.1 };
 
@@ -123,7 +124,7 @@ export function buildOffice(ctx) {
     const scr = canvasTexture(320, 240, (c, W, Hh) => { c.fillStyle = '#0a1a14'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#7fe0a8'; c.font = '14px "Courier New", monospace';
       ['DONOR DB v2.3', '> SELECT * FROM lines', 'B-0417  BOVINE   ACTIVE', 'P-0932  PORCINE  ACTIVE', 'G-0221  AVIAN    DONOR N/A', 'F-1180  PISCINE  ????', '> _'].forEach((t, i) => c.fillText(t, 16, 30 + i * 26));
       for (let y = 0; y < Hh; y += 3) { c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(0, y, W, 1); } });
-    plane(0.31, 0.24, new THREE.MeshPhysicalMaterial({ color: 0x050505, emissive: 0xffffff, emissiveMap: scr, emissiveIntensity: 0.55, roughness: 0.1, clearcoat: 1 }), 0, 0.25, 0.171, 0, mon);
+    glassOn(plane(0.31, 0.24, new THREE.MeshPhysicalMaterial({ color: 0x050505, emissive: 0xffffff, emissiveMap: scr, emissiveIntensity: 0.55, roughness: 0.1, clearcoat: 1 }), 0, 0.25, 0.171, 0, mon), { seed: 31, wear: 1.2 });
     // 键盘：米色，按键是一张贴图
     const kb = new THREE.Group(); kb.position.set(DX - 0.2, T, DZc + 0.05); kb.rotation.y = -Math.PI / 2; g.add(kb);
     RB(0.44, 0.022, 0.15, 0.006, pbr('Plastic013B', 0.44, 0.15, { size: 0.25, color: 0xc8c0aa, roughness: 0.6 }), 0, 0.011, 0, kb);
@@ -234,7 +235,7 @@ export function buildOffice(ctx) {
         c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x + 30, y + 60, 60, 80); c.fillRect(x + 120, y + 40, 50, 100);   // 模糊的东西
         for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; c.fillRect(x + Math.random() * 196, y + Math.random() * 146, 1, 1); }
         c.fillStyle = '#e8e8e8'; c.font = '12px monospace'; c.fillText(t, x + 8, y + 18); c.fillText('2026-11-20 19:42', x + 90, y + 140); }); });
-    plane(0.3, 0.22, new THREE.MeshPhysicalMaterial({ color: 0x050505, emissive: 0xffffff, emissiveMap: feed, emissiveIntensity: 0.5, roughness: 0.15, clearcoat: 1 }), 0, 0.15, 0.151, 0, cm);
+    glassOn(plane(0.3, 0.22, new THREE.MeshPhysicalMaterial({ color: 0x050505, emissive: 0xffffff, emissiveMap: feed, emissiveIntensity: 0.5, roughness: 0.15, clearcoat: 1 }), 0, 0.15, 0.151, 0, cm), { seed: 32, wear: 1.0 });
     cyl(0.004, 0.004, 0.003, new THREE.MeshBasicMaterial({ color: 0x40ff60 }), 0.14, 0.03, 0.152, cm, 8).rotation.x = Math.PI / 2; }
   model('wall_clock', { pos: [-8.37, 2.25, Z0 + 0.02], parent: g });
   // 营业执照（镜框，玻璃反光）

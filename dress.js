@@ -117,11 +117,11 @@ function curledPaper(w, h, curl, tex) {                                         
 const receiptTex = (seed) => canvasTexture(160, 420, (g, W, H) => {
   g.fillStyle = '#ece8dc'; g.fillRect(0, 0, W, H);
   g.fillStyle = 'rgba(40,40,48,.75)'; g.font = '600 15px monospace'; g.textAlign = 'center';
-  g.fillText('肉铺 · 堂食', W / 2, 30); g.font = '11px monospace'; g.fillText(`No.${(seed * 7331) % 9000 + 1000}`, W / 2, 48);
+  g.fillText('BUTCHER · DINE-IN', W / 2, 30); g.font = '11px monospace'; g.fillText(`No.${(seed * 7331) % 9000 + 1000}`, W / 2, 48);
   g.textAlign = 'left';
-  const items = [['牛肋条 200g', '68.00'], ['猪五花 300g', '54.00'], ['米饭 ×2', '4.00'], ['例汤', '6.00'], ['鸡腿排', '32.00']];
+  const items = [['Beef rib 200g', '68.00'], ['Pork belly 300g', '54.00'], ['Rice x2', '4.00'], ['Soup', '6.00'], ['Chicken leg', '32.00']];
   for (let i = 0; i < 3 + (seed % 3); i++) { g.fillText(items[(i + seed) % 5][0], 12, 80 + i * 18); g.fillText(items[(i + seed) % 5][1], 112, 80 + i * 18); }
-  g.fillRect(12, 160, W - 24, 1); g.font = '600 13px monospace'; g.fillText('合计', 12, 182); g.fillText('¥' + (90 + seed * 7 % 60) + '.00', 100, 182);
+  g.fillRect(12, 160, W - 24, 1); g.font = '600 13px monospace'; g.fillText('TOTAL', 12, 182); g.fillText('¥' + (90 + seed * 7 % 60) + '.00', 100, 182);
   for (let y = 210; y < 300; y += 3) g.fillRect(20 + (y * 13 % 5), y, (y * 17 % 3) + 1.5, 2.4);   // 条形码
   g.globalAlpha = 0.25; g.fillStyle = '#8a7a5a'; g.beginPath(); g.ellipse(W * 0.6, H * 0.7, 30, 22, 0.3, 0, 7); g.fill();   // 油点
 });
@@ -539,4 +539,102 @@ export function chalkStand(p, { pos, rot = 0, front, back, seed = 41 }) {
   if (back) { const tx = side(back, seed + 16); texs.push(tx); const m = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.97), M(tx)); m.position.set(0.015, cy, -cz - 0.004); m.rotation.set(TILT, Math.PI, 0); cb.add(m); }
   document.fonts.load(F(60), 'Aa').then(() => texs.forEach((tx) => tx.userData.redraw())).catch(() => {});
   return cb;
+}
+
+// ------------------------------------------------------------------ 毛巾（比 drapeOver 更像一条真毛巾）
+// 有厚度（正反两面 + 一圈布边，3–5 mm）；两头各有一道织出来的边带（bandColor）；挂在杆上往下：
+//   竖褶越往下越深，布被褶子收窄；两个下角往外翘、往下坠；下摆一头长一头短（skew）；侧边微微卷；
+//   手擦过的地方和下摆发灰（顶点色，dirt 控制）。贴墙那一侧 amp 设 0，不会穿墙。
+export function towel({ w = 0.3, lenA = 0.3, lenB = 0.4, r = 0.013, mat, bandMat, seed = 1, ampA = 0, ampB = 1, thick = 0.004, band = 0.045, skew = 0.025, dirt = 0.5 }) {
+  const q = rng(seed), arc = Math.PI * r, L = lenA + lenB + arc;
+  const nx = 24, ny = Math.max(48, Math.round(L / 0.008));
+  const folds = Array.from({ length: 4 }, (_, k) => ({ f: (10 + q() * 10) * (k * 0.7 + 1), p: q() * 6.28, a: (0.016 + q() * 0.008) / (k * 0.8 + 1) }));
+  const blot = Array.from({ length: 5 }, () => [q() - 0.5, q(), 0.04 + q() * 0.08, 0.1 + q() * 0.25]);
+  const sm = (a, b, t) => { const k = Math.min(1, Math.max(0, (t - a) / (b - a))); return k * k * (3 - 2 * k); };
+  const front = [], uvs = [], cols = [];
+  for (let iy = 0; iy <= ny; iy++) for (let ix = 0; ix <= nx; ix++) {
+    const u = ix / nx - 0.5, s = (1 - iy / ny) * L - lenB - arc / 2;              // s：0 在杆顶，正的往 +z（lenA）一侧
+    let x = u * w, y, z;
+    if (Math.abs(s) <= arc / 2) { const th = s / r; y = r * Math.cos(th); z = r * Math.sin(th); }
+    else {
+      const side = Math.sign(s), d = Math.abs(s) - arc / 2, len = side > 0 ? lenA : lenB, amp = side > 0 ? ampA : ampB;
+      const k = sm(0, 0.18, d), t = d / len;
+      const fold = folds.reduce((a, o) => a + Math.sin(u * w * o.f + o.p + d * 2.5) * o.a, 0);
+      x = u * w * (1 - amp * k * 0.07) + amp * k * Math.sin(u * 7 + seed) * 0.004;          // 褶子把布收窄一点
+      const corner = Math.max(0, Math.abs(u) - 0.3) / 0.2;                                    // 下角：往外翘、往下坠
+      y = -d - u * skew * t - corner * corner * 0.012 * t;
+      z = side * (r + amp * k * (Math.abs(fold) * (0.6 + t) + d * 0.025) + amp * corner * corner * 0.012 * t + amp * Math.max(0, Math.abs(u) - 0.42) * 0.12 * k);
+    }
+    front.push(x, y, z); uvs.push(ix / nx, iy / ny);
+    // 脏：越往下摆越灰，中间手擦的地方几块发黄发灰
+    const v = iy / ny, hem = Math.max(sm(0.12, 0, v), sm(0.88, 1, v));
+    let g = 1 - dirt * (0.16 * hem + blot.reduce((a, [bu, bv, br, ba]) => a + ba * Math.max(0, 1 - Math.hypot(u - bu, v - bv) / br), 0) * 0.6);
+    cols.push(g, g * 0.985, g * 0.95);
+  }
+  const cnt = (nx + 1) * (ny + 1);
+  const base = new THREE.BufferGeometry(); base.setAttribute('position', new THREE.Float32BufferAttribute(front, 3));
+  const idx = []; for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) { const a = iy * (nx + 1) + ix, b = a + 1, c = a + nx + 1, dd = c + 1; idx.push(a, c, b, b, c, dd); }
+  base.setIndex(idx); base.computeVertexNormals();
+  const N = base.attributes.normal.array;
+  // 正面 + 反面（沿法线退一个厚度）+ 四条布边
+  const pos = front.slice(), uv = uvs.slice(), col = cols.slice();
+  for (let i = 0; i < cnt; i++) { pos.push(front[i * 3] - N[i * 3] * thick, front[i * 3 + 1] - N[i * 3 + 1] * thick, front[i * 3 + 2] - N[i * 3 + 2] * thick); uv.push(uvs[i * 2], uvs[i * 2 + 1]); col.push(cols[i * 3] * 0.92, cols[i * 3 + 1] * 0.92, cols[i * 3 + 2] * 0.92); }
+  const main = [], bandI = [], nb = Math.max(1, Math.round(band / L * ny));
+  const isBand = (iy) => iy < nb || iy >= ny - nb;
+  for (let iy = 0; iy < ny; iy++) for (let ix = 0; ix < nx; ix++) {
+    const a = iy * (nx + 1) + ix, b = a + 1, c = a + nx + 1, dd = c + 1, T = isBand(iy) ? bandI : main;
+    T.push(a, c, b, b, c, dd, a + cnt, b + cnt, c + cnt, b + cnt, dd + cnt, c + cnt);
+  }
+  const loop = [];                                                                       // 外圈：上边、右边、下边、左边
+  for (let ix = 0; ix <= nx; ix++) loop.push(ix);
+  for (let iy = 1; iy <= ny; iy++) loop.push(iy * (nx + 1) + nx);
+  for (let ix = nx - 1; ix >= 0; ix--) loop.push(ny * (nx + 1) + ix);
+  for (let iy = ny - 1; iy >= 1; iy--) loop.push(iy * (nx + 1));
+  for (let i = 0; i < loop.length; i++) {
+    const a = loop[i], b = loop[(i + 1) % loop.length], o = pos.length / 3;
+    for (const [vi, back] of [[a, 0], [b, 0], [a, 1], [b, 1]]) { const j = vi + back * cnt; pos.push(pos[j * 3], pos[j * 3 + 1], pos[j * 3 + 2]); uv.push(uv[vi * 2], uv[vi * 2 + 1]); col.push(cols[vi * 3] * 0.85, cols[vi * 3 + 1] * 0.85, cols[vi * 3 + 2] * 0.85); }
+    main.push(o, o + 2, o + 1, o + 1, o + 2, o + 3);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex([...main, ...bandI]); geo.addGroup(0, main.length, 0); geo.addGroup(main.length, bandI.length, 1);
+  geo.computeVertexNormals(); geo.setAttribute('uv1', geo.attributes.uv);
+  const m0 = mat.clone(); m0.vertexColors = true; m0.side = THREE.DoubleSide;
+  const m1 = (bandMat || mat).clone(); m1.vertexColors = true; m1.side = THREE.DoubleSide;
+  const m = new THREE.Mesh(geo, [m0, m1]); m.userData.prop = 'drape';
+  return m;
+}
+
+// ------------------------------------------------------------------ 塑料椅上的旧坐垫（扁的海绵垫 + 布套，中间被坐塌，后面两根系带垂下来）
+// 原点在座面中心的高度（塑料椅座面约 0.445 m，中间略凹）；w × dp 是坐垫大小
+export function seatCushion({ w = 0.38, dp = 0.36, h = 0.035, mat, seed = 1, sag = 1, dirt = 0.6 }) {
+  const q = rng(seed), grp = new THREE.Group();
+  const g = new THREE.BoxGeometry(w, h, dp, 20, 4, 20), P = g.attributes.position;
+  const wr = Array.from({ length: 3 }, () => [q() * 6.28, 8 + q() * 10]);
+  const cols = [];
+  for (let i = 0; i < P.count; i++) {
+    let x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+    const ex = Math.abs(x) / (w / 2), ez = Math.abs(z) / (dp / 2), e = Math.max(ex, ez), top = y > 0;
+    const puff = 1 - Math.pow(e, 6);                                                     // 边上收圆，像塞了海绵的布套
+    const seat = Math.exp(-((x / (w * 0.32)) ** 2 + ((z - dp * 0.08) / (dp * 0.3)) ** 2));   // 屁股坐过的地方塌下去
+    if (top) y = -h / 2 + h * (0.25 + 0.75 * puff) - seat * h * 0.35 * sag + wr.reduce((a, [p, f]) => a + Math.sin(x * f + z * f * 0.7 + p) * 0.0012, 0);
+    else y = -h / 2 + 0.02 * ((x / 0.2) ** 2) * 0.5;                                    // 底面顺着凹的座面
+    x *= 1 - 0.04 * (1 - puff) * (top ? 1 : 0.5); z *= 1 - 0.04 * (1 - puff) * (top ? 1 : 0.5);
+    P.setXYZ(i, x, y + h / 2, z);
+    const c = 1 - dirt * (0.18 * seat + 0.1 * Math.pow(e, 3) + (q() - 0.5) * 0.02);   // 坐的地方和边沿发暗
+    cols.push(c, c * 0.98, c * 0.94);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.computeVertexNormals(); g.setAttribute('uv1', g.attributes.uv);
+  const m = mat.clone(); m.vertexColors = true;
+  const pad = new THREE.Mesh(g, m); grp.add(pad);
+  // 一圈包边（滚边条）
+  const tint = (geo, c) => { geo.setAttribute('color', new THREE.Float32BufferAttribute(new Array(geo.attributes.position.count * 3).fill(c), 3)); geo.setAttribute('uv1', geo.attributes.uv); return geo; };   // 用了顶点色的材质：没有颜色的几何体会变黑
+  const edge = new THREE.Mesh(tint(new THREE.TorusGeometry(1, 0.004, 5, 48), 1 - dirt * 0.12), m); edge.scale.set(w / 2 - 0.004, dp / 2 - 0.004, 1); edge.rotation.x = Math.PI / 2; edge.position.y = h * 0.28; grp.add(edge);
+  // 系带：后面两个角各一根布条，没系上，搭在座面后面（扁的）
+  for (const sx of [-1, 1]) {
+    const pts = [[sx * (w / 2 - 0.03), h * 0.3, -dp / 2 + 0.01], [sx * (w / 2 - 0.035), 0.012, -dp / 2 - 0.012], [sx * (w / 2 - 0.05 - q() * 0.02), 0.008, -dp / 2 - 0.03], [sx * (w / 2 - 0.09 - q() * 0.03), 0.008, -dp / 2 - 0.038]].map((p) => new THREE.Vector3(...p));
+    const t = new THREE.Mesh(tint(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.005, 5), 1 - dirt * 0.15), m); t.scale.y = 0.5; grp.add(t);
+  }
+  grp.userData.prop = 'cushion';
+  return grp;
 }

@@ -19,8 +19,9 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { pencil } from './notepad.js';
+import { glassOn } from './lab-signs.js';
 import { buildOffice, OFFICE } from './office.js';
-import { tablecloth, clothMat, dressTable, ITEM, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand } from './dress.js';
+import { tablecloth, clothMat, dressTable, ITEM, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand, towel, seatCushion } from './dress.js';
 
 const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
 const SERIF = '"Noto Serif SC", "Songti SC", "SimSun", serif';
@@ -98,6 +99,31 @@ function sph(r, m, x, y, z, parent, sx = 1, sy = 1, sz = 1) {
   parent.add(o);
   return o;
 }
+// 白色塑料椅做旧：每把椅子一套自己的材质——底色（新的白、晒黄的、灰的）、真实的污渍扫描和划痕扫描叠在塑料上，
+// 划过的地方存了灰、变得发涩（更粗糙）；每把从贴图上取的位置不一样，所以没有两把一样
+const AGE_TEX = {};
+const ageTex = (n) => AGE_TEX[n] ??= (() => { const t = new THREE.TextureLoader().load(`assets/ph/decal/${n}/opacity.jpg`); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; })();
+function ageChair(o, { tint = 0xf0eee8, grime = 0.5, scratch = 0.5, dirt = 'SurfaceImperfections003', scr = 'Scratches001', seed = 1 }) {
+  let n = seed * 7919; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
+  const U = { uDirt: { value: ageTex(dirt) }, uScr: { value: ageTex(scr) }, uAge: { value: new THREE.Vector2(grime, scratch) }, uOff: { value: new THREE.Vector2(r(), r()) } };
+  o.traverse((c) => {
+    if (!c.isMesh) return;
+    const m = c.material.clone(); m.color.set(tint);
+    m.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D uDirt, uScr; uniform vec2 uAge, uOff;')
+        .replace('#include <map_fragment>', `#include <map_fragment>
+          float aD = texture2D(uDirt, vMapUv * 1.4 + uOff).r, aS = texture2D(uScr, vMapUv * 2.3 + uOff.yx).r;
+          diffuseColor.rgb *= 1.0 - uAge.x * aD * vec3(0.34, 0.38, 0.46);
+          diffuseColor.rgb *= 1.0 - uAge.y * aS * 0.22;`)
+        .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+          roughnessFactor = clamp(roughnessFactor + uAge.y * aS * 0.35 + uAge.x * aD * 0.15, 0.0, 1.0);`);
+    };
+    m.customProgramCacheKey = () => 'agedPlastic';
+    c.material = m;
+  });
+  return o;
+}
 function plane(w, h, tex, x, y, z, ry, parent, basic = false) {
   const mat = tex && tex.isMaterial ? tex : basic ? new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }) : new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 });   // 也可以直接传材质
   const o = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -111,6 +137,8 @@ const sign = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
   if (o.border) { g.strokeStyle = o.border; g.lineWidth = 4; g.strokeRect(8, 8, W - 16, H - 16); }
   for (const [txt, size, color, y, weight = 400, font = SANS, align = 'center', x = 0.5] of lines) {
     g.font = `${weight} ${size}px ${font}`; g.fillStyle = color; g.textAlign = align;
+    const fit = Math.min(1, W * 0.9 / Math.max(1, g.measureText(txt).width));        // 英文比中文长：放不下就按比例缩小
+    if (fit < 1) g.font = `${weight} ${Math.floor(size * fit)}px ${font}`;
     g.fillText(txt, W * x, H * y);
   }
   if (!o.clean) ageCanvas(g, W, H, { amount: 0.55, seed: W + H, drips: H > 200 });   // 标牌也都旧了
@@ -118,13 +146,13 @@ const sign = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
 
 // ------------------------------------------------------------------ 合作牧场展板（褪色的喷绘：牧场照片 + 分布图 + 认证章）
 // 照片在 setPosters 里贴上（用的是广告海报同一批渲染图）；先画好底板、地图和文字
-const MURAL = { W: 2400, H: 960, photos: [[70, 230, 800, 640, '细胞系 B-0417 · 1 号牧场的牛'], [910, 230, 300, 300, 'P-0932 · 3 号牧场的猪'], [910, 590, 300, 280, 'G-0221 · 5 号牧场的鸡']] };
+const MURAL = { W: 2400, H: 960, photos: [[70, 230, 800, 640, 'Cell line B-0417 · cattle, farm no. 1'], [910, 230, 300, 300, 'P-0932 · pigs, farm no. 3'], [910, 590, 300, 280, 'G-0221 · chickens, farm no. 5']] };
 function muralTexture() {
   return canvasTexture(MURAL.W, MURAL.H, (g, W, H) => {
     g.fillStyle = '#d6d1c3'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#2a2b2d'; g.textAlign = 'left';
-    g.font = `600 84px ${SANS}`; g.fillText('细胞来自合作牧场', 70, 130);
-    g.font = `400 32px ${SANS}`; g.fillStyle = '#4b4844'; g.fillText('供体动物在合作牧场饲养，定期取样。', 74, 186);
+    g.font = `600 84px ${SANS}`; g.fillText('Cells from partner farms', 70, 130);
+    g.font = `400 32px ${SANS}`; g.fillStyle = '#4b4844'; g.fillText('Donor animals live on partner farms and are sampled regularly.', 74, 186);
     g.font = `500 22px ${MONO}`; g.fillStyle = '#6b6662'; g.textAlign = 'right'; g.fillText('PARTNER FARMS · SINCE 2021', W - 70, 120);
     g.fillStyle = '#2a2b2d'; g.fillRect(70, 205, W - 140, 3);
     for (const [x, y, w, h, cap] of MURAL.photos) {                       // 照片位置先留灰色底
@@ -146,16 +174,16 @@ function muralTexture() {
       g.fillStyle = '#7a2420'; g.beginPath(); g.arc(x, y, 14, 0, Math.PI * 2); g.fill();
       g.fillStyle = '#f0ece0'; g.font = `700 18px ${SANS}`; g.textAlign = 'center'; g.fillText(String(k + 1), x, y + 6);
     });
-    g.fillStyle = '#2a2b2d'; g.font = `600 28px ${SANS}`; g.textAlign = 'left'; g.fillText('合作牧场分布', mx, my + mh + 44);
-    const rows = [['1 号', '牛', '120 头'], ['2 号', '牛', '86 头'], ['3 号', '猪', '64 头'], ['4 号', '猪', '40 头'], ['5 号', '鸡', '800 只'], ['6 号', '大黄鱼', '网箱 12 口']];
+    g.fillStyle = '#2a2b2d'; g.font = `600 28px ${SANS}`; g.textAlign = 'left'; g.fillText('Our partner farms', mx, my + mh + 44);
+    const rows = [['No. 1', 'cattle', '120 head'], ['No. 2', 'cattle', '86 head'], ['No. 3', 'pigs', '64 head'], ['No. 4', 'pigs', '40 head'], ['No. 5', 'chickens', '800 birds'], ['No. 6', 'croaker', '12 net pens']];
     g.font = `400 22px ${SANS}`; g.fillStyle = '#3a3a38';
     rows.forEach(([a, b, c], k) => { const x = mx + (k % 3) * 360, y = my + mh + 86 + Math.floor(k / 3) * 40; g.fillText(`${a}  ${b}`, x, y); g.textAlign = 'right'; g.fillText(c, x + 320, y); g.textAlign = 'left'; });
     // 认证章（盖歪了，褪色）
     g.save(); g.translate(2230, 830); g.rotate(-0.18); g.strokeStyle = 'rgba(140,40,36,.55)'; g.lineWidth = 6;
     g.beginPath(); g.arc(0, 0, 82, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.arc(0, 0, 66, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = 'rgba(140,40,36,.55)'; g.font = `700 24px ${SANS}`; g.textAlign = 'center'; g.fillText('动物福利', 0, -6); g.fillText('认证', 0, 26);
+    g.fillStyle = 'rgba(140,40,36,.55)'; g.font = `700 24px ${SANS}`; g.textAlign = 'center'; g.fillText('ANIMAL', 0, -6); g.fillText('WELFARE', 0, 26);
     g.restore();
-    g.font = `400 18px ${SANS}`; g.fillStyle = '#8a8580'; g.textAlign = 'left'; g.fillText('*照片为各细胞系培养出的肉，非牧场实拍', 70, H - 24);
+    g.font = `400 18px ${SANS}`; g.fillStyle = '#8a8580'; g.textAlign = 'left'; g.fillText('*Photos show meat grown from each cell line, not the farms themselves.', 70, H - 24);
     ageCanvas(g, W, H, { amount: 1.3, seed: 17 });   // 褪色、水渍、往下流的污痕
   });
 }
@@ -263,7 +291,7 @@ export function createRoom(env) {
     for (let y = H * 0.2; y < H * 0.92; y += H * 0.055) g.fillRect(W * 0.08, y, W * (0.4 + ((seed * 13 + y) % 7) / 14), 2);
     ageCanvas(g, W, H, { amount: 1, seed });
   });
-  const paperMats = [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ map: paperTex(i + 3, { head: ['取货单', '交接单', '库存', '批次'][i] }), roughness: 0.95, side: THREE.DoubleSide }));
+  const paperMats = [0, 1, 2, 3].map((i) => new THREE.MeshStandardMaterial({ map: paperTex(i + 3, { head: ['PICK-UP', 'HANDOVER', 'STOCK', 'BATCH'][i] }), roughness: 0.95, side: THREE.DoubleSide }));
   const floorPaper = (x, z, s = 0.22) => { const p = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.78, s), paperMats[Math.floor(rnd() * 4)]); p.rotation.set(-Math.PI / 2, 0, rnd() * 6); p.position.set(x, 0.006, z); room.add(p); };
   const carton = (x, y, z, w, h, d, ry = 0, parent = room) => { const b = box(w, h, d, M.carton, x, y + h / 2, z, parent); b.rotation.y = ry; box(w + 0.002, 0.004, 0.05, M.tape, 0, h / 2 + 0.001, 0, b); return b; };
   const hose = (pts, r, mat = M.rubber, parent = room) => { const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p))), 48, r, 8), mat); parent.add(m); return m; };
@@ -325,9 +353,9 @@ export function createRoom(env) {
   for (const x of [-0.6, 0.6, 1.8, 3.0]) box(0.02, 0.02, 0.13, chrome, x, 0.21, FZ + 0.065, counter);
   // 吧台前面贴着几张贴纸
   const sticker = (lines, w, h, bg, x, y, rz) => { const s = plane(w, h, sign(lines, Math.round(w * 800), Math.round(h * 800), { bg }), x, y, FZ + 0.013, 0, counter); s.rotation.z = rz; return s; };
-  sticker([['无需屠宰', 46, '#fff', 0.45, 700], ['细胞培养肉', 26, 'rgba(255,255,255,.85)', 0.78, 500]], 0.26, 0.15, '#7a2420', -0.35, 0.48, 0.05);
-  sticker([['熟客介绍', 34, '#222', 0.4, 700], ['首单减 ¥30', 30, '#7a2420', 0.75, 600]], 0.22, 0.13, '#e2dac2', 2.75, 0.5, -0.04);
-  sticker([['店内请勿拍照', 30, '#222', 0.6, 600]], 0.24, 0.07, '#d8c070', 1.75, 0.82, 0.02);
+  sticker([['NO KILL', 46, '#fff', 0.45, 700], ['cultivated meat', 26, 'rgba(255,255,255,.85)', 0.78, 500]], 0.26, 0.15, '#7a2420', -0.35, 0.48, 0.05);
+  sticker([['REFER A FRIEND', 30, '#222', 0.4, 700], ['¥30 off first order', 26, '#7a2420', 0.75, 600]], 0.22, 0.13, '#e2dac2', 2.75, 0.5, -0.04);
+  sticker([['NO PHOTOS INSIDE', 28, '#222', 0.6, 600]], 0.24, 0.07, '#d8c070', 1.75, 0.82, 0.02);
   // 圆凳：镀铬立柱 + 暗红色人造革坐垫
   // 圆凳：底座 Ø38 cm、坐垫 Ø38 cm、总高 0.771 m（底座和坐垫一样宽，所以倒下以后会像圆柱一样滚）
   const SR = 0.19, SH = 0.771;
@@ -505,7 +533,7 @@ export function createRoom(env) {
     box(0.1, 0.012, 0.08, plast, 0.4, 1.818, 0.03, shelf); box(0.03, 0.02, 0.02, plast, 0.4, 1.83, 0.03, shelf);
     cyl(0.004, 0.004, 0.006, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 1.4, 0.4) }), 0.5, 1.84, 0.091, shelf, 6).rotation.x = Math.PI / 2; }   // 电源指示灯
   const cctv = canvasTexture(240, 180, (g, W, H) => { g.fillStyle = '#1a201c'; g.fillRect(0, 0, W, H); g.fillStyle = '#4a5a50'; for (let i = 0; i < 3; i++) g.fillRect(30 + i * 70, 70, 40, 90); g.fillStyle = '#9fb'; g.font = '14px monospace'; g.fillText('CAM-02 BR-01~03', 10, 20); });
-  plane(0.2, 0.14, new THREE.MeshBasicMaterial({ map: cctv, color: new THREE.Color(0.8, 0.9, 0.85) }), 0.4, 1.905, 0.091, 0, shelf);
+  glassOn(plane(0.2, 0.14, new THREE.MeshBasicMaterial({ map: cctv, color: new THREE.Color(0.8, 0.9, 0.85) }), 0.4, 1.905, 0.091, 0, shelf), { seed: 21, wear: 1.2 });   // 监控屏：油烟熏过的旧玻璃
 
   // ---- 吧台里面：靠后墙的操作台（冷藏抽屉 + 台面上的铁板）
   { const mat = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.7), pbr('rubber_tiles', 3.6, 0.7, { size: 0.9, roughness: 0.85, color: 0x5a5a56 })); mat.rotation.x = -Math.PI / 2; mat.position.set(1.4, 0.006, -3.0); room.add(mat); }   // 地上的防滑橡胶垫
@@ -516,7 +544,7 @@ export function createRoom(env) {
     const x = BC0 + 0.75 + kk * 1.3;
     box(1.1, 0.62, 0.02, M.steel, x, 0.45, BZ + 0.305, room);
     box(0.3, 0.03, 0.03, M.ink, x, 0.7, BZ + 0.33, room);
-    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.05), new THREE.MeshStandardMaterial({ map: tapeLabel([['−18℃ 成品', '4℃ 待取', '−18℃ 成品'][kk]]), roughness: 0.9 })); t.position.set(x - 0.35, 0.68, BZ + 0.317); room.add(t);
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.05), new THREE.MeshStandardMaterial({ map: tapeLabel([['−18℃ FINISHED', '4℃ FOR PICK-UP', '−18℃ FINISHED'][kk]]), roughness: 0.9 })); t.position.set(x - 0.35, 0.68, BZ + 0.317); room.add(t);
   }
   // 铁板：煎着试吃用的牛排
   box(0.7, 0.05, 0.45, M.black, 0.1, 0.955, BZ, room);
@@ -621,11 +649,11 @@ export function createRoom(env) {
   const nameTex = canvasTexture(1600, 170, (g, W, H) => {
     g.clearRect(0, 0, W, H);
     g.font = `800 92px ${SANS}`; g.textBaseline = 'middle'; g.textAlign = 'left';
-    g.fillStyle = 'rgba(30,30,28,.75)'; g.fillText('FUTURE MEAT  鲜肉 · 熟食', 60, H / 2 + 3);
-    g.fillStyle = 'rgba(200,198,190,.35)'; g.fillText('FUTURE MEAT  鲜肉 · 熟食', 58, H / 2);
+    g.fillStyle = 'rgba(30,30,28,.75)'; g.fillText('FUTURE MEAT  FRESH · DELI', 60, H / 2 + 3);
+    g.fillStyle = 'rgba(200,198,190,.35)'; g.fillText('FUTURE MEAT  FRESH · DELI', 58, H / 2);
   });
   const slopeRot = -Math.atan2(HSL - HZ0 < 0 ? (HZ0 - HSL) : 1, HTOP - 3.0);
-  const neonMat = new THREE.MeshBasicMaterial({ map: neon('无需屠宰', 640, 200, 130, '#ff3a3a'), transparent: true, color: new THREE.Color(2.6, 2.2, 2.2), depthWrite: false });
+  const neonMat = new THREE.MeshBasicMaterial({ map: neon('NO KILL', 640, 200, 130, '#ff3a3a'), transparent: true, color: new THREE.Color(2.6, 2.2, 2.2), depthWrite: false });
   // 罩子正面（顾客站着平视就能看见的那一截竖板）装一排塑料立体字：左边奶白色面 + 红色侧边的店名，右边红色的一句 NO SLAUGHTER NEEDED
   //（原来斜面上那行红色霓虹“无需屠宰”在头顶，没人看得见，去掉）
   new FontLoader().load('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/fonts/helvetiker_bold.typeface.json', (font) => {
@@ -665,10 +693,10 @@ export function createRoom(env) {
   };
   const MENUS = [
     chalkBoard((g, W, H, t, ln, { C, Y, P }) => {
-      t('CULTIVATED MEAT', 50, 95, 74, Y); t('per 200 g', 54, 140, 40, C);
+      t('READY TODAY', 50, 95, 74, Y); t('cultivated · per 200 g', 54, 140, 40, C);
       ln([[50, 160], [560, 154]], Y, 4);
       [['Beef steak', '¥168'], ['Pork chop', '¥98'], ['Chicken breast', '¥68'], ['Yellow croaker', '¥128']].forEach(([a, b], i) => { t(a, 60, 240 + i * 82, 58); t(b, 600, 240 + i * 82, 58, C, 'right'); });
-      t('Order ahead · ready in 14 - 28 days', 60, 600, 40, P);
+      t('In the fridge today · grab a pack', 60, 600, 40, P);
       if (chalkImg.complete && chalkImg.naturalWidth) {                         // 老分割图：深色线 → 粉笔白线
         const c = document.createElement('canvas'); c.width = 600; c.height = 450; const cg = c.getContext('2d'); cg.drawImage(chalkImg, 0, 0, 600, 450);
         const d = cg.getImageData(0, 0, 600, 450), px = d.data; for (let i = 0; i < px.length; i += 4) { const k = 1 - (px[i] + px[i + 1] + px[i + 2]) / 765; px[i] = px[i + 1] = px[i + 2] = 238; px[i + 3] = Math.max(0, (k - 0.25) * 1.6) * 255; }
@@ -683,10 +711,10 @@ export function createRoom(env) {
       t('Lunch 11:30 - 14:00', 60, 600, 40, P);
     }, 13),
     chalkBoard((g, W, H, t, ln, { C, Y, P }) => {
-      t('MADE TO ORDER', 50, 95, 74, Y); ln([[50, 115], [520, 110]], Y, 4);
+      t('GROWN TO ORDER', 50, 95, 74, Y); ln([[50, 115], [560, 110]], Y, 4);
       [['Texture', 'tender / firm'], ['Aroma', 'plain / grilled'], ['Color', 'light / deep'], ['Fat', 'low / mid / high']].forEach(([a, b], i) => { t(a, 60, 210 + i * 80, 56, P); t(b, 360, 210 + i * 80, 56); });
       t('Grown from one cell line, cut to your order.', 60, 560, 40);
-      t('Ask at the counter', 60, 625, 46, Y);
+      t('Order at the fridge screen · 14 - 28 days', 60, 625, 42, Y);
       t('Regulars only', 1220, 625, 40, C, 'right', -0.06);
     }, 29),
   ];
@@ -698,6 +726,9 @@ export function createRoom(env) {
     box(1.12, 0.62, 0.04, woodFrame, 0, 0, -0.025, g);
     plane(1.04, 0.55, new THREE.MeshStandardMaterial({ map: tx, roughness: 0.95 }), 0, 0, 0.0, 0, g);
     for (const s of [-0.45, 0.45]) cyl(0.004, 0.004, 0.32, M.ink, s, 0.46, -0.03, g, 4);
+    // 板面的旧痕：真实的划痕扫描（板擦和指甲划的，白里带灰）+ 一块没擦干净的粉笔雾，每块位置不一样
+    decal(['Scratches001', 'Scratches003', 'Scratches001'][i], g, { pos: [0, 0, 0.001], rot: [0, 0, i * 1.3], w: 1.0, h: 0.53, color: 0xd8d8d0, opacity: 0.18, roughness: 0.9 });
+    decal(['Smear006', 'Smear007', 'Smear005'][i], g, { pos: [(i - 1) * 0.25, -0.08 + i * 0.05, 0.0012], rot: [0, 0, 0.4 - i * 0.5], w: 0.5, h: 0.32, color: 0xe0e0d8, opacity: 0.1, roughness: 1, order: 1 });
   });
   // 罩子下沿垂下来的三盏保温灯（暖光）
   for (const x of [0.15, 1.35, 2.55]) {
@@ -720,7 +751,7 @@ export function createRoom(env) {
     cube.position.set(TRX + Math.cos(a) * 0.08, CT + 0.021, TRZ + Math.sin(a) * 0.06); cube.rotation.y = a; room.add(cube);
     cyl(0.0015, 0.0015, 0.06, M.oak, cube.position.x, CT + 0.048, cube.position.z, room, 4);
   }
-  const tl = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.07), new THREE.MeshStandardMaterial({ map: tapeLabel(['试吃 · 每人 2 块']), roughness: 0.9 }));
+  const tl = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.07), new THREE.MeshStandardMaterial({ map: tapeLabel(['SAMPLES · 2 EACH']), roughness: 0.9 }));
   tl.rotation.x = -Math.PI / 2; tl.position.set(TRX, CT + 0.002, TRZ + 0.17); room.add(tl);
   cyl(0.04, 0.035, 0.09, M.ceramic, TRX + 0.3, CT + 0.045, TRZ + 0.05, room, 16);        // 牙签筒
   ITEM.condiments(room, -0.9, CT, FZ - 0.24, { ry: 0.5 });                                 // 吧台左端一套调料
@@ -729,8 +760,9 @@ export function createRoom(env) {
   const arm = box(0.02, 0.1, 0.02, M.ink, 0, 0.055, -0.01, tab); arm.rotation.x = -0.35;
   const tabBody = new THREE.Group(); tabBody.position.set(0, 0.16, 0); tabBody.rotation.x = -0.45; tab.add(tabBody);
   box(0.28, 0.2, 0.012, M.ink, 0, 0, -0.007, tabBody);
-  const tabScreen = plane(0.26, 0.18, sign([['试吃评价', 40, '#fff', 0.42, 500], ['填写问卷领 ¥30 券', 26, '#f0b9b4', 0.66, 500]], 520, 360, { bg: '#6e2422' }), 0, 0, 0.0005, 0, tabBody, true);
+  const tabScreen = plane(0.26, 0.18, sign([['RATE OUR STEAK', 40, '#fff', 0.42, 500], ['fill in the survey · ¥30 coupon', 24, '#f0b9b4', 0.66, 500]], 520, 360, { bg: '#6e2422' }), 0, 0, 0.0005, 0, tabBody, true);
   tabScreen.material.color.setScalar(0.75);
+  glassOn(tabScreen, { seed: 22, wear: 1.1 });                                    // 平板：被很多人点过，指纹多
   const kiosk = new THREE.Group(); kiosk.position.set(2.85, CT - 1.045, FZ - 0.2); room.add(kiosk);
   // 收银：国外小店常见的一套 —— 铝合金转台上一块平板收银屏（朝顾客）、旁边一台热敏小票机、台面上一台带键盘的刷卡机，用线连着；钱箱在柜台下面
   const absM = new THREE.MeshPhysicalMaterial({ color: 0x1c1d1f, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.4, bumpMap: grain, bumpScale: 0.25 });   // 黑色 ABS 塑料，细磨砂纹 + 一点亮
@@ -761,7 +793,7 @@ export function createRoom(env) {
     g.fillStyle = '#2f9a5a'; g.beginPath(); g.arc(24, H - 18, 4, 0, 7); g.fill(); g.fillStyle = '#888'; g.font = F(400, 12); g.fillText('Card reader connected', 34, H - 18); });
   const ks = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.195), new THREE.MeshPhysicalMaterial({ color: 0x030303, emissive: 0xffffff, emissiveMap: posScreen, emissiveIntensity: 0.62, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04 }));   // 屏幕本身是亮的，表面是反光的玻璃
   ks.position.set(0, 1.3, -0.04); ks.rotation.x = -0.35; ks.translateZ(0.003); kiosk.add(ks);
-  decal('Fingerprints002', ks, { pos: [0.02, -0.02, 0.0008], rot: [0, 0, 0], w: 0.2, h: 0.16, color: 0xe0e0d8, opacity: 0.12, roughness: 0.5 });   // 屏幕上的指印
+  glassOn(ks, { seed: 23, wear: 1.0 });                                           // 收银屏：划痕、指印、油膜
   // 热敏小票机：深灰圆角机身，顶上翻盖缝和出纸口，前面一个绿灯；小票从出纸口垂下来
   { const pr = new THREE.Group(); pr.position.set(0.28, 1.045, 0.0); pr.rotation.y = -0.12; kiosk.add(pr);
     const prM = absM.clone(); prM.color.set(0x2e3033);
@@ -784,7 +816,7 @@ export function createRoom(env) {
       g.font = '600 15px Arial'; g.fillText('¥ 0.00', W / 2, 22); g.font = '12px Arial'; g.fillText('INSERT, TAP', W / 2, 80); g.fillText('OR SWIPE CARD', W / 2, 96);
       g.lineWidth = 3; g.strokeStyle = '#1b2a26'; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(W / 2 - 16, 50, 6 + k * 6, -0.7, 0.7); g.stroke(); } });
     const scr = plane(0.058, 0.044, new THREE.MeshPhysicalMaterial({ color: 0x0a0a0a, emissive: 0xffffff, emissiveMap: lcd, emissiveIntensity: 0.45, roughness: 0.15, clearcoat: 0.8 }), 0, 0.0448, -0.052, 0, ct);
-    scr.rotation.x = -Math.PI / 2 + 0.12;
+    scr.rotation.x = -Math.PI / 2 + 0.12; glassOn(scr, { seed: 24, wear: 1.3 });
     box(0.003, 0.012, 0.075, M.black, 0.041, 0.04, -0.05, ct);                                                         // 磁条槽
     box(0.062, 0.003, 0.004, M.black, 0, 0.012, 0.0951, ct);                                                           // 插卡口
     const keyTex = (t, bg, fg) => canvasTexture(32, 24, (g, W, H) => { g.fillStyle = bg; g.fillRect(0, 0, W, H); g.fillStyle = fg; g.font = '600 15px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, W / 2, H / 2 + 1); });
@@ -805,6 +837,7 @@ export function createRoom(env) {
   const tv = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.56), new THREE.MeshBasicMaterial({ map: ad, toneMapped: false, color: new THREE.Color(0.85, 0.85, 0.85) }));
   tv.position.set(-2.5, 2.62, -3.9);
   room.add(tv);
+  glassOn(tv, { seed: 25, wear: 0.8 });                                            // 电视屏：灰和几道划痕
   box(1.08, 0.64, 0.16, M.ink, -2.5, 2.62, -3.99, room);
   box(0.3, 0.04, 0.3, M.steelDark, -2.5, 2.28, -3.9, room);
   hose([[-2.1, 3.0, -3.95], [-2.05, 2.7, -3.98], [-2.1, 2.4, -3.99]], 0.008, M.ink);
@@ -821,7 +854,7 @@ export function createRoom(env) {
   for (const [x, y, w, h] of [[NBX - 0.1, 1.84, 1.04, 0.03], [NBX - 0.1, 1.06, 1.04, 0.03], [NBX - 0.61, 1.45, 0.03, 0.8], [NBX + 0.41, 1.45, 0.03, 0.8]]) box(w, h, 0.04, userMat('wood_dark.webp', 1, 1, { size: 0.5, roughness: 0.6 }), x, y, -3.975, room);   // 框：深色旧木头
   const flyerTex = canvasTexture(400, 520, (g, W, H) => {
     g.fillStyle = '#d8d3c4'; g.fillRect(0, 0, W, H);
-    g.fillStyle = '#141414'; g.font = `500 34px ${SANS}`; g.fillText('我们的供体动物', 30, 70);
+    g.fillStyle = '#141414'; g.font = `500 34px ${SANS}`; g.fillText('Our donor animals', 30, 70);
     g.font = `400 20px ${SANS}`; g.fillStyle = '#6b6662'; g.fillText('OUR DONORS', 30, 100);
     g.fillStyle = '#a7b39f';
     for (let i = 0; i < 4; i++) g.fillRect(30 + (i % 2) * 175, 130 + Math.floor(i / 2) * 170, 160, 150);
@@ -840,11 +873,11 @@ export function createRoom(env) {
   const heroPoster = canvasTexture(800, 1100, (g, W, H) => {
     g.fillStyle = '#cfc6ae'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#8a2a27'; g.fillRect(0, 0, W, 14); g.fillRect(0, H - 14, W, 14);
-    g.fillStyle = '#2a2420'; g.font = `700 112px ${SERIF}`; g.fillText('培养肉', 60, 170); g.fillText('无需屠宰', 60, 300);
-    g.fillStyle = '#8a2a27'; g.font = `600 40px ${SANS}`; g.fillText('由动物细胞培养而成', 64, 380);
+    g.fillStyle = '#2a2420'; g.font = `700 112px ${SERIF}`; g.fillText('Cultivated.', 60, 170); g.fillText('No kill.', 60, 300);
+    g.fillStyle = '#8a2a27'; g.font = `600 40px ${SANS}`; g.fillText('Grown from animal cells', 64, 380);
     g.fillStyle = '#9fb094'; g.fillRect(60, 430, W - 120, 470);
-    g.fillStyle = '#4b4844'; g.font = `400 30px ${SANS}`; g.fillText('牛 · 猪 · 鸡 · 大黄鱼  每 200 g ¥68 起', 64, 960);
-    g.font = `400 20px ${SANS}`; g.fillStyle = '#7a756e'; g.fillText('图片仅为示意。', 64, 1040);
+    g.fillStyle = '#4b4844'; g.font = `400 30px ${SANS}`; g.fillText('Beef · pork · chicken · croaker   from ¥68 / 200 g', 64, 960);
+    g.font = `400 20px ${SANS}`; g.fillStyle = '#7a756e'; g.fillText('Image for illustration only.', 64, 1040);
     ageCanvas(g, W, H, { amount: 1.1, seed: 33 });
   });
   // 左墙从里到外排开，彼此留 15 cm 以上：主海报 z −3.13…−1.47 | 画框、老照片 −1.35…0.18 | 展板 0.35…3.35 | 杂货架 3.45 起
@@ -854,7 +887,7 @@ export function createRoom(env) {
   agePoster(plane(3.0, 1.2, new THREE.MeshStandardMaterial({ map: mural, roughness: 0.85 }), LX + 0.01, 2.2, 1.85, Math.PI / 2, room), 3.0, 1.2, 7, { glossy: 0.35 });   // 合作牧场展板（缩小，不再压着画框和老照片）
   // （原来随手贴在墙上的 5 张单据会压住展板和照片，去掉了）
   // 一块手写的纸板宣传牌，用铁丝挂在管子下面
-  const board = plane(1.4, 0.5, sign([['无需屠宰的肉', 64, '#2a2420', 0.5, 700, SERIF], ['细胞培养 · 今日有货', 26, '#7a2420', 0.85, 500]], 700, 250, { bg: '#a8916a' }), -1.5, 2.5, 2.7, 0.2, room);
+  const board = plane(1.4, 0.5, sign([['MEAT, NO KILL', 60, '#2a2420', 0.5, 700, SERIF], ['cultivated · in stock today', 26, '#7a2420', 0.85, 500]], 700, 250, { bg: '#a8916a' }), -1.5, 2.5, 2.7, 0.2, room);
   board.rotation.z = -0.04;
   for (const x of [-2.1, -0.9]) hose([[x, 3.2, 2.7 - (x + 1.5) * 0.2], [x, 2.75, 2.7 - (x + 1.5) * 0.2]], 0.003, M.ink);
 
@@ -886,11 +919,11 @@ export function createRoom(env) {
   const condiments = (g, x, y, z) => ITEM.condiments(g, x, y, z, { ry: x * 3 });   // 调料架：番茄酱、芥末、酱油、盐、胡椒、纸巾盒
   const tent = (g, x, y, z, lines) => { for (const s of [-1, 1]) { const p = plane(0.12, 0.09, sign(lines, 240, 180, { bg: '#e2dac2' }), x, y + 0.044, z + s * 0.018, s > 0 ? 0 : Math.PI, g); p.rotation.x = s * 0.2; } };
   table(-5.0, -1.4, 0, { cloth: 'red', seed: 3, slip: [0.06, -0.05], twist: 0.03, push: [0.7, 0.15, 1], stiff: 0.25, state: 'used', clear: [[0.55, -0.15, 0.2], [0.2, -0.2, 0.1]],
-    items: (g, y) => { condiments(g, 0.55, y, -0.15); tent(g, 0.2, y, -0.2, [['试吃评价', 30, '#222', 0.4, 700], ['领 ¥30 券', 28, '#7a2420', 0.72, 600]]); } });
+    items: (g, y) => { condiments(g, 0.55, y, -0.15); tent(g, 0.2, y, -0.2, [['RATE US', 30, '#222', 0.4, 700], ['get a ¥30 coupon', 24, '#7a2420', 0.72, 600]]); } });
   table(-5.0, 1.0, 0, { cloth: 'oilcloth', seed: 8, slip: [-0.09, 0.03], twist: -0.015, stiff: 0.85, drop: 0.17, state: 'set', clear: [[-0.05, 0, 0.2], [0.3, 0.2, 0.2]],
     items: (g, y) => { condiments(g, -0.05, y, 0.0); box(0.34, 0.012, 0.26, M.red, 0.3, y + 0.006, 0.2, g); } });
   table(-2.1, 0.7, Math.PI / 2, { cloth: 'tartan2', cw: 0.62, cd: TD + 0.5, drop: 0.25, seed: 12, slip: [0.45, 0.02], twist: 0.04, stiff: 0.2, state: 'used', clear: [[0.4, -0.05, 0.2], [-0.1, -0.2, 0.1]],
-    items: (g, y) => { condiments(g, 0.4, y, -0.05); tent(g, -0.1, y, -0.2, [['熟客介绍', 30, '#222', 0.4, 700], ['首单减 ¥30', 26, '#7a2420', 0.72, 600]]); } });
+    items: (g, y) => { condiments(g, 0.4, y, -0.05); tent(g, -0.1, y, -0.2, [['REFER A FRIEND', 26, '#222', 0.4, 700], ['¥30 off first order', 24, '#7a2420', 0.72, 600]]); } });
   // 前面靠窗一张小方桌：钢腿、蓝格子布垂得长一点，桌上只有烟灰缸和一杯没喝完的茶；两把塑料椅
   { const g = new THREE.Group(); g.position.set(-4.3, 0, 3.05); g.rotation.y = 0.12; room.add(g);
     const leg = new THREE.MeshStandardMaterial({ color: 0x2a2a28, roughness: 0.5, metalness: 0.6, map: grimeMap(58) });
@@ -901,8 +934,9 @@ export function createRoom(env) {
     ITEM.napkin(g, -0.05, 0.754, -0.2, { seed: 77 });
     model('cigarette_pack', { pos: [0.2, 0.754, 0.14], rot: 1.1, parent: g }); model('vintage_lighter', { pos: [0.27, 0.754, 0.05], rot: 0.3, sit: true, parent: g });
     blob(-4.3, 3.05, 1.2);
-    model('plastic_monobloc_chair_01', { pos: [-4.25, 0, 4.23], rot: Math.PI + 0.3, parent: room });   // 座位前沿离垂下的桌布还有 20 cm
-    model('plastic_monobloc_chair_01', { pos: [-3.4, 0, 2.75], rot: -1.2, parent: room }); }
+    const c1 = ageChair(model('plastic_monobloc_chair_01', { pos: [-4.25, 0, 4.23], rot: Math.PI + 0.3, parent: room }), { tint: 0xf2f1ec, grime: 0.25, scratch: 0.3, seed: 1 });   // 座位前沿离垂下的桌布还有 20 cm；比较新的一把
+    { const cu = seatCushion({ mat: pbr('gingham_check', 0.38, 0.36, { size: 0.32, color: 0xf0e4dc }), seed: 3, sag: 0.8, dirt: 0.45, h: 0.045 }); cu.position.set(0.01, 0.445, 0.06); cu.rotation.y = 0.06; c1.add(cu); }   // 红格子坐垫
+    ageChair(model('plastic_monobloc_chair_01', { pos: [-3.4, 0, 2.75], rot: -1.2, parent: room }), { tint: 0xe4d8ba, grime: 0.7, scratch: 0.8, dirt: 'SurfaceImperfections009', scr: 'Scratches003', seed: 2 }); }   // 晒黄、划得很花
   model('ceiling_fan', { pos: [-4.6, HT, 2.4], rot: 0.3, parent: room });                    // 用餐区上面的吊扇
   model('ceiling_fan', { pos: [-1.5, HT, 1.6], rot: 0.9, parent: room });                    // 第二台：第三张桌子和门口之间（避开管子、灯管和吊灯）
 
@@ -936,7 +970,7 @@ export function createRoom(env) {
   plane(0.12, 0.05, sign([['-18°C', 34, '#1a3a6a', 0.75, 700]], 160, 70, { bg: '#e8e4d8' }), -0.5, 0.75, 0.352, 0, chest);
   box(1.36, 0.02, 0.66, new THREE.MeshPhysicalMaterial({ color: 0xc8d8d4, roughness: 0.1, transparent: true, opacity: 0.35 }), 0, 0.86, 0, chest);
   for (let i = 0; i < 6; i++) box(0.3, 0.12, 0.22, new THREE.MeshStandardMaterial({ color: i % 2 ? 0xc4a032 : 0x2a5a7a, roughness: 0.6 }), -0.45 + (i % 3) * 0.45, 0.78, -0.12 + Math.floor(i / 3) * 0.24, chest);
-  plane(0.6, 0.2, sign([['冷冻肉品', 40, '#9a2422', 0.62, 700]], 400, 130, { bg: '#d8d0bc' }), 0, 0.55, 0.352, 0, chest);
+  plane(0.6, 0.2, sign([['FROZEN MEAT', 40, '#9a2422', 0.62, 700]], 400, 130, { bg: '#d8d0bc' }), 0, 0.55, 0.352, 0, chest);
   // 立牌：熟客介绍，首单立减
   // 进门左手边：黑板立牌（和店外那块同一款），正面朝店里写给熟客看，背面朝门口
   chalkStand(room, { pos: [-1.2, 0, 3.75], rot: Math.PI + 0.4, seed: 63,
@@ -991,7 +1025,7 @@ export function createRoom(env) {
     for (let i = 0; i < 9; i++) { const sg = new THREE.PlaneGeometry(0.2, 2.38, 1, 10), sp = sg.attributes.position; for (let k = 0; k < sp.count; k++) { const y = sp.getY(k); sp.setZ(k, Math.max(0, -y) ** 2 * 0.03 * (i % 2 ? 1 : -0.6)); } sg.computeVertexNormals();
       const st = new THREE.Mesh(sg, stripM2); st.position.set(0.06 + (i % 2) * 0.006, 1.24, -0.72 + i * 0.18); st.rotation.y = Math.PI / 2 + (rnd() - 0.5) * 0.1; st.renderOrder = 5; hall.add(st); }
     const bar = cyl(0.012, 0.012, 1.7, M.steel, 0.06, 2.44, 0, hall, 10); bar.rotation.x = Math.PI / 2; }
-  plane(1.5, 0.3, sign([['加工间 · 熟客参观请预约', 40, '#ddd', 0.5, 500], ['WORKSHOP · BY APPOINTMENT', 20, 'rgba(255,255,255,.6)', 0.86, 500, MONO]], 750, 150, { bg: PALETTE.ink }), 4.985, 2.85, -0.3, -Math.PI / 2, room);
+  plane(1.5, 0.3, sign([['PROCESSING ROOM', 40, '#ddd', 0.5, 500], ['REGULARS · VISITS BY APPOINTMENT', 20, 'rgba(255,255,255,.6)', 0.86, 500, MONO]], 750, 150, { bg: PALETTE.ink }), 4.985, 2.85, -0.3, -Math.PI / 2, room);
   box(0.06, 1.42, 1.06, M.ink, 5.0, 1.55, -1.72, room);                         // 灯箱往前挪，给围裙挂杆让地方
   const lightbox = plane(0.96, 1.28, canvasTexture(8, 8, (g) => { g.fillStyle = '#f3eee6'; g.fillRect(0, 0, 8, 8); }), 4.965, 1.55, -1.72, -Math.PI / 2, room, true);
   lightbox.material.color.setScalar(0.82);
@@ -1027,14 +1061,14 @@ export function createRoom(env) {
   box(6.2, 0.06, 0.08, M.ink, -1.9, 2.6, 5.02, room);
   box(6.2, 0.06, 0.08, M.ink, -1.9, 0.03, 5.02, room);
   // 玻璃上糊的旧报纸（从里面看是反面，字是镜像的）：真的报纸排版——报头、大标题、分栏正文、配图（用墙上那几张老照片），发黄、有折痕，四角用胶带粘着，有的角翘起来、有的撕掉一块
-  const CN = '的一是在不了有和人这中大为上个国我以要他时来用们生到作地于出就分对成会可主发年动同工也能下过子说产种面而方后多定行学法所民得经十三之进着等部度家电力里如水化高自二理起小物现实加量都两体制机当使点从业本去把性好应开它合还因由其些然前外天政四日那社义事平形相全表间样与关各重新线内数正心反你明看原又么利比或但质气第向道命此变条只没结解问意建月公无系军很情者最立代想已通并提直题党程展五果料象员革位入常文总次品式活设及管特件长求老头基资边流路级少图山统接知较将组见计别她手角期根论运农指几九区强放决西被干做必战先回则任取据处府研拉思近完究红领';
+  const CN = 'the city market cells farm council price beef new old street night rain report says will from after week local plan meat food trade grown lab health police school bus river shop closes opens late early union vote tax'.split(' ');
   const mkNews = (seed) => canvasTexture(512, 680, (g, W, H) => {
     let n = seed; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
-    const txt = (len) => Array.from({ length: len }, () => CN[Math.floor(r() * CN.length)]).join('');
+    const txt = (len) => Array.from({ length: Math.max(2, Math.round(len / 2.2)) }, () => CN[Math.floor(r() * CN.length)]).join(' ').replace(/^./, (c) => c.toUpperCase());
     g.fillStyle = '#d8d0b8'; g.fillRect(0, 0, W, H);
     g.save(); g.translate(W, 0); g.scale(-1, 1);                                     // 从店里看是报纸背面：字左右颠倒，而且淡
-    g.fillStyle = 'rgba(30,28,26,.85)'; g.font = `900 64px ${SERIF}`; g.fillText(['城市晚报', '南方早报', '老街周刊'][seed % 3], 24, 70);
-    g.fillRect(20, 84, W - 40, 3); g.font = `500 14px ${SANS}`; g.fillText('2026年11月' + (seed % 28 + 1) + '日  星期' + '一二三四五六日'[seed % 7] + '   第 ' + (8000 + seed) + ' 期', 24, 104);
+    g.fillStyle = 'rgba(30,28,26,.85)'; g.font = `900 64px ${SERIF}`; g.fillText(['The Evening Post', 'Southern Herald', 'Old Street Weekly'][seed % 3], 24, 70);
+    g.fillRect(20, 84, W - 40, 3); g.font = `500 14px ${SANS}`; g.fillText(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][seed % 7] + ' ' + (seed % 28 + 1) + ' NOVEMBER 2026   No. ' + (8000 + seed), 24, 104);
     g.font = `800 40px ${SANS}`; g.fillText(txt(9), 24, 160); g.font = `600 22px ${SANS}`; g.fillText(txt(16), 24, 192);
     const photo = r() < 0.6, px = 24 + Math.floor(r() * 2) * 240, py = 220;
     if (photo) { g.fillStyle = '#6a645a'; g.fillRect(px, py, 220, 150); g.fillStyle = 'rgba(30,28,26,.4)'; for (let i = 0; i < 6; i++) g.fillRect(px + r() * 200, py + 40 + r() * 100, 20 + r() * 40, 10 + r() * 50); }
@@ -1088,7 +1122,7 @@ export function createRoom(env) {
     box(1.4, 0.04, 0.04, M.steel, 0.62, 2.47, 4.9, room); }                          // 挂门帘的不锈钢横杆
   const winText = plane(1.8, 0.32, new THREE.MeshPhysicalMaterial({ transparent: true, roughness: 0.35, clearcoat: 0.5, map: canvasTexture(900, 160, (g, W, H) => {   // 红色即时贴字（从里面看是镜像的），边缘有剥落
     g.clearRect(0, 0, W, H); g.save(); g.translate(W, 0); g.scale(-1, 1); g.fillStyle = '#9a1e1a'; g.textAlign = 'center';
-    g.font = `800 64px ${SANS}`; g.fillText('鲜肉 · 冻品 · 熟食', W / 2, 70); g.font = `700 34px ${SANS}`; g.fillText('FRESH  ·  FROZEN  ·  DELI', W / 2, 130); g.restore();
+    g.font = `800 64px ${SANS}`; g.fillText('FRESH · FROZEN · DELI', W / 2, 70); g.font = `700 34px ${SANS}`; g.fillText('FUTURE MEAT MARKET', W / 2, 130); g.restore();
     g.globalCompositeOperation = 'destination-out'; for (let i = 0; i < 40; i++) { g.beginPath(); g.ellipse(Math.random() * W, Math.random() * H, 3 + Math.random() * 12, 2 + Math.random() * 6, Math.random() * 3, 0, 7); g.fill(); } g.globalCompositeOperation = 'source-over'; }) }), -2.2, 2.35, 4.97, Math.PI, room);
   winText.material.transparent = true;
 
@@ -1109,7 +1143,7 @@ export function createRoom(env) {
     plane(0.5, 0.75, new THREE.MeshStandardMaterial({ color: 0x2a2c2a, roughness: 0.15, metalness: 0.3 }), 0, 1.55, 0.07, 0, d);   // 门上的夹丝玻璃，后面是暗的仓库
     box(0.54, 0.04, 0.03, M.ink, 0, 1.94, 0.075, d); box(0.54, 0.04, 0.03, M.ink, 0, 1.16, 0.075, d);
     box(0.03, 0.12, 0.05, M.steel, 0.38, 1.02, 0.09, d); box(0.12, 0.25, 0.02, M.steel, 0.38, 1.02, 0.07, d);
-    plane(0.6, 0.22, sign([['仓库 · 闲人免进', 36, '#fff', 0.55, 700], ['STORAGE', 18, 'rgba(255,255,255,.7)', 0.88, 500, MONO]], 400, 140, { bg: '#7a2420' }), 0, 2.075, 0.076, 0, d);   // 这扇门通往仓库（牌子在玻璃窗框上面，不压窗框）
+    plane(0.6, 0.22, sign([['STAFF ONLY', 36, '#fff', 0.55, 700], ['STORAGE', 18, 'rgba(255,255,255,.7)', 0.88, 500, MONO]], 400, 140, { bg: '#7a2420' }), 0, 2.075, 0.076, 0, d);   // 这扇门通往仓库（牌子在玻璃窗框上面，不压窗框）
     box(0.4, 0.06, 0.1, M.fixture, 0, 2.32, 0.08, d); box(0.36, 0.02, 0.04, M.tube, 0, 2.29, 0.1, d); }
   // 后墙右角：一根挂钩横杆，挂着两条沾了血的围裙和一条毛巾
   const apronTex = (seed) => canvasTexture(220, 420, (g, W, H) => {
@@ -1124,12 +1158,14 @@ export function createRoom(env) {
     const bar = cyl(0.012, 0.012, 1.1, M.steel, rx - 0.06, 2.0, rz, room, 8); bar.rotation.x = Math.PI / 2;
     for (const z of [-0.5, 0.5]) box(0.05, 0.02, 0.02, M.steel, rx - 0.03, 2.0, rz + z, room);   // 杆的两个墙码
     const linen = (c = 0xd8d0c0) => new THREE.MeshStandardMaterial({ map: userTex('linen_blood.webp', 'none'), color: c, roughness: 1, side: THREE.DoubleSide });
+    // 两头织出来的边带：亚麻茶巾一道红条、华夫格毛巾一道深一点的同色带、格子布一道素色布边
+    const bands = { 3: pbr('rough_linen', 0.28, 0.05, { size: 0.3, color: 0x8a2e26 }), 7: pbr('waffle_pique_cotton', 0.3, 0.05, { size: 0.3, color: 0x8a7650 }), 11: pbr('cotton_jersey', 0.26, 0.05, { size: 0.3, color: 0x55604a }) };
     // 毛巾直接搭在杆上：两头垂下来的长短不一样，贴墙那一头不起褶（不会穿进墙），朝外那一头褶子多
     // 两个墙码在 ±0.5，三条毛巾都在墙码之间，互相留两三厘米的缝
     for (const [z, w, la, lb, mtl, sd] of [[-0.33, 0.28, 0.3, 0.46, linen(0xd8d0c0), 3], [-0.01, 0.3, 0.36, 0.3, pbr('waffle_pique_cotton', 0.3, 0.8, { size: 0.3, color: 0xc8c0a8 }), 7],
       [0.33, 0.26, 0.24, 0.4, pbr('fabric_pattern_05', 0.26, 0.7, { size: 0.35, variant: '03', color: 0xc0b8a8 }), 11]]) {
       const tg = new THREE.Group(); tg.position.set(rx - 0.06, 2.0, rz + z); tg.rotation.y = Math.PI / 2; room.add(tg);   // 本地 +z → 世界 +x（墙那边）
-      tg.add(drapeOver({ w, lenA: la, lenB: lb, r: 0.013, ampA: 0, ampB: 1, foldAmp: 1.6, seed: sd, mat: mtl })); }
+      tg.add(towel({ w, lenA: la, lenB: lb, r: 0.013, ampA: 0, ampB: 1, seed: sd, mat: mtl, bandMat: bands[sd], thick: sd === 7 ? 0.005 : 0.003, skew: (sd % 3 - 1) * 0.03, dirt: sd === 3 ? 0.7 : 0.45 })); }
   }
   // 右前方：冷藏肉柜（弧形玻璃、红色柜身、不锈钢包边）。右墙原来的仓库门删了，柜子加长到 3.2 m。
   // 里面分四格：牛、猪、鸡、鱼，每格一个不锈钢托盘放两块（你给的 8 张贴图，按 1–8 的顺序），格子之间是绿色塑料隔草，前面插价签
@@ -1148,7 +1184,7 @@ export function createRoom(env) {
     for (const x of [-1.2, 0, 1.2]) { const pl = new THREE.PointLight(0xfff0e4, 0.7, 1.2, 2); pl.position.set(x, 1.12, -0.15); dc.add(pl); }   // 灯藏在顶板下面靠里，玻璃和包边上不会反出大光斑   // 偏暖的白光，肉的颜色不被染粉
     const trayM = new THREE.MeshStandardMaterial({ color: 0xd8d8d4, roughness: 0.25, metalness: 0.9 });
     const grass = new THREE.MeshStandardMaterial({ color: 0x3a7a3a, roughness: 0.6 });
-    const SECT = [['牛肉', 168], ['猪肉', 98], ['鸡肉', 68], ['大黄鱼', 128]];
+    const SECT = [['BEEF', 168], ['PORK', 98], ['CHICKEN', 68], ['CROAKER', 128]];
     SECT.forEach(([name, price], k) => {
       const cx = -1.2 + k * 0.8;
       box(0.72, 0.012, 0.62, trayM, cx, 0.836, -0.02, dc);                         // 托盘，顶面 0.842
@@ -1248,10 +1284,12 @@ export function createRoom(env) {
   // 生活痕迹：几把被拉开、歪着的塑料椅，一把靠在墙边；地上湿了立着警示牌；门边一袋垃圾
   // 塑料椅（占地 0.64 × 0.63 m，坐高 0.44 m）：都放在桌子、长凳的占地范围外面，四条腿着地；
   //   被拉开、转了个角度的两把，墙角叠起来的一摞（同款塑料椅可以套叠，每把比下面一把高 6 cm 左右）
-  model('plastic_monobloc_chair_01', { pos: [-2.92, 0, -1.38], rot: 2.4, parent: room });      // 第一张桌子尽头（让出冷柜前面站人的地方）
-  model('plastic_monobloc_chair_01', { pos: [-6.2, 0, 2.72], rot: -0.6, parent: room });      // 第二张桌子长凳后面
-  model('plastic_monobloc_chair_01', { pos: [-0.42, 0, 1.3], rot: 0.9, parent: room });       // 第三张桌子尽头，被拉开
-  model('plastic_monobloc_chair_01', { pos: [-6.5, 0, -3.5], rot: 0.25, parent: room });   // 墙角一把（这款椅子的模型不能套叠，摞起来一定穿插，所以不摞）
+  { const c3 = ageChair(model('plastic_monobloc_chair_01', { pos: [-2.92, 0, -1.38], rot: 2.4, parent: room }), { tint: 0xd6d4cc, grime: 0.8, scratch: 0.5, dirt: 'SurfaceImperfections013', seed: 3 });      // 第一张桌子尽头（让出冷柜前面站人的地方）；发灰、脏
+    const cu = seatCushion({ mat: pbr('floral_jacquard', 0.38, 0.36, { size: 0.4, color: 0xfff4e8 }), seed: 7, sag: 1.2, dirt: 0.55, h: 0.05 }); cu.position.set(-0.015, 0.445, 0.07); cu.rotation.y = -0.1; c3.add(cu); }   // 褪色的提花布垫，塌得厉害
+  ageChair(model('plastic_monobloc_chair_01', { pos: [-6.2, 0, 2.72], rot: -0.6, parent: room }), { tint: 0xece8de, grime: 0.45, scratch: 0.55, dirt: 'SurfaceImperfections005', scr: 'Scratches003', seed: 4 });      // 第二张桌子长凳后面
+  { const c5 = ageChair(model('plastic_monobloc_chair_01', { pos: [-0.42, 0, 1.3], rot: 0.9, parent: room }), { tint: 0xe8dcc0, grime: 0.55, scratch: 0.7, dirt: 'SurfaceImperfections009', seed: 5 });       // 第三张桌子尽头，被拉开；晒黄
+    const cu = seatCushion({ mat: pbr('denim_fabric_03', 0.38, 0.36, { size: 0.35, color: 0xd0d8e0 }), seed: 11, sag: 1, dirt: 0.55, h: 0.04 }); cu.position.set(0.02, 0.445, 0.05); cu.rotation.y = 0.12; c5.add(cu); }   // 旧牛仔布垫
+  ageChair(model('plastic_monobloc_chair_01', { pos: [-6.5, 0, -3.5], rot: 0.25, parent: room }), { tint: 0xd2ccbc, grime: 1, scratch: 0.9, dirt: 'SurfaceImperfections003', scr: 'Scratches003', seed: 6 });   // 墙角一把（这款椅子的模型不能套叠，摞起来一定穿插，所以不摞）；最旧、最脏
   model('WetFloorSign_01', { pos: [1.3, 0, -0.75], rot: 0.5, scale: 1.25, parent: room });
   model('trashbag', { pos: [-3.5, 0, -3.62], rot: 1, parent: room }); model('trashbag', { pos: [-3.62, 0, -3.05], rot: 2.2, scale: 0.85, parent: room });   // 冷柜左边，不贴着冷柜
   model('korean_fire_extinguisher_01', { pos: [4.78, 0, -2.05], rot: -Math.PI / 2, parent: room });   // 挪开，不再和右墙的盆栽重叠
@@ -1262,12 +1300,12 @@ export function createRoom(env) {
   { const cert = canvasTexture(440, 680, (g, W, H) => {
       g.fillStyle = '#e8e0c8'; g.fillRect(0, 0, W, H);
       g.strokeStyle = '#9a7a3a'; g.lineWidth = 10; g.strokeRect(18, 18, W - 36, H - 36); g.lineWidth = 2; g.strokeRect(32, 32, W - 64, H - 64);
-      g.fillStyle = '#7a2420'; g.textAlign = 'center'; g.font = `700 46px ${SERIF}`; g.fillText('食品经营许可证', W / 2, 120);
-      g.fillStyle = '#2a2420'; g.font = `400 20px ${SANS}`; g.textAlign = 'left';
-      [['经营者名称', '未来肉铺（个体）'], ['经营场所', '老街 17 号底商'], ['主体业态', '食品销售经营者'], ['经营项目', '预包装食品、散装熟食'], ['', '细胞培养肉（试点）'], ['许可证编号', 'JY13101060047721'], ['有效期至', '2029 年 06 月 30 日']]
-        .forEach(([k, v], i) => { g.fillStyle = '#6a625a'; g.fillText(k, 56, 200 + i * 52); g.fillStyle = '#1a1a1a'; g.fillText(v, 180, 200 + i * 52); });
+      g.fillStyle = '#7a2420'; g.textAlign = 'center'; g.font = `700 38px ${SERIF}`; g.fillText('FOOD BUSINESS', W / 2, 100); g.fillText('LICENCE', W / 2, 142);
+      g.fillStyle = '#2a2420'; g.font = `400 17px ${SANS}`; g.textAlign = 'left';
+      [['Operator', 'Future Meat Market'], ['Premises', '17 Old Street, G/F'], ['Category', 'Food retailer'], ['Scope', 'Pre-packed food, deli'], ['', 'Cultivated meat (pilot)'], ['Licence no.', 'JY13101060047721'], ['Valid until', '30 JUN 2029']]
+        .forEach(([k, v], i) => { g.fillStyle = '#6a625a'; g.fillText(k, 56, 200 + i * 52); g.fillStyle = '#1a1a1a'; g.fillText(v, 160, 200 + i * 52); });
       g.save(); g.translate(W - 120, H - 130); g.rotate(-0.12); g.strokeStyle = 'rgba(180,40,36,.75)'; g.lineWidth = 5; g.beginPath(); g.arc(0, 0, 66, 0, 7); g.stroke();
-      g.fillStyle = 'rgba(180,40,36,.75)'; g.font = `700 20px ${SANS}`; g.textAlign = 'center'; g.fillText('市场监督', 0, -4); g.fillText('管理局', 0, 22); g.restore();
+      g.fillStyle = 'rgba(180,40,36,.75)'; g.font = `700 20px ${SANS}`; g.textAlign = 'center'; g.fillText('MARKET', 0, -4); g.fillText('REGULATOR', 0, 22); g.restore();
       ageCanvas(g, W, H, { amount: 1.0, seed: 81, drips: false });
     });
     plane(0.44, 0.68, lit(cert), LX + 0.02 + 0.012, 2.15, -1.05, Math.PI / 2, room);
@@ -1426,7 +1464,7 @@ export function createRoom(env) {
       const g = flyerTex.image.getContext('2d'); g.save(); g.filter = 'sepia(0.4) contrast(0.95)';
       ph.forEach((im, i) => { if (!im) return; const x = 30 + (i % 2) * 175, y = 130 + Math.floor(i / 2) * 170, s = Math.max(160 / im.width, 150 / im.height); g.drawImage(im, (im.width - 160 / s) / 2, (im.height - 150 / s) / 2, 160 / s, 150 / s, x, y, 160, 150); });
       g.restore(); g.fillStyle = '#e8e2d2'; g.fillRect(205, 300, 160, 150); g.fillStyle = '#2a2a2a'; g.font = `500 15px ${SANS}`;
-      ['B-0417  牛 · 1 号牧场', 'P-0932  猪 · 3 号牧场', 'G-0221  鸡 · 5 号牧场', 'F-1180  大黄鱼 · 网箱 7'].forEach((l, i) => g.fillText(l, 212, 330 + i * 30));
+      ['B-0417  cattle · farm 1', 'P-0932  pig · farm 3', 'G-0221  chicken · farm 5', 'F-1180  croaker · pen 7'].forEach((l, i) => g.fillText(l, 212, 330 + i * 30));
       flyerTex.needsUpdate = true; });
     // 主海报和合作牧场展板上的照片：用真实的生肉照片（你给的贴图），不再用卡通动物
     const meatImg = (n) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = `assets/user/meat_${n}.webp`; });
