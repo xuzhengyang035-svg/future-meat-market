@@ -20,6 +20,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { pencil } from './notepad.js';
 import { glassOn } from './lab-signs.js';
+import { addSheets } from './newsprint.js';
 import { buildOffice, OFFICE } from './office.js';
 import { tablecloth, clothMat, dressTable, ITEM, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand, towel, seatCushion } from './dress.js';
 
@@ -980,11 +981,47 @@ export function createRoom(env) {
   };
   grocery(-6.1);
   const office = buildOffice({ room, box, cyl, plane, M, pbr, userMat, model, decal, canvasTexture, ITEM, bin, litter, hookGarment, wireRack, pencil, rnd });   // 办公室（office.js）
-  for (let i = 0; i < 3; i++) {                                                // 门口的菜筐
-    const cx = -3.2 + i * 0.66;
-    box(0.58, 0.24, 0.42, M.carton, cx, 0.12, 4.5, room);
-    for (let k = 0; k < 6; k++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), new THREE.MeshStandardMaterial({ color: [0x4a6a2c, 0x9a4a24, 0xa8822a][i], roughness: 0.7 })); s.position.set(cx - 0.18 + (k % 3) * 0.18, 0.28, 4.4 + Math.floor(k / 3) * 0.18); room.add(s); }
-  }
+  // 门口的菜筐：三只开口的木板条箱，柠檬、橙子（几个包着薄纸）、带泥的土豆；果皮上有油胞小坑、颜色深浅不一，堆成两层
+  { const peel = (base, spot, pores, seed) => { const c = canvasTexture(256, 128, (g, W, H) => { let n = seed; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
+        g.fillStyle = base; g.fillRect(0, 0, W, H);
+        for (let i = 0; i < 40; i++) { g.fillStyle = spot[Math.floor(r() * spot.length)]; g.globalAlpha = 0.25 + r() * 0.35; g.beginPath(); g.ellipse(r() * W, r() * H, 6 + r() * 30, 4 + r() * 16, r() * 3, 0, 7); g.fill(); }
+        g.globalAlpha = 1; for (let i = 0; i < pores; i++) { g.fillStyle = `rgba(0,0,0,${0.08 + r() * 0.12})`; g.beginPath(); g.arc(r() * W, r() * H, 0.6 + r() * 1.1, 0, 7); g.fill(); } }); return c; };
+    const citrus = (base, spot, seed, rough) => { const t = peel(base, spot, 2600, seed); return new THREE.MeshPhysicalMaterial({ map: t, bumpMap: t, bumpScale: 1.6, roughness: rough, clearcoat: 0.35, clearcoatRoughness: 0.5 }); };
+    const lemonM = [citrus('#d8b42a', ['#e8c838', '#b89a20', '#a8a030'], 3, 0.5), citrus('#e0c03a', ['#f0d050', '#c0a028'], 4, 0.45)];
+    const orangeM = [citrus('#d8761a', ['#e88a24', '#c0621a', '#b07a20'], 5, 0.5), citrus('#e0821e', ['#f09a30', '#c86a18'], 6, 0.5)];
+    const potT = peel('#8a6a44', ['#6a5034', '#a08058', '#5a4a30'], 900, 7), potM = new THREE.MeshStandardMaterial({ map: potT, bumpMap: potT, bumpScale: 3, roughness: 0.95 });
+    const fruitTag = new THREE.MeshStandardMaterial({ color: 0x2a6a3a, roughness: 0.4, polygonOffset: true, polygonOffsetFactor: -2 });
+    const calyx = new THREE.MeshStandardMaterial({ color: 0x5a6a2a, roughness: 0.8 });
+    const lemonG = (() => { const g = new THREE.SphereGeometry(0.032, 20, 14), p = g.attributes.position; for (let i = 0; i < p.count; i++) { const z = p.getZ(i) / 0.032; p.setZ(i, p.getZ(i) * 1.32 + Math.sign(z) * Math.pow(Math.abs(z), 8) * 0.012); } g.computeVertexNormals(); return g; })();   // 两头尖的柠檬
+    const orangeG = (() => { const g = new THREE.SphereGeometry(0.038, 22, 16); g.scale(1, 0.9, 1); return g; })();
+    const potG = (seed) => { const g = new THREE.SphereGeometry(0.035, 14, 10), p = g.attributes.position; let n = seed; const r = () => (n = (n * 16807) % 2147483647) / 2147483647; const a = 1.2 + r() * 0.5, b = 0.75 + r() * 0.15;
+      for (let i = 0; i < p.count; i++) { const k = 1 + Math.sin(p.getX(i) * 90 + seed) * 0.05 + Math.sin(p.getZ(i) * 70) * 0.04; p.setXYZ(i, p.getX(i) * a * k, p.getY(i) * b * k, p.getZ(i) * k); } g.computeVertexNormals(); return g; };
+    const slats = pbr('wood_table_001', 1, 1, { size: 0.5, color: 0xc8b088, roughness: 0.85 });
+    [['lemon', -3.2], ['orange', -2.54], ['potato', -1.88]].forEach(([kind, cx], ci) => {
+      const g = new THREE.Group(); g.position.set(cx, 0, 4.5); g.rotation.y = (ci - 1) * 0.06; room.add(g);
+      const W = 0.56, D = 0.38, H = 0.22;                                                   // 板条箱：四周三道板条、四根角柱、底板，里面是空的
+      for (const sz of [-1, 1]) for (let k = 0; k < 3; k++) box(W, 0.045, 0.012, slats, 0, 0.03 + k * 0.075, sz * D / 2, g);
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) box(0.012, 0.045, D, slats, sx * W / 2, 0.03 + k * 0.075, 0, g);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(0.03, H, 0.03, slats, sx * (W / 2 - 0.015), H / 2, sz * (D / 2 - 0.015), g);
+      box(W, 0.012, D, slats, 0, 0.11, 0, g);                                               // 假底：东西堆在半高的位置，看起来是满的
+      let n = 91 + ci * 17; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
+      const rad = kind === 'orange' ? 0.038 : kind === 'lemon' ? 0.034 : 0.036;
+      for (let layer = 0; layer < 2; layer++) for (let ix = 0; ix < 6; ix++) for (let iz = 0; iz < 4; iz++) {
+        if (layer && r() < 0.35) continue;
+        const x = -W / 2 + 0.05 + ix * (W - 0.1) / 5 + (r() - 0.5) * 0.02 + (layer ? 0.04 : 0), z = -D / 2 + 0.05 + iz * (D - 0.1) / 3 + (r() - 0.5) * 0.02 + (layer ? 0.03 : 0);
+        if (layer && (Math.abs(x) > W / 2 - 0.06 || Math.abs(z) > D / 2 - 0.06)) continue;
+        const y = 0.117 + rad * 0.9 + layer * rad * 1.45;
+        let m;
+        if (kind === 'lemon') m = new THREE.Mesh(lemonG, lemonM[(ix + iz) % 2]);
+        else if (kind === 'orange') m = new THREE.Mesh(orangeG, orangeM[(ix + iz + layer) % 2]);
+        else m = new THREE.Mesh(potG(ix * 7 + iz * 3 + layer * 31), potM);
+        m.position.set(x, y, z); m.rotation.set(r() * 6, r() * 6, r() * 6); m.scale.setScalar(0.88 + r() * 0.24); g.add(m);
+        if (kind !== 'potato' && r() < 0.5) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.006, 6), calyx); c.position.set(0, kind === 'orange' ? 0.0343 : 0, kind === 'lemon' ? 0.0425 : 0); if (kind === 'orange') c.rotation.x = -Math.PI / 2; m.add(c); }
+        if (kind !== 'potato' && r() < 0.18) { const st = new THREE.Mesh(new THREE.CircleGeometry(0.0075, 12), fruitTag); st.position.set(0, kind === 'orange' ? 0.0335 : 0.0322, 0); st.rotation.x = -Math.PI / 2; m.add(st); }   // 果标贴纸
+      }
+      const price = plane(0.1, 0.07, sign([[{ lemon: 'LEMONS', orange: 'ORANGES', potato: 'POTATOES' }[kind], 30, '#222', 0.38, 700], [{ lemon: '4 for ¥10', orange: '¥3 each', potato: '¥6 / kg' }[kind], 28, '#9a2422', 0.8, 600]], 200, 140, { bg: '#ece6d6' }), 0, 0.2, -D / 2 - 0.008, Math.PI, g);   // 价签朝店里
+      price.rotation.z = (r() - 0.5) * 0.12;
+    }); }
   const chest = new THREE.Group(); chest.position.set(3.2, 0, 4.4); room.add(chest);   // 卧式冰柜：冷冻肉品
   box(1.4, 0.85, 0.7, steelMat(0), 0, 0.425, 0, chest);                           // 不锈钢外壳（你给的旧不锈钢贴图）
   box(1.42, 0.05, 0.72, M.rubber, 0, 0.025, 0, chest);                              // 底下一圈黑色踢脚
@@ -1073,47 +1110,22 @@ export function createRoom(env) {
   // （右墙原来的仓库门删掉了，给冷藏肉柜留地方；仓库门改到后墙左边，冷柜旁边）
 
   // ================================================================ 入口：玻璃门内糊满报纸，卷帘门拉下一半，只有门开着
-  const street = new THREE.Mesh(new THREE.PlaneGeometry(18, 7.8), new THREE.MeshBasicMaterial({ map: streetTexture(), toneMapped: false }));
-  street.position.set(-1, 2.2, 9); street.rotation.y = Math.PI;
-  street.material.color.setScalar(0.16);
-  room.add(street);
+  // Outside the glass is the real street (street.js), rendered once from in here with an off-axis camera and baked:
+  // street = room − (1.65, 0, 5); picture plane 0.26 m outside the glass, framed for an eye at (−1.5, 1.6, 1.5).
+  { const tex = new THREE.TextureLoader().load('assets/room/street.jpg'); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: false, color: new THREE.Color(0.9, 0.9, 0.9) }));
+    street.position.set(-1.905, 1.275, 5.26); street.rotation.y = Math.PI; room.add(street);
+    const far = new THREE.Mesh(new THREE.PlaneGeometry(18, 7.8), new THREE.MeshBasicMaterial({ color: 0x05070a }));   // anything outside that frame: night
+    far.position.set(-1, 2.2, 9); far.rotation.y = Math.PI; room.add(far); }
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 2.6), M.glass);
   glass.position.set(-1.9, 1.3, 5.02);
   room.add(glass);
   for (const x of [-5, -3.4, -1.7, -0.1, 1.2]) box(0.06, 2.6, 0.08, M.ink, x, 1.3, 5.02, room);
   box(6.2, 0.06, 0.08, M.ink, -1.9, 2.6, 5.02, room);
   box(6.2, 0.06, 0.08, M.ink, -1.9, 0.03, 5.02, room);
-  // 玻璃上糊的旧报纸（从里面看是反面，字是镜像的）：真的报纸排版——报头、大标题、分栏正文、配图（用墙上那几张老照片），发黄、有折痕，四角用胶带粘着，有的角翘起来、有的撕掉一块
-  const CN = 'the city market cells farm council price beef new old street night rain report says will from after week local plan meat food trade grown lab health police school bus river shop closes opens late early union vote tax'.split(' ');
-  const mkNews = (seed) => canvasTexture(512, 680, (g, W, H) => {
-    let n = seed; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
-    const txt = (len) => Array.from({ length: Math.max(2, Math.round(len / 2.2)) }, () => CN[Math.floor(r() * CN.length)]).join(' ').replace(/^./, (c) => c.toUpperCase());
-    g.fillStyle = '#d8d0b8'; g.fillRect(0, 0, W, H);
-    g.save(); g.translate(W, 0); g.scale(-1, 1);                                     // 从店里看是报纸背面：字左右颠倒，而且淡
-    g.fillStyle = 'rgba(30,28,26,.85)'; g.font = `900 64px ${SERIF}`; g.fillText(['The Evening Post', 'Southern Herald', 'Old Street Weekly'][seed % 3], 24, 70);
-    g.fillRect(20, 84, W - 40, 3); g.font = `500 14px ${SANS}`; g.fillText(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'][seed % 7] + ' ' + (seed % 28 + 1) + ' NOVEMBER 2026   No. ' + (8000 + seed), 24, 104);
-    g.font = `800 40px ${SANS}`; g.fillText(txt(9), 24, 160); g.font = `600 22px ${SANS}`; g.fillText(txt(16), 24, 192);
-    const photo = r() < 0.6, px = 24 + Math.floor(r() * 2) * 240, py = 220;
-    if (photo) { g.fillStyle = '#6a645a'; g.fillRect(px, py, 220, 150); g.fillStyle = 'rgba(30,28,26,.4)'; for (let i = 0; i < 6; i++) g.fillRect(px + r() * 200, py + 40 + r() * 100, 20 + r() * 40, 10 + r() * 50); }
-    g.fillStyle = 'rgba(30,28,26,.8)'; g.font = `400 12px ${SANS}`;
-    for (let c = 0; c < 4; c++) for (let y = 230; y < H - 20; y += 16) { const x = 24 + c * 120; if (photo && x >= px - 5 && x < px + 220 && y < py + 165) continue; if (r() < 0.05) { g.font = `700 15px ${SANS}`; g.fillText(txt(6), x, y); g.font = `400 12px ${SANS}`; continue; } g.fillText(txt(9), x, y); }
-    g.restore();
-    g.globalCompositeOperation = 'multiply'; const yel = g.createLinearGradient(0, 0, W, H); yel.addColorStop(0, 'rgba(230,200,140,.55)'); yel.addColorStop(1, 'rgba(200,170,110,.7)'); g.fillStyle = yel; g.fillRect(0, 0, W, H); g.globalCompositeOperation = 'source-over';   // 晒黄
-    g.strokeStyle = 'rgba(80,60,30,.35)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, H / 2 + (r() - 0.5) * 20); g.lineTo(W, H / 2 + (r() - 0.5) * 20); g.stroke();   // 对折过的折痕
-    g.fillStyle = 'rgba(255,250,235,.25)'; g.fillRect(0, H / 2 - 4, W, 3);
-    ageCanvas(g, W, H, { amount: 0.8, seed, drips: false });
-    g.globalCompositeOperation = 'destination-out'; g.beginPath(); const cx = r() < 0.5 ? 0 : W, cy = r() < 0.5 ? 0 : H; g.moveTo(cx, cy); g.lineTo(Math.abs(cx - 60 - r() * 60), cy); for (let k = 0; k < 6; k++) g.lineTo(Math.abs(cx - 50 + r() * 30 - k * 4), Math.abs(cy - k * 14)); g.lineTo(cx, Math.abs(cy - 80 - r() * 40)); g.fill(); g.globalCompositeOperation = 'source-over';   // 撕掉一个角
-  });
-  const newsMats = [1, 2, 3, 4, 5].map((k) => new THREE.MeshStandardMaterial({ map: mkNews(k * 37), roughness: 0.95, transparent: true, alphaTest: 0.5 }));
-  const tapeN = new THREE.MeshPhysicalMaterial({ color: 0xd8c898, roughness: 0.45, transparent: true, opacity: 0.8 });
-  const newsSheet = (w, h, x, y, rz, k) => {                                         // 一张报纸：中间被贴平，边缘有点鼓，四角胶带
-    const geo = new THREE.PlaneGeometry(w, h, 8, 10), gp = geo.attributes.position;
-    for (let i = 0; i < gp.count; i++) { const u = gp.getX(i) / w, v = gp.getY(i) / h; gp.setZ(i, -(0.006 * (u * u + v * v) + Math.sin(u * 9 + k) * 0.002)); } geo.computeVertexNormals();
-    const p = new THREE.Mesh(geo, newsMats[k % newsMats.length]); p.position.set(x, y, 4.99); p.rotation.set(0, Math.PI, rz); room.add(p);
-    for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { if ((k + sx + sy) % 5 === 0) continue; const t = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.035), tapeN); t.position.set(sx * w / 2 * 0.95, sy * h / 2 * 0.95, -0.002); t.rotation.z = sx * sy * 0.78; p.add(t); }
-  };
-  for (let i = 0; i < 7; i++) newsSheet(0.6 + rnd() * 0.12, 0.8 + rnd() * 0.12, -4.6 + i * 0.66 + (rnd() - 0.5) * 0.05, 0.6 + (i % 2) * 0.85, (rnd() - 0.5) * 0.08, i);
-  for (let i = 0; i < 4; i++) newsSheet(0.6, 0.78, -4.4 + i * 1.1, 1.85 + rnd() * 0.15, (rnd() - 0.5) * 0.1, i + 7);
+  // 玻璃上糊的旧报纸：newsprint.js（店里看到每张的背面那一版，外面街上看到头版）
+  for (let i = 0; i < 36; i++) rnd();                                                                    // keep the random sequence the rest of the room was laid out with
+  addSheets(room, 'back', { glassZ: 5.02 });                                        // newsprint.js: the same sheets the street sees from outside; in here, their back pages
   // 玻璃：外面雨水流下来的痕迹、里面的手印，玻璃本身反光更强
   M.glass.envMapIntensity = 1.6; M.glass.clearcoat = 1; M.glass.opacity = 0.16;
   for (let i = 0; i < 5; i++) decal(['Leaking010A', 'Leaking011A', 'decal_10'][i % 3], room, { pos: [-4.7 + i * 1.3 + rnd() * 0.3, 1.6, 5.03], rot: [0, Math.PI, 0], w: 0.3, h: 1.8, color: 0xb8c0c0, opacity: 0.16, roughness: 0.1 });
@@ -1126,23 +1138,20 @@ export function createRoom(env) {
     box(1.1, 0.26, 0.03, steelMat(2), 0.62, 0.15, 0, doorG);                       // 底部踢脚板：你给的旧不锈钢，下沿磕得最花
     box(1.1, 0.012, 0.012, alu, 0.62, 0.29, 0.022, doorG);
     plane(1.1, 2.08, M.glass, 0.62, 1.34, 0, 0, doorG);
-    const bar = cyl(0.016, 0.016, 0.9, M.steel, 0.62, 1.05, 0.075, doorG, 16); bar.rotation.z = Math.PI / 2;   // 横推把手，两头用支脚固定在门框上
-    for (const x of [0.2, 1.04]) box(0.025, 0.04, 0.06, M.steel, x, 1.05, 0.045, doorG);
+    // 拉手：一根竖着的拉丝不锈钢圆管，两头弯回去用支脚穿过玻璃固定，里外各一根
+    const handleM = new THREE.MeshStandardMaterial({ color: 0xc8cac8, metalness: 1, roughness: 0.28 });
+    for (const sz of [1, -1]) {
+      const hp = new THREE.CatmullRomCurve3([[1.02, 0.78, 0], [1.02, 0.8, sz * 0.06], [1.02, 0.86, sz * 0.075], [1.02, 1.4, sz * 0.075], [1.02, 1.46, sz * 0.06], [1.02, 1.48, 0]].map((v) => new THREE.Vector3(...v)), false, 'catmullrom', 0.2);
+      doorG.add(new THREE.Mesh(new THREE.TubeGeometry(hp, 40, 0.014, 12, false), handleM));
+      for (const y of [0.8, 1.46]) cyl(0.022, 0.022, 0.012, handleM, 1.02, y, sz * 0.006, doorG, 16).rotation.x = Math.PI / 2;   // 玻璃两侧的压盖
+    }
     box(0.32, 0.06, 0.07, alu, 0.32, 2.36, 0.07, doorG); const arm = box(0.3, 0.015, 0.02, alu, 0.4, 2.42, 0.12, doorG); arm.rotation.y = 0.4;   // 闭门器和连杆
     for (const y of [0.25, 1.25, 2.25]) cyl(0.012, 0.012, 0.09, M.steel, -0.005, y, 0.03, doorG, 10);   // 合页
     const stk = (lines, w, h, bg, x, y) => plane(w, h, sign(lines, Math.round(w * 900), Math.round(h * 900), { bg }), x, y, -0.004, Math.PI, doorG);   // 贴在玻璃外侧的贴纸
-    stk([['PUSH', 60, '#f3eee6', 0.62, 700]], 0.16, 0.07, '#7a2420', 0.95, 1.15);
+    stk([['PULL', 60, '#f3eee6', 0.62, 700]], 0.16, 0.07, '#7a2420', 0.86, 1.15);
     stk([['OPEN', 30, '#222', 0.25, 700], ['Mon-Sat 11-22', 22, '#333', 0.55, 500], ['Sun 12-20', 22, '#333', 0.8, 500]], 0.16, 0.14, '#e8e2d2', 0.3, 1.55);
     stk([['CARD · CASH · MOBILE', 22, '#e8e2d2', 0.6, 600]], 0.18, 0.04, '#2a3a5a', 0.3, 1.42); }
-  { const stripTex = canvasTexture(64, 512, (g, W, H) => {                          // 软门帘：上面干净透亮，越往下越黄、越花（人和推车一直蹭）
-      const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, 'rgba(225,235,228,.18)'); gr.addColorStop(0.55, 'rgba(220,226,210,.26)'); gr.addColorStop(1, 'rgba(150,140,110,.6)'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
-      for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.12})`; g.lineWidth = 1; const x = Math.random() * W, y = H * (0.4 + Math.random() * 0.6); g.beginPath(); g.moveTo(x, y); g.lineTo(x + (Math.random() - 0.5) * 8, y - 20 - Math.random() * 60); g.stroke(); }
-      g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(2, 0, 2, H); g.fillRect(W - 4, 0, 2, H); });   // 两边厚一点的棱
-    const stripM = new THREE.MeshPhysicalMaterial({ map: stripTex, transparent: true, roughness: 0.25, side: THREE.DoubleSide, depthWrite: false, color: 0xe8f0ea });
-    for (let i = 0; i < 9; i++) { const sg = new THREE.PlaneGeometry(0.2, 2.42, 1, 10), sp = sg.attributes.position;   // 每条软条下半截有一点弧度、微微翘
-      for (let k = 0; k < sp.count; k++) { const y = sp.getY(k); sp.setZ(k, Math.max(0, -y) * Math.max(0, -y) * 0.03 * (i % 2 ? 1 : -0.6)); } sg.computeVertexNormals();
-      const st = new THREE.Mesh(sg, stripM); st.position.set(0.04 + i * 0.145, 1.24, 4.9 - (i % 2) * 0.006); st.rotation.y = (rnd() - 0.5) * 0.12; st.renderOrder = 5; room.add(st); }
-    box(1.4, 0.04, 0.04, M.steel, 0.62, 2.47, 4.9, room); }                          // 挂门帘的不锈钢横杆
+  // （门口原来挂的透明软门帘去掉了：一扇真玻璃门就够了）
   const winText = plane(1.8, 0.32, new THREE.MeshPhysicalMaterial({ transparent: true, roughness: 0.35, clearcoat: 0.5, map: canvasTexture(900, 160, (g, W, H) => {   // 红色即时贴字（从里面看是镜像的），边缘有剥落
     g.clearRect(0, 0, W, H); g.save(); g.translate(W, 0); g.scale(-1, 1); g.fillStyle = '#9a1e1a'; g.textAlign = 'center';
     g.font = `800 64px ${SANS}`; g.fillText('FRESH · FROZEN · DELI', W / 2, 70); g.font = `700 34px ${SANS}`; g.fillText('FUTURE MEAT MARKET', W / 2, 130); g.restore();

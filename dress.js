@@ -416,11 +416,34 @@ export function bin(p, x, z, { r = 0.16, h = 0.5, color = 0x3a5a46, seed = 1, fi
   for (let i = 0; i < sp.count; i++) { const a = Math.atan2(sp.getZ(i), sp.getX(i)), yy = sp.getY(i), k = 1 + (Math.sin(a * 9 + seed) * 0.03 + Math.sin(a * 23) * 0.015) * (0.5 - yy / 0.09); sp.setX(i, sp.getX(i) * k); sp.setZ(i, sp.getZ(i) * k); sp.setY(i, yy - Math.max(0, Math.sin(a * 3 + seed)) * 0.03 * (0.5 - yy / 0.09)); }
   skirt.computeVertexNormals(); const sk = new THREE.Mesh(skirt, bagM); sk.position.y = h - 0.035; g.add(sk);
   const lip = new THREE.Mesh(new THREE.TorusGeometry(r + 0.01, 0.011, 8, 40), bagM); lip.rotation.x = Math.PI / 2; lip.position.y = h + 0.006; g.add(lip);
-  // 里面的东西：堆到快满，几个纸团冒出桶口
-  const top = h * fill;
-  const inner = new THREE.Mesh(new THREE.CircleGeometry(r * 0.97, 24), bagM); inner.rotation.x = -Math.PI / 2; inner.position.y = top - 0.03; g.add(inner);
-  for (let i = 0; i < 7; i++) { const a = q() * 6.28, rr = q() * r * 0.7; ITEM.napkin(g, Math.cos(a) * rr, top - 0.03 + q() * 0.05, Math.sin(a) * rr, { seed: seed * 13 + i, s: 0.5 + q() }); }
-  if (q() < 0.8) { const rc = ITEM.receipt(g, (q() - 0.5) * r, top + 0.02, (q() - 0.5) * r, { seed: seed + 2, ry: q() * 6 }); rc.rotation.x = -0.6; }
+  // 里面的东西：袋子里鼓起一堆，各种垃圾都压在这堆上面（没有一样是悬空的）——纸团、纸杯、压扁的易拉罐、塑料瓶、糖纸、餐巾、小票
+  const top = h * fill, R0 = r * 0.92;
+  const hgt = (x, z) => { const d = Math.min(1, Math.hypot(x, z) / R0); return top - 0.035 + 0.04 * (1 - d * d) + 0.008 * Math.sin(x * 60 + seed) * Math.sin(z * 50); };
+  { const hg = new THREE.CircleGeometry(R0 + 0.01, 28, 0, Math.PI * 2), hp = hg.attributes.position; hg.rotateX(-Math.PI / 2);
+    for (let i = 0; i < hp.count; i++) hp.setY(i, hgt(hp.getX(i), hp.getZ(i)) - 0.006); hg.computeVertexNormals();
+    g.add(new THREE.Mesh(hg, bagM)); }
+  const soft = (c, map) => mat('binSoft' + c, () => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, map: map ? litterMat('news').map : null }));
+  const place = (o, x, z, lift, tilt = 0.6) => { o.position.set(x, hgt(x, z) + lift, z); o.rotation.set((q() - 0.5) * tilt, q() * 6.28, (q() - 0.5) * tilt); g.add(o); return o; };
+  const spot = () => { const a = q() * 6.28, d = Math.sqrt(q()) * R0 * 0.75; return [Math.cos(a) * d, Math.sin(a) * d]; };
+  for (let i = 0; i < 6; i++) {                                                       // 纸团：白纸、牛皮纸、旧报纸，平滑着色（不是一颗颗水晶）
+    const kind = i % 3, rr = 0.03 + q() * 0.025, m = new THREE.Mesh(crumple(rr, seed * 17 + i, 0.6 + q() * 0.3), [soft(0xdedad0), soft(0x9a7a52), soft(0xffffff, true)][kind]);
+    const [x, z] = spot(); m.position.set(x, hgt(x, z) - rr * 0.35, z); m.rotation.y = q() * 6.28; g.add(m);
+  }
+  if (q() < 0.85) { const [x, z] = spot();                                            // 带盖的外卖纸杯，侧躺
+    const cup = new THREE.Group(); const cb = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.031, 0.11, 20, 1, true), litterMat('cup')); cup.add(cb);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.044, 0.012, 20), mat('cupLid', () => new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4 }))); lid.position.y = 0.058; cup.add(lid);
+    const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.039, 0.05, 20, 1, true), mat('sleeve', () => new THREE.MeshStandardMaterial({ color: 0x8a6a44, roughness: 0.95, side: THREE.DoubleSide }))); sl.position.y = 0.005; cup.add(sl);
+    cup.position.set(x, hgt(x, z) + 0.036, z); cup.rotation.set(Math.PI / 2 - 0.15, 0, q() * 6.28); cup.rotation.order = 'ZXY'; g.add(cup); }
+  if (q() < 0.8) { const [x, z] = spot(); const cg = new THREE.CylinderGeometry(0.033, 0.033, 0.12, 18, 6), cp = cg.attributes.position;   // 被捏扁的易拉罐
+    for (let i = 0; i < cp.count; i++) { const yy = cp.getY(i), k = 1 - 0.45 * Math.exp(-Math.pow(yy / 0.03, 2)); cp.setX(i, cp.getX(i) * k); cp.setZ(i, cp.getZ(i) * (0.5 + 0.5 * k)); cp.setY(i, yy * 0.85); }
+    cg.computeVertexNormals(); const can = new THREE.Mesh(cg, mat('can' + (seed % 2), () => new THREE.MeshStandardMaterial({ color: seed % 2 ? 0xa82a24 : 0x2a5a9a, metalness: 0.85, roughness: 0.3 })));
+    can.position.set(x, hgt(x, z) + 0.028, z); can.rotation.set(Math.PI / 2, 0, q() * 6.28); can.rotation.order = 'ZXY'; g.add(can); }
+  if (q() < 0.6) { const [x, z] = spot(); const pts = [[0, 0], [0.032, 0], [0.034, 0.12], [0.022, 0.16], [0.013, 0.18], [0.013, 0.195], [0, 0.195]].map(([a, b]) => new THREE.Vector2(a, b));   // 空塑料瓶
+    const b = new THREE.Mesh(new THREE.LatheGeometry(pts, 18), mat('pet', () => new THREE.MeshPhysicalMaterial({ color: 0xd8e8e4, roughness: 0.15, transparent: true, opacity: 0.45, depthWrite: false })));
+    b.position.set(x, hgt(x, z) + 0.032, z); b.rotation.set(Math.PI / 2, 0, q() * 6.28); b.rotation.order = 'ZXY'; g.add(b); }
+  for (let i = 0; i < 3; i++) { const [x, z] = spot(); ITEM.napkin(g, x, hgt(x, z) - 0.005, z, { seed: seed * 13 + i, s: 0.5 + q() * 0.5 }); }
+  { const [x, z] = spot(); const w = new THREE.Mesh(crumple(0.03, seed * 7 + 3, 0.15), litterMat('wrapper')); w.scale.set(1.5, 1, 0.8); place(w, x, z, -0.002, 0.3); }   // 压扁的糖纸
+  if (q() < 0.8) { const [x, z] = spot(); const rc = ITEM.receipt(g, x, hgt(x, z) + 0.004, z, { seed: seed + 2, ry: q() * 6 }); rc.rotation.x = -0.25; }
   return g;
 }
 
@@ -481,14 +504,14 @@ export function mopBucket(p, x, z, ry = 0) {
   const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.62, 10), new THREE.MeshStandardMaterial({ color: 0xb8b8b4, metalness: 0.9, roughness: 0.3 })); lever.position.set(0.1, 0.38, 0); lever.rotation.z = -0.18; wr.add(lever);
   const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.12, 10), grey); grip.rotation.x = Math.PI / 2; grip.position.set(0.155, 0.68, 0); wr.add(grip);
   // 拖把：布条头泡在桶里的水下，杆子斜靠在挤水器上
-  const head = new THREE.CylinderGeometry(0.035, 0.13, 0.32, 28, 8, true), hp = head.attributes.position, q = rng(5);
-  for (let i = 0; i < hp.count; i++) { const a = Math.atan2(hp.getZ(i), hp.getX(i)), yy = hp.getY(i), k = 1 + (Math.sin(a * 13) * 0.08 + Math.sin(a * 5 + 1) * 0.1) * (0.5 - yy / 0.32); hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * k); if (yy < -0.12) hp.setY(i, yy - Math.abs(Math.sin(a * 7)) * 0.03); }
+  const head = new THREE.CylinderGeometry(0.03, 0.095, 0.26, 28, 8, true), hp = head.attributes.position, q = rng(5);   // 布条头收在桶壁以内
+  for (let i = 0; i < hp.count; i++) { const a = Math.atan2(hp.getZ(i), hp.getX(i)), yy = hp.getY(i), k = 1 + (Math.sin(a * 13) * 0.08 + Math.sin(a * 5 + 1) * 0.1) * (0.5 - yy / 0.32); hp.setX(i, hp.getX(i) * k); hp.setZ(i, hp.getZ(i) * k); if (yy < -0.1) hp.setY(i, yy - Math.abs(Math.sin(a * 7)) * 0.03); }
   head.computeVertexNormals(); head.setAttribute('uv1', head.attributes.uv);
   const strings = new THREE.Mesh(head, userMat('mop_strings.webp', 1, 1, { size: 0.5, roughness: 1, bump: 0.6, side: THREE.DoubleSide }));
-  const mop = new THREE.Group(); mop.position.set(-0.08, Y0 + 0.2, 0.02); mop.rotation.z = -0.42; g.add(mop);          // 拖把头在桶里偏向另一头，杆子往挤水器那边斜
+  const mop = new THREE.Group(); mop.position.set(-0.07, Y0 + 0.17, 0); mop.rotation.z = -0.3; g.add(mop);          // 拖把头在桶里偏向另一头，杆子往挤水器那边斜
   strings.position.y = 0; mop.add(strings);
-  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.3, 10), new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.4, metalness: 0.3 })); stick.position.y = 0.16 + 0.65; mop.add(stick);
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.05, 14), grey); cap.position.y = 0.16; mop.add(cap);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1.3, 10), new THREE.MeshStandardMaterial({ color: 0x3a6a8a, roughness: 0.4, metalness: 0.3 })); stick.position.y = 0.13 + 0.65; mop.add(stick);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 0.05, 14), grey); cap.position.y = 0.13; mop.add(cap);
   return g;
 }
 

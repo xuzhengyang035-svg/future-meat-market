@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { addMarketLane } from './market-lane.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
+import { addSheets } from './newsprint.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { meatGeometry, meatMaterial, texturedMeat } from './meat.js';
@@ -232,29 +233,8 @@ export function createStreet(env) {
     box(w - 0.18, 0.7, 0.02, M.green(0.8, 0.7), s * w / 2, 0.5, 0.035, d); box(0.04, 0.18, 0.06, M.steel, s * (w - 0.08), 1.1, 0.05, d);
   }
   box(DX1 - DX0 + 0.3, 0.05, 0.5, M.stone(2, 0.5), (DX0 + DX1) / 2, 0.16, 0.25, root);
-  // 左橱窗：店里糊在玻璃内侧的旧报纸（和店里同一批、同一个位置），从街上看到的是正面；缝里看得见店里
-  { const r = R(301), heads = ['PIG FARMS FACE CLOSURE', 'LAB MEAT ON SALE FROM MONDAY', 'COUNCIL VOTES ON SLAUGHTER BAN', 'DONOR COW TURNS TWELVE', 'MARKET HALL TO BE SOLD', 'THE LAST BUTCHER OF CABLE ST', 'SERUM PRICES DOUBLE', 'RAIN UNTIL SUNDAY', 'WHERE DOES IT COME FROM?', 'NIGHT BUSES CUT', 'HALE FARM: ONE PIG LEFT'];
-    const paper = (k) => canvasTexture(420, 560, (g, W, H) => {
-      g.fillStyle = ['#d8cfb4', '#cfc6aa', '#ddd4ba', '#c8bea0'][k % 4]; g.fillRect(0, 0, W, H);
-      g.fillStyle = '#222'; g.font = `900 34px ${'Georgia, serif'}`; g.textAlign = 'center'; g.fillText(['The Evening Post', 'Daily Ledger', 'The Courier', 'Market Gazette'][k % 4], W / 2, 44); g.textAlign = 'left';
-      g.fillRect(16, 56, W - 32, 3); g.font = '800 30px Georgia, serif';
-      const words = heads[k % heads.length].split(' '); let line = '', y = 100; for (const w of words) { if (g.measureText(line + w).width > W - 40) { g.fillText(line, 20, y); line = ''; y += 34; } line += w + ' '; } g.fillText(line, 20, y);
-      g.fillStyle = 'rgba(40,36,30,.75)'; g.fillRect(20, y + 18, W * 0.55, 150);
-      for (let c = 0; c < 3; c++) for (let l = 0; l < 26; l++) { const cy = y + 22 + l * 13; if (c === 0 && cy < y + 172) continue; g.fillStyle = 'rgba(30,30,30,.55)'; g.fillRect(20 + c * 130, cy, 112 - r() * 30, 4); }
-      ageCanvas(g, W, H, { amount: 2.2, seed: 300 + k });
-    });
-    const mats = [0, 1, 2, 3, 4, 5].map((k) => lit(paper(k), { roughness: 0.95 }));
-    const tape = new THREE.MeshStandardMaterial({ color: 0xd8c890, roughness: 0.6, transparent: true, opacity: 0.7 });
-    const sheet = (w, h, x, y, rz, k) => {
-      const geo = new THREE.PlaneGeometry(w, h, 6, 8), gp = geo.attributes.position;
-      for (let i = 0; i < gp.count; i++) { const u = gp.getX(i) / w, v = gp.getY(i) / h; gp.setZ(i, -(0.006 * (u * u + v * v)) + Math.sin(u * 9 + k) * 0.002); } geo.computeVertexNormals();
-      const p = new THREE.Mesh(geo, mats[k % mats.length]); p.position.set(x, y, 0.0); p.rotation.z = -rz; root.add(p);
-      for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { if ((k + sx + sy) % 5 === 0) continue; const t = plane(0.1, 0.035, tape, x + sx * w / 2 * 0.95, y + sy * h / 2 * 0.95, 0.002, 0, root); t.rotation.z = sx * sy * 0.7; }
-    };
-    // same draw order and spacing as the sheets inside (room.js), shifted by the street ↔ shop offset
-    for (let i = 0; i < 7; i++) sheet(0.6 + r() * 0.12, 0.8 + r() * 0.12, -4.6 + i * 0.66 - 1.65 + (r() - 0.5) * 0.05, 0.6 + (i % 2) * 0.85, (r() - 0.5) * 0.08, i);
-    for (let i = 0; i < 4; i++) sheet(0.6, 0.78, -4.4 + i * 1.1 - 1.65, 1.85 + r() * 0.15, (r() - 0.5) * 0.1, i + 7);
-  }
+  // 左橱窗：店里糊在玻璃内侧的旧报纸（newsprint.js，和店里同一批、同一个位置），从街上看到的是每张的头版
+  addSheets(root, 'front', { dx: -1.65, glassZ: 0.02 });
   // 右橱窗：店里这一段是实墙，所以是一个封了背板的浅橱窗，只挂肉
   // 右橱窗：香肠和火腿、切片机、罐子
   { box(WR1 - WR0 + 0.2, 2.9, 0.06, tiles(WR1 - WR0, 2.9), (WR0 + WR1) / 2, 1.45 + 0.15, -0.78, root);              // tiled backboard: the shop wall is right behind it
