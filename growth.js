@@ -51,10 +51,10 @@ export function readout(b, t) {
   const acid = feed * Math.min(1, f * 1.6);
   const p = b.tau / b.cycle;
   const done = p >= 1;
-  const status = done ? '已达出品标准 · 待收获'
-    : p < 0.12 ? '接种 · 适应期'
-    : (1 - f) > 0.45 ? '指数生长期'
-    : '生长放缓 · 接近平台期';
+  const status = done ? 'Ready · awaiting harvest'
+    : p < 0.12 ? 'Seeded · lag phase'
+    : (1 - f) > 0.45 ? 'Exponential growth'
+    : 'Slowing · near plateau';
   return {
     f, N, p, done, status,
     day: Math.floor(b.day),

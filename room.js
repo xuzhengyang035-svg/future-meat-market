@@ -1444,7 +1444,7 @@ export function createRoom(env) {
   // ================================================================ 灯光：暖黄的灯泡为主，几支日光灯（一盏坏、一盏闪），红色霓虹
   scene.add(new THREE.HemisphereLight(0x5fa8a0, 0x16120d, 0.17));
   // 店里的空气：铁板上的油烟在抽油烟罩下面打着卷，用餐区天花板下压着一层很淡的烟，吊灯下面最亮
-  scene.userData.fog = { min: [LX, 0, -4], max: [5, HT, 5], floor: 1.8, up: 0.6, density: 0.1, scale: 0.5, color: 0x6a645a, light: 0xffb878, lightK: 1.0,
+  scene.userData.fog = { min: [LX, 0, -4], max: [5, HT, 5], floor: 1.8, up: 0.6, even: 0.6, density: 0.1, scale: 0.5, color: 0x6a645a, light: 0xffb878, lightK: 1.0,
     lights: [[-4.85, 3.15, -1.35, 0, -1, 0, 0.45], [-4.85, 3.15, 1.05, 0, -1, 0, 0.45], [-1.95, 3.15, 0.75, 0, -1, 0, 0.45], [1.3, 3.0, -2.9]], wind: [0.04, 0.03, 0.02], maxDist: 18 };
   const tubeLights = [];
   for (const [x, z] of [[0.6, 1.4], [2.6, 3.6]]) {

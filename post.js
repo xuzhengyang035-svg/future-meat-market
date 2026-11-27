@@ -16,8 +16,8 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 // 雾是一整块连续的空间，不是一张张面片，所以永远切不出直线、方块；靠近灯的雾被照暖。低分辨率算，再铺回全屏。
 // 场景用 scene.userData.fog 打开：{ min, max, floor, up, density, scale, color, light, lights, wind, maxDist }
 const FOG_MARCH = /* glsl */`
-  uniform sampler2D tDepth; uniform mat4 uProjInv, uCamWorld; uniform float uTime, uDensity, uScale, uMaxDist, uFloor, uUp, uLK;
-  uniform vec3 uColor, uLight, uMin, uMax, uWind, uHoleMin, uHoleMax; uniform vec3 uL[6], uD[6]; uniform float uCos[6]; varying vec2 vUv;
+  uniform sampler2D tDepth; uniform mat4 uProjInv, uCamWorld; uniform float uTime, uDensity, uScale, uMaxDist, uFloor, uUp, uLK, uEven;
+  uniform vec3 uColor, uLight, uMin, uMax, uWind, uHoleMin, uHoleMax; uniform vec3 uL[8], uD[8]; uniform float uCos[8], uG[8], uF[8]; varying vec2 vUv;
   float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
@@ -30,22 +30,22 @@ const FOG_MARCH = /* glsl */`
     float ground = exp(-max(p.y - uMin.y, 0.0) / uFloor), ceil = exp(-max(uMax.y - p.y, 0.0) / uFloor);
     vec3 q = p * uScale + uWind * uTime;
     float n = fbm(q + vec3(n3(q * 0.5 + 3.1), 0.0, n3(q * 0.5 + 7.7)) * 1.4);           // warped: billows and wisps
-    return box * mix(ground, ceil, uUp) * (0.15 + 0.85 * smoothstep(0.35, 0.72, n));   // a thin base everywhere, billows on top
+    return box * mix(ground, ceil, uUp) * mix(smoothstep(0.3, 0.75, n), 0.55 + 0.45 * n, uEven);   // uEven 1: an even haze that only breathes a little
   }
   void main() {
     float z = texture2D(tDepth, vUv).x;
     vec4 v = uProjInv * vec4(vUv * 2.0 - 1.0, z * 2.0 - 1.0, 1.0); v /= v.w;
     vec3 cam = uCamWorld[3].xyz, wp = (uCamWorld * v).xyz, dir = normalize(wp - cam);
     float dist = z > 0.99999 ? uMaxDist : min(length(wp - cam), uMaxDist);
-    const int N = 24; float dt = dist / float(N);
+    const int N = 28; float dt = dist / float(N);
     float t = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) * dt;   // interleaved-gradient jitter: even, no clumps
     float T = 1.0; vec3 L = vec3(0.0);
     for (int i = 0; i < N; i++) {
       vec3 p = cam + dir * t; float rho = dens(p) * uDensity;
       if (rho > 0.0001) {
-        float lit = 0.0; for (int k = 0; k < 6; k++) { vec3 d = p - uL[k]; float r2 = dot(d, d);
-          if (uCos[k] > 0.0) { float c = dot(d * inversesqrt(r2 + 1e-4), uD[k]); lit += smoothstep(uCos[k], uCos[k] + (1.0 - uCos[k]) * 0.6, c) * 1.2 / (1.0 + r2 * 0.08) + 0.5 / (1.0 + r2 * 3.0); }   // spot: a shaft through the fog
-          else lit += 1.0 / (1.0 + r2 * 1.1); }
+        float lit = 0.0; for (int k = 0; k < 8; k++) { vec3 d = p - uL[k]; float r2 = dot(d, d);
+          if (uCos[k] > 0.0) { float c = dot(d * inversesqrt(r2 + 1e-4), uD[k]); lit += uG[k] * (smoothstep(uCos[k], mix(uCos[k], 1.0, 0.25), c) / (1.0 + r2 * uF[k]) + 0.4 / (1.0 + r2 * 3.0)); }   // spot: a shaft through the fog
+          else lit += uG[k] / (1.0 + r2 * uF[k]); }
         float a = 1.0 - exp(-rho * dt);
         L += T * a * (uColor + uLight * lit * uLK); T *= 1.0 - a;
       }
@@ -60,7 +60,7 @@ class FogPass extends Pass {
     this.march = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: FOG_MARCH,
       uniforms: { tDepth: { value: null }, uProjInv: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() }, uTime: { value: 0 }, uDensity: { value: 0.2 }, uScale: { value: 0.2 },
         uMaxDist: { value: 40 }, uFloor: { value: 2 }, uUp: { value: 0 }, uLK: { value: 1 }, uColor: { value: new THREE.Color() }, uLight: { value: new THREE.Color() },
-        uMin: { value: new THREE.Vector3() }, uMax: { value: new THREE.Vector3() }, uHoleMin: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uHoleMax: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uWind: { value: new THREE.Vector3() }, uL: { value: Array.from({ length: 6 }, () => new THREE.Vector3(1e4, 1e4, 1e4)) }, uD: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) }, uCos: { value: new Array(6).fill(0) } } });
+        uMin: { value: new THREE.Vector3() }, uMax: { value: new THREE.Vector3() }, uHoleMin: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uHoleMax: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uWind: { value: new THREE.Vector3() }, uEven: { value: 0 }, uL: { value: Array.from({ length: 8 }, () => new THREE.Vector3(1e4, 1e4, 1e4)) }, uD: { value: Array.from({ length: 8 }, () => new THREE.Vector3()) }, uCos: { value: new Array(8).fill(0) }, uG: { value: new Array(8).fill(1) }, uF: { value: new Array(8).fill(1) } } });
     this.mix = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader: `uniform sampler2D tDiffuse, tFog; uniform vec2 uTexel; varying vec2 vUv;
         void main(){ vec4 c = texture2D(tDiffuse, vUv), f = vec4(0.0); float w = 0.0;
@@ -76,8 +76,12 @@ class FogPass extends Pass {
     u.uDensity.value = f.density ?? 0.2; u.uScale.value = f.scale ?? 0.2; u.uMaxDist.value = f.maxDist ?? 40; u.uFloor.value = f.floor ?? 2; u.uUp.value = f.up ?? 0; u.uLK.value = f.lightK ?? 1;
     u.uColor.value.set(f.color ?? 0x101418).convertSRGBToLinear(); u.uLight.value.set(f.light ?? 0xffb070).convertSRGBToLinear();
     u.uMin.value.set(...f.min); u.uMax.value.set(...f.max); u.uHoleMin.value.set(...(f.hole?.[0] ?? [1e4, 1e4, 1e4])); u.uHoleMax.value.set(...(f.hole?.[1] ?? [1e4, 1e4, 1e4])); u.uWind.value.set(...(f.wind ?? [0.12, 0.01, 0.05]));
+    u.uEven.value = f.even ?? 0;
+    // a light: [x, y, z] glows; [x, y, z, dx, dy, dz, halfAngle] is a spot shaft; optional { gain, falloff } as an 8th entry
     u.uL.value.forEach((v, i) => { const l = f.lights?.[i]; if (!l) { v.set(1e4, 1e4, 1e4); u.uCos.value[i] = 0; return; }
-      v.set(l[0], l[1], l[2]); if (l.length > 3) { u.uD.value[i].set(l[3], l[4], l[5]).normalize(); u.uCos.value[i] = Math.cos(l[6] ?? 0.45); } else u.uCos.value[i] = 0; });
+      const o = typeof l[l.length - 1] === 'object' ? l[l.length - 1] : {}, spot = l.length >= 7;
+      v.set(l[0], l[1], l[2]); u.uG.value[i] = o.gain ?? 1;
+      if (spot) { u.uD.value[i].set(l[3], l[4], l[5]).normalize(); u.uCos.value[i] = Math.cos(l[6]); u.uF.value[i] = o.falloff ?? 0.08; } else { u.uCos.value[i] = 0; u.uF.value[i] = o.falloff ?? 1.1; } });
     this.quad.material = this.march; r.setRenderTarget(this.rt); this.quad.render(r);
     this.mix.uniforms.tDiffuse.value = readBuffer.texture; this.quad.material = this.mix;
     r.setRenderTarget(this.renderToScreen ? null : writeBuffer); this.quad.render(r);

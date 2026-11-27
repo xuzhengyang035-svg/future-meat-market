@@ -547,7 +547,7 @@ export function createStreet(env) {
   mistField(root, { center: [0, 2.4, 6], size: [30, 5, 15], count: 16000, px: 0.006, strength: 0.45, lights: LAMPS, lightColor: 0xffc080, fall: 0.025, swirl: 0.3 });
   mistField(root, { center: [0, 0.9, 6], size: [30, 1.6, 15], count: 6000, px: 0.007, strength: 0.35, lights: LAMPS, lightColor: 0xffb070, fall: 0.006, swirl: 0.4 });   // 贴着湿地面的那层更密
   // 体积雾（post.js 里按深度一步步累加的那种）：整条街一块连续的雾，贴着地面最浓、往上散，小巷和桥洞里自然更深；路灯附近的雾被照暖
-  scene.userData.fog = { min: [-26, 0, -14], max: [32, 9, 26], floor: 2.4, density: 0.38, scale: 0.2, color: 0x7a8892, light: 0xffd2a0, lightK: 0.8,
+  scene.userData.fog = { min: [-26, 0, -14], max: [32, 9, 26], floor: 2.6, even: 0.72, density: 0.3, scale: 0.18, color: 0x7a8892, light: 0xffd2a0, lightK: 0.8,
     lights: [[BX0 + 0.15, 4.2, 0.6, 0, -1, 0.25, 0.55], [SDX, 3.65, 0.35, 0, -1, 0.2, 0.5], [-9, 4.35, 19.6, 0, -1, 0, 0.6], [9, 4.35, 19.6, 0, -1, 0, 0.6], [-1.1, 2.9, 0.55], [-11.6, 4, -6]],
     wind: [0.16, 0.01, 0.06], maxDist: 45, hole: [[-8, -1, -16], [8, 4.2, 0]] };                                     // street lamps and wall lamps are spots: their shafts are carved out of the fog
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗

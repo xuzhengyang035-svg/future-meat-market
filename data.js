@@ -5,68 +5,68 @@ export const ORDER = ['chicken', 'beef', 'pork', 'fish'];
 
 export const SPECIES = {
   chicken: {
-    zh: '鸡', en: 'CHICKEN', title: '培养鸡胸肉', id: 'G-0221', price: 68,
-    lead: '高蛋白、低脂肪。由鸡的肌肉细胞培养而成。',
-    donor: '白羽肉鸡 · 雌性 · 2 岁',
+    zh: 'Chicken', en: 'CHICKEN', title: 'Cultivated chicken breast', id: 'G-0221', price: 68,
+    lead: 'High protein, low fat. Grown from chicken muscle cells.',
+    donor: 'White broiler · hen · 2 years',
   },
   beef: {
-    zh: '牛', en: 'BEEF', title: '培养牛排', id: 'B-0417', price: 168,
-    lead: '口感、香气和颜色可以选择。',
-    donor: '荷斯坦公牛 · 3 岁',
+    zh: 'Beef', en: 'BEEF', title: 'Cultivated beef steak', id: 'B-0417', price: 168,
+    lead: 'Choose the texture, aroma and colour.',
+    donor: 'Holstein bull · 3 years',
   },
   pork: {
-    zh: '猪', en: 'PORK', title: '培养猪排', id: 'P-0932', price: 98,
-    lead: '脂肪含量可以选择。',
-    donor: '杜洛克母猪 · 4 岁',
+    zh: 'Pork', en: 'PORK', title: 'Cultivated pork chop', id: 'P-0932', price: 98,
+    lead: 'Choose the fat content.',
+    donor: 'Duroc sow · 4 years',
   },
   fish: {
-    zh: '大黄鱼', en: 'YELLOW CROAKER', title: '培养大黄鱼', id: 'F-1180', price: 128,
-    lead: '无刺。可选鱼片或鱼排。',
-    donor: '养殖大黄鱼 · 2 龄',
+    zh: 'Yellow croaker', en: 'YELLOW CROAKER', title: 'Cultivated yellow croaker', id: 'F-1180', price: 128,
+    lead: 'No bones. Fillet or steak.',
+    donor: 'Farmed yellow croaker · 2 years',
   },
 };
 
 // 每一项定制背后都有一项“专利技术”，点进去是一篇技术报告（papers.js）
 const FAT = {
-  key: 'fat', label: '脂肪含量', choices: [['low', '少脂'], ['mid', '适中'], ['high', '丰润']],
-  tech: 'FatBlend™', techZh: '脂肪细胞共培养', paper: 'fatblend',
-  pitch: '肌肉细胞和脂肪细胞按比例共同培养，脂肪含量在 3%–21% 之间，分三档。',
+  key: 'fat', label: 'Fat content', choices: [['low', 'Lean'], ['mid', 'Medium'], ['high', 'Rich']],
+  tech: 'FatBlend™', techZh: 'Fat-cell co-culture', paper: 'fatblend',
+  pitch: 'Muscle and fat cells are grown together in set ratios: 3–21 % fat, in three grades.',
 };
 export const OPTIONS = {
   chicken: [FAT],
   pork: [FAT],
-  fish: [{ key: 'form', label: '产品形态', choices: [['fillet', '鱼片'], ['steak', '鱼排']],
-    tech: 'ShapeFab™', techZh: '细胞打印成型', paper: 'shapefab',
-    pitch: '用细胞墨水逐层打印成鱼片或鱼排，不含鱼刺。' }],
+  fish: [{ key: 'form', label: 'Cut', choices: [['fillet', 'Fillet'], ['steak', 'Steak']],
+    tech: 'ShapeFab™', techZh: 'Cell printing', paper: 'shapefab',
+    pitch: 'Printed layer by layer from cell ink into a fillet or steak. No bones.' }],
   beef: [
-    { key: 'firm', label: '口感', choices: [['tender', '柔嫩'], ['firm', '紧实']],
-      tech: 'FlexScaffold™', techZh: '可调刚度支架', paper: 'scaffold',
-      pitch: '细胞在可食用支架上生长。支架越软，成品越嫩；支架越硬，成品越有嚼劲。' },
-    { key: 'aroma', label: '烹饪香气', choices: [['base', '基础'], ['plus', '烤肉香增强']],
-      tech: 'AromaSwitch™', techZh: '温控风味释放', paper: 'aroma',
-      pitch: '风味前体在培养时加入，煎制温度超过 150 ℃ 时释放烤肉香气。' },
-    { key: 'shade', label: '颜色', choices: [['light', '浅'], ['deep', '深']],
-      tech: 'MyoTone™', techZh: '肌红蛋白调色', paper: 'myotone',
-      pitch: '通过调节培养过程中的肌红蛋白含量改变颜色，分浅、深两档。' },
+    { key: 'firm', label: 'Texture', choices: [['tender', 'Tender'], ['firm', 'Firm']],
+      tech: 'FlexScaffold™', techZh: 'Tunable scaffold', paper: 'scaffold',
+      pitch: 'Cells grow on an edible scaffold. A softer scaffold gives a tender cut, a stiffer one more bite.' },
+    { key: 'aroma', label: 'Cooking aroma', choices: [['base', 'Standard'], ['plus', 'Extra roast']],
+      tech: 'AromaSwitch™', techZh: 'Heat-released flavour', paper: 'aroma',
+      pitch: 'Flavour precursors are added while growing and release a roast aroma above 150 °C.' },
+    { key: 'shade', label: 'Colour', choices: [['light', 'Light'], ['deep', 'Deep']],
+      tech: 'MyoTone™', techZh: 'Myoglobin tuning', paper: 'myotone',
+      pitch: 'Colour set by adjusting myoglobin during growth: light or deep.' },
   ],
 };
 
 // 冷柜触摸屏上的广告词
 export const AD = {
-  beef: { slogan: '口感、香气、颜色，三项可选。', copy: '柔嫩或紧实，基础香气或烤肉香增强，浅色或深色。下单后开始培养。' },
-  chicken: { slogan: '高蛋白，低脂肪。', copy: '培养鸡胸肉，脂肪含量分三档可选。' },
-  pork: { slogan: '肥瘦比例可选。', copy: '脂肪含量 3%–21%，分少脂、适中、丰润三档。' },
-  fish: { slogan: '无刺大黄鱼。', copy: '可选鱼片或鱼排，打印成型后培养。' },
+  beef: { slogan: 'Texture, aroma, colour. Your choice.', copy: 'Tender or firm, standard or extra roast, light or deep. Grown after you order.' },
+  chicken: { slogan: 'High protein. Low fat.', copy: 'Cultivated chicken breast in three fat grades.' },
+  pork: { slogan: 'Pick your fat.', copy: '3–21 % fat: lean, medium or rich.' },
+  fish: { slogan: 'Yellow croaker, no bones.', copy: 'Fillet or steak, printed then grown.' },
 };
 
 export const GROWTH = {
-  cycle: [[14, '14 天'], [21, '21 天'], [28, '28 天']],
-  plan: { std: { label: '标准', x: 1, price: 1 }, a: { label: '配方 A', x: 3, price: 0.82 }, b: { label: '配方 B', x: 4, price: 0.74 } },
-  tech: 'Yield+™', techZh: '高产培养配方', paper: 'yield',
-  pitch: '28 天后细胞量可达标准配方的 3–4 倍，单价更低。',
+  cycle: [[14, '14 days'], [21, '21 days'], [28, '28 days']],
+  plan: { std: { label: 'Standard', x: 1, price: 1 }, a: { label: 'Recipe A', x: 3, price: 0.82 }, b: { label: 'Recipe B', x: 4, price: 0.74 } },
+  tech: 'Yield+™', techZh: 'High-yield recipe', paper: 'yield',
+  pitch: 'After 28 days, 3–4× the cells of the standard recipe, at a lower unit price.',
 };
 
-export const MARQUEE = '培养肉 · 下单后开始培养 · 牛 · 猪 · 鸡 · 大黄鱼 · ';
+export const MARQUEE = 'Cultivated meat · grown after you order · beef · pork · chicken · yellow croaker · ';
 
 // 大厅里可以走过去的几个位置（地上的箭头）：pos 是站的地方（x, z），at 是到了以后先看向哪里
 export const ROOM_NAV = {
@@ -75,15 +75,15 @@ export const ROOM_NAV = {
   path: { mark: 1.7, width: 0.2, radius: 0.6 },
   pace: { speed: 1.85, accel: 1.35, turn: 70 },
   nodes: {
-    door:    { name: '门口', at: [0.4, 3.3], face: -6 },
-    counter: { name: '吧台', at: [0.4, -0.45] },
-    right:   { name: '结算', at: [2.75, 0.1], face: -84 },                                              // 结算、加工间门
-    corner:  { name: '告示栏', at: [4.1, -1.3] },                                              // 告示栏
-    fridge:  { name: '鲜肉柜', at: [-2.3, -2.15] },
-    storage: { name: '仓库门', at: [-4.4, -2.85], face: 108 },                                            // 仓库门
-    dining:  { name: '用餐区', at: [-2.1, 2.6] },
-    office:  { name: '办公室', at: [-8.0, 3.85], face: -28 },
-    case:    { name: '冷藏柜', at: [2.6, 2.4], face: 90 },                                              // 右墙那排冷藏肉柜前
+    door:    { name: 'Entrance', at: [0.4, 3.3], face: -6 },
+    counter: { name: 'Counter', at: [0.4, -0.45] },
+    right:   { name: 'Checkout', at: [2.75, 0.1], face: -84 },                                              // 结算、加工间门
+    corner:  { name: 'Notice board', at: [4.1, -1.3] },                                              // 告示栏
+    fridge:  { name: 'Meat fridge', at: [-2.3, -2.15] },
+    storage: { name: 'Storage door', at: [-4.4, -2.85], face: 108 },                                            // 仓库门
+    dining:  { name: 'Dining area', at: [-2.1, 2.6] },
+    office:  { name: 'Office', at: [-8.0, 3.85], face: -28 },
+    case:    { name: 'Chiller', at: [2.6, 2.4], face: 90 },                                              // 右墙那排冷藏肉柜前
   },
   routes: [
     { a: 'door', b: 'counter' },
@@ -103,51 +103,51 @@ export const ROOM_NAV = {
 };
 
 export const HOTSPOTS = [
-  { id: 'fridge', label: 'FRESH MEAT · 鲜肉柜 · ', pos: [-2.5, 1.25, -3.5], route: 'fridge',
-    marquee: '鲜肉柜 · 四种培养肉 · 可定制 · ' },
-  { id: 'brand', label: 'NO KILL · 零屠宰宣传片 · ', pos: [-2.5, 2.62, -3.85], route: 'brand',
-    marquee: '品牌宣传片 · ' },
-  { id: 'tasting', label: 'TASTING · 窗口试吃 · ', pos: [0.45, 1.3, -1.95], route: 'tasting',
-    marquee: '试吃 · 香煎培养牛排 · 扫码评价领券 · ' },
-  { id: 'checkout', label: 'PAY · 窗口结算 · ', pos: [2.85, 1.55, -1.95], route: 'checkout',
-    marquee: '结算 · 扫码支付 · ', needsOrder: true },
-  { id: 'donor', label: 'NOTICE · 熟客须知 · ', pos: [4.15, 1.45, -3.9], route: 'donor',
-    marquee: '告示栏 · 供体介绍 · ', subtle: true },
-  { id: 'live', label: 'WORKSHOP · 加工间 · ', pos: [4.9, 1.5, -0.3], route: 'lab',
-    marquee: '加工间 · 参观请预约 · ' },
-  { id: 'warehouse', label: 'STORAGE · 仓库 · ', pos: [-4.4, 1.4, -3.85], route: 'warehouse',
-    marquee: '仓库 · 非工作人员勿入 · ', subtle: true },
-  { id: 'records', label: 'RECORDS · 供体登记簿 · ', pos: [-9.43, 0.8, 3.12], route: 'records',
-    marquee: '办公室 · 供体登记簿 · 档案 · ' },
-  { id: 'board', label: 'PLAN · 细胞系周计划 · ', pos: [-7.16, 1.68, 1.95], route: 'board', r: 0.5,
-    marquee: '办公室 · 细胞系周计划 · ' },
-  { id: 'officewh', label: 'STORAGE · 仓库通道 · ', pos: [-9.5, 1.5, 1.3], route: 'warehouse',
-    marquee: '仓库 · 随手关门 · ', subtle: true },
-  { id: 'street', label: 'EXIT · 出门 · ', pos: [0.55, 1.5, 4.8], route: 'street',
-    marquee: '出门 · ', subtle: true },
+  { id: 'fridge', label: 'Fresh meat · ', pos: [-2.5, 1.25, -3.5], route: 'fridge',
+    marquee: 'Fresh meat · four cultivated meats · made to order · ' },
+  { id: 'brand', label: 'No kill · brand film · ', pos: [-2.5, 2.62, -3.85], route: 'brand',
+    marquee: 'Brand film · ' },
+  { id: 'tasting', label: 'Tasting · ', pos: [0.45, 1.3, -1.95], route: 'tasting',
+    marquee: 'Tasting · seared cultivated steak · rate it for a voucher · ' },
+  { id: 'checkout', label: 'Checkout · ', pos: [2.85, 1.55, -1.95], route: 'checkout',
+    marquee: 'Checkout · scan to pay · ', needsOrder: true },
+  { id: 'donor', label: 'Notice · regulars · ', pos: [4.15, 1.45, -3.9], route: 'donor',
+    marquee: 'Notice board · our donors · ', subtle: true },
+  { id: 'live', label: 'Processing room · ', pos: [4.9, 1.5, -0.3], route: 'lab',
+    marquee: 'Processing room · visits by appointment · ' },
+  { id: 'warehouse', label: 'Storage · ', pos: [-4.4, 1.4, -3.85], route: 'warehouse',
+    marquee: 'Storage · staff only · ', subtle: true },
+  { id: 'records', label: 'Donor register · ', pos: [-9.43, 0.8, 3.12], route: 'records',
+    marquee: 'Office · donor register · files · ' },
+  { id: 'board', label: 'Weekly cell-line plan · ', pos: [-7.16, 1.68, 1.95], route: 'board', r: 0.5,
+    marquee: 'Office · weekly cell-line plan · ' },
+  { id: 'officewh', label: 'To storage · ', pos: [-9.5, 1.5, 1.3], route: 'warehouse',
+    marquee: 'Storage · close the door behind you · ', subtle: true },
+  { id: 'street', label: 'Exit · ', pos: [0.55, 1.5, 4.8], route: 'street',
+    marquee: 'Exit · ', subtle: true },
 ];
 
 // ------------------------------------------------------------------ 店外：一家普通的肉铺门面
-export const STREET_MARQUEE = '鲜肉 · 冻品 · 熟食 · ';
+export const STREET_MARQUEE = 'Fresh · frozen · deli · ';
 export const STREET_HOTSPOTS = [
-  { id: 'enter', label: 'ENTER · 进店 · ', pos: [-1.1, 1.6, 0.4], route: '',
-    marquee: '进店 · ' },
-  { id: 'side', label: '02 号门 · 仓库 · ', pos: [6.4, 1.0, 0.4], route: 'warehouse',
-    marquee: '02 号门 · 收货 · 仓库 · ' },
+  { id: 'enter', label: 'Enter · ', pos: [-1.1, 1.6, 0.4], route: '',
+    marquee: 'Enter · ' },
+  { id: 'side', label: 'Door 02 · storage · ', pos: [6.4, 1.0, 0.4], route: 'warehouse',
+    marquee: 'Door 02 · deliveries · storage · ' },
   // 走近看：橱窗里挂着的风干肉、门口黑板上的菜单、门边的两只气瓶
-  { id: 'window', label: '橱窗 · 风干肉 · ', pos: [1.3, 2.25, 0.25], eye: [1.25, 1.75, 2.2], at: [1.25, 2.15, -0.4], fov: 48,
-    marquee: '橱窗 · 风干香肠 · 火腿 · ',
-    info: [{ at: [0.95, 2.4, -0.35], title: '风干香肠', item: 'salami' }] },
-  { id: 'menu', label: '今日菜单 · ', pos: [-2.75, 1.5, 1.8], eye: [-2.2, 1.55, 3.4], at: [-2.75, 0.95, 1.75], fov: 46,
-    marquee: '今日菜单 · 价目 · 来历 · ',
-    info: [{ at: [-2.7, 1.0, 1.9], title: '菜单卡', item: 'menucard' }] },
-  { id: 'gas', label: '气瓶 · CO₂ · ', pos: [3.74, 1.95, 0.4], eye: [3.2, 1.6, 2.1], at: [3.74, 1.3, 0.35], fov: 50,
-    marquee: '食品级 CO₂ · 气调包装 · 让肉在货架上保持红色 · ',
-    info: [{ at: [3.56, 1.72, 0.36], title: '拧开阀门', act: 'valve' }] },
+  { id: 'window', label: 'Window · cured meat · ', pos: [1.3, 2.25, 0.25], eye: [1.25, 1.75, 2.2], at: [1.25, 2.15, -0.4], fov: 48,
+    marquee: 'Window · cured sausage · ham · ',
+    info: [{ at: [0.95, 2.4, -0.35], title: 'Cured sausage', item: 'salami' }] },
+  { id: 'menu', label: "Today's menu · ", pos: [-2.75, 1.5, 1.8], eye: [-2.2, 1.55, 3.4], at: [-2.75, 0.95, 1.75], fov: 46,
+    marquee: "Today's menu · prices · where it comes from · ",
+    info: [{ at: [-2.7, 1.0, 1.9], title: 'Menu card', item: 'menucard' }] },
+  { id: 'gas', label: 'Gas cylinders · CO₂ · ', pos: [3.74, 1.95, 0.4], eye: [3.2, 1.6, 2.1], at: [3.74, 1.3, 0.35], fov: 50,
+    marquee: 'Food-grade CO₂ · modified-atmosphere packing · keeps the meat red on the shelf · ',
+    info: [{ at: [3.56, 1.72, 0.36], title: 'Open the valve', act: 'valve' }] },
 ];
 
 // ------------------------------------------------------------------ 仓库（交互文字用中文；场景里的牌子、印字保持英文）
-export const WH_MARQUEE = '仓库 · 闲人免进 · ';
+export const WH_MARQUEE = 'Storage · staff only · ';
 // 仓库里走动（像街景）：站位 + 相邻关系。每个站位只显示通往相邻站位的箭头（贴在地上），点一下走过去一段；
 //   [x, z, 眼睛高度]（月台上 2.75）；边上的第三项是路上要经过的点（楼梯、绕开叉车和防撞柱、穿过货架之间的横通道）
 export const WH_NAV = {
@@ -158,19 +158,19 @@ export const WH_NAV = {
   // 2026-11 重排：每个点位四周有路就都能走——楼梯口是一个点（下了月台能往前门、往冷链收货、往主通道、绕过货架前头去暂存区），
   //   货架那一排两头和中间的横通道都能穿过去；后面细胞库前可以去档案区、冷冻区、02 号门
   nodes: {
-    door:   { name: '门口', at: [-1.3, 2.0], face: -22 },
-    intake: { name: '冷链收货', at: [-5.5, -0.9], face: -100 },
-    stairs: { name: '月台楼梯', at: [-5.7, -3.6] },
-    dock:   { name: '月台', at: [-9.9, -3.2, 1.1], face: 36, pitch: -22 },
-    dock2:  { name: '月台里端', at: [-8.95, -20.4, 1.1] },
-    mid:    { name: '主通道', at: [-1.6, -11.6] },
-    cross:  { name: '横通道', at: [4.6, -8.4] },
-    pack:   { name: '配货台', at: [3.3, 1.9], face: 160 },
-    front:  { name: '暂存区', at: [7.8, -2.0] },
-    side:   { name: '冷冻区', at: [8.9, -14.8] },
-    back:   { name: '细胞库', at: [-1.3, -20.8] },
-    files:  { name: '档案区', at: [7.7, -25.7], views: [-20, 72, 170] },
-    gate:   { name: '02 号门', at: [-7.4, -25.9], face: -150 },
+    door:   { name: 'Entrance', at: [-1.3, 2.0], face: -22 },
+    intake: { name: 'Cold-chain intake', at: [-5.5, -0.9], face: -100 },
+    stairs: { name: 'Dock stairs', at: [-5.7, -3.6] },
+    dock:   { name: 'Loading dock', at: [-9.9, -3.2, 1.1], face: 36, pitch: -22 },
+    dock2:  { name: 'Far end of the dock', at: [-8.95, -20.4, 1.1] },
+    mid:    { name: 'Main aisle', at: [-1.6, -11.6] },
+    cross:  { name: 'Cross aisle', at: [4.6, -8.4] },
+    pack:   { name: 'Packing bench', at: [3.3, 1.9], face: 160 },
+    front:  { name: 'Staging', at: [7.8, -2.0] },
+    side:   { name: 'Freezers', at: [8.9, -14.8] },
+    back:   { name: 'Cell bank', at: [-1.3, -20.8] },
+    files:  { name: 'Archive', at: [7.7, -25.7], views: [-20, 72, 170] },
+    gate:   { name: 'Door 02', at: [-7.4, -25.9], face: -150 },
   },
   routes: [
     { a: 'door', b: 'intake', via: [[-3.4, 0.9]] },
@@ -196,48 +196,48 @@ export const WH_NAV = {
 };
 // eye / at / fov：点了之后走近到哪里、看向哪里（到了再出引线标注）
 export const WH_HOTSPOTS = [
-  { id: 'fbs', view: { mode: 'orbit', az: 55, el: [12, 60] }, label: '冷链收货 · ', pos: [-7.5, 1.15, -1.0], eye: [-5.0, 1.75, 0.7], at: [-7.6, 0.55, -1.15], fov: 50,
-    marquee: '冷链收货 · 胎牛血清 · −20 ℃ · ',
+  { id: 'fbs', view: { mode: 'orbit', az: 55, el: [12, 60] }, label: 'Cold-chain intake · ', pos: [-7.5, 1.15, -1.0], eye: [-5.0, 1.75, 0.7], at: [-7.6, 0.55, -1.15], fov: 50,
+    marquee: 'Cold-chain intake · foetal bovine serum · −20 °C · ',
     info: [
-      { at: [-7.3, 0.55, -0.9], title: '胎牛血清', item: 'fbs' },
+      { at: [-7.3, 0.55, -0.9], title: 'Foetal bovine serum', item: 'fbs' },
     ] },
-  { id: 'packing', view: { mode: 'orbit', az: 45, el: [10, 55] }, label: '配货台 · ', pos: [2.0, 1.45, 3.35], eye: [2.9, 1.75, 1.3], at: [2.6, 1.0, 3.5], fov: 50,
-    marquee: '订单配货 · 包装耗材 · ',
+  { id: 'packing', view: { mode: 'orbit', az: 45, el: [10, 55] }, label: 'Packing bench · ', pos: [2.0, 1.45, 3.35], eye: [2.9, 1.75, 1.3], at: [2.6, 1.0, 3.5], fov: 50,
+    marquee: 'Order packing · packaging · ',
     info: [
-      { at: [1.95, 0.98, 3.5], title: '待发的订单', item: 'order' },
+      { at: [1.95, 0.98, 3.5], title: 'Order waiting to ship', item: 'order' },
     ] },
-  { id: 'cold', view: { mode: 'orbit', az: 40, el: [5, 40] }, label: '细胞库 · ', pos: [-1.5, 2.6, -24.2], eye: [-0.6, 1.75, -18.6], at: [-1.6, 1.6, -24.3], fov: 56,
-    marquee: '冷库 · 细胞库 · −196 ℃ · ',
+  { id: 'cold', view: { mode: 'orbit', az: 40, el: [5, 40] }, label: 'Cell bank · ', pos: [-1.5, 2.6, -24.2], eye: [-0.6, 1.75, -18.6], at: [-1.6, 1.6, -24.3], fov: 56,
+    marquee: 'Cold store · cell bank · −196 °C · ',
     info: [
-      { at: [-1.3, 1.05, -23.4], title: '冻存管', item: 'vial' },
+      { at: [-1.3, 1.05, -23.4], title: 'Cryovial', item: 'vial' },
     ] },
-  { id: 'freezer', view: { mode: 'track', a: [10.5, 2.1, -16.5], b: [10.5, 2.1, -23.0], look: [0.62, -1.5, 0], u0: 0.3, tilt: 14, fov: 60 }, label: '冷冻区 · ', pos: [11.0, 1.25, -19.3], eye: [8.9, 1.7, -17.4], at: [11.0, 0.7, -19.6], fov: 56,
-    marquee: '冷冻区 · −25 ℃ · 冻品 · ',
+  { id: 'freezer', view: { mode: 'track', a: [10.5, 2.1, -16.5], b: [10.5, 2.1, -23.0], look: [0.62, -1.5, 0], u0: 0.3, tilt: 14, fov: 60 }, label: 'Freezers · ', pos: [11.0, 1.25, -19.3], eye: [8.9, 1.7, -17.4], at: [11.0, 0.7, -19.6], fov: 56,
+    marquee: 'Freezers · −25 °C · frozen stock · ',
     info: [
-      { at: [11.2, 0.62, -18.5], title: '冻肉', item: 'frozen' },
+      { at: [11.2, 0.62, -18.5], title: 'Frozen meat', item: 'frozen' },
     ] },
-  { id: 'crates', view: { mode: 'orbit', az: 50, el: [10, 45] }, label: '运输笼 · ', pos: [-10.0, 2.9, -15.9], eye: [-8.6, 2.85, -12.8], at: [-10.1, 1.6, -16.2], fov: 54,
-    marquee: '卸货月台 · 动物运输笼 · ',
+  { id: 'crates', view: { mode: 'orbit', az: 50, el: [10, 45] }, label: 'Transport cages · ', pos: [-10.0, 2.9, -15.9], eye: [-8.6, 2.85, -12.8], at: [-10.1, 1.6, -16.2], fov: 54,
+    marquee: 'Loading dock · animal transport cages · ',
     info: [
-      { at: [-9.8, 1.25, -15.2], title: '笼里的耳标', item: 'eartag' },
+      { at: [-9.8, 1.25, -15.2], title: 'Ear tag in the cage', item: 'eartag' },
     ] },
-  { id: 'desk', view: { mode: 'orbit', az: 50, el: [15, 60] }, label: '点验台 · ', pos: [-7.9, 1.3, -11.6], eye: [-6.0, 1.75, -10.8], at: [-7.9, 0.8, -11.6], fov: 46, subtle: true,
-    marquee: '值班点验台 · 三联收货单 · ',
+  { id: 'desk', view: { mode: 'orbit', az: 50, el: [15, 60] }, label: 'Check-in desk · ', pos: [-7.9, 1.3, -11.6], eye: [-6.0, 1.75, -10.8], at: [-7.9, 0.8, -11.6], fov: 46, subtle: true,
+    marquee: 'Check-in desk · goods received notes · ',
     info: [
-      { at: [-7.9, 0.82, -11.6], title: '收货单', item: 'grn' },
+      { at: [-7.9, 0.82, -11.6], title: 'Goods received note', item: 'grn' },
     ] },
-  { id: 'atlas', view: { mode: 'orbit', az: 45, el: [22, 68] }, label: '档案区 · ', pos: [5.74, 1.4, -27.9], eye: [5.74, 2.05, -26.55], at: [5.74, 0.98, -27.92], fov: 42,
-    marquee: '猪的基因档案 · 组织图谱 · 退货桶 · ' },
-  { id: 'lineage', view: { mode: 'orbit', az: 40, el: [8, 45] }, label: '照片墙 · ', pos: [10.6, 2.35, -29.9], eye: [10.1, 1.75, -27.6], at: [10.4, 1.25, -29.8], fov: 50,
-    marquee: '老牧场照片 · 家系 · 失败的肉样 · ',
+  { id: 'atlas', view: { mode: 'orbit', az: 45, el: [22, 68] }, label: 'Archive · ', pos: [5.74, 1.4, -27.9], eye: [5.74, 2.05, -26.55], at: [5.74, 0.98, -27.92], fov: 42,
+    marquee: 'Pig genetic records · tissue atlas · returns bin · ' },
+  { id: 'lineage', view: { mode: 'orbit', az: 40, el: [8, 45] }, label: 'Photo wall · ', pos: [10.6, 2.35, -29.9], eye: [10.1, 1.75, -27.6], at: [10.4, 1.25, -29.8], fov: 50,
+    marquee: 'Old farm photos · pedigree · failed samples · ',
     info: [
-      { at: [10.24, 1.5, -29.94], title: '老照片', item: 'photo' },
-      { at: [9.87, 0.95, -29.66], title: '失败的肉样', item: 'jar' },
+      { at: [10.24, 1.5, -29.94], title: 'Old photo', item: 'photo' },
+      { at: [9.87, 0.95, -29.66], title: 'Failed sample', item: 'jar' },
     ] },
-  { id: 'office', label: '办公室 · ', pos: [-4.8, 1.5, 3.9], route: 'office',
-    marquee: '办公室 · 供体登记簿 · ' },
-  { id: 'back', label: '回门店 · ', pos: [-1.3, 1.5, 3.9], route: '',
-    marquee: '回到门店 · ' },
+  { id: 'office', label: 'Office · ', pos: [-4.8, 1.5, 3.9], route: 'office',
+    marquee: 'Office · donor register · ' },
+  { id: 'back', label: 'Back to the shop · ', pos: [-1.3, 1.5, 3.9], route: '',
+    marquee: 'Back to the shop · ' },
 ];
 
 
@@ -255,7 +255,7 @@ export const DONOR_STEPS = [
 ];
 
 // ------------------------------------------------------------------ 生长观察室（透明工坊参观廊）
-export const LAB_MARQUEE = '加工间参观廊 · 请勿拍照 · ';
+export const LAB_MARQUEE = 'Processing room gallery · no photos · ';
 
 // 隔着玻璃看：镜头一直在参观廊这一侧（不穿过玻璃），朝着目标；拖动是沿着玻璃横移、抬头低头
 const GLASS_Z = -0.32;
@@ -266,33 +266,33 @@ const peek = (x, to, fov, { reach = 0.6, tilt = 14, y = 1.7, u0 = 0.5 } = {}) =>
 
 // show：这个标签在哪一幕出现——walk 在参观廊里走、glass 贴着玻璃看实验台、ward 帘子拉开以后
 export const LAB_HOTSPOTS = [
-  { id: 'glass', label: '隔着玻璃观察 · ', pos: [0.8, 1.75, -1.0], route: 'lab/glass', show: ['walk'],
-    marquee: '隔着玻璃观察 · 实验台 · 培养肉 · ',
+  { id: 'glass', label: 'Look through the glass · ', pos: [0.8, 1.75, -1.0], route: 'lab/glass', show: ['walk'],
+    marquee: 'Through the glass · lab bench · cultivated meat · ',
     view: { mode: 'track', a: [-2.4, 1.64, -0.1], b: [3.9, 1.64, -0.1], look: [0, -0.27, -1], u0: 0.349, u0p: 0.595, tilt: 24, fov: 60, zoomFov: [32, 68] } },
-  { id: 'batch', label: '你的批次 · ', pos: [0.55, 1.36, -1.72], route: 'lab/batch', show: ['glass'],
-    marquee: '你的批次 · 细胞密度 · 存活率 · 倍增时间 · ' },
-  { id: 'bench', label: '培养肉留样 · ', pos: [-1.3, 1.08, -1.78], route: 'lab/bench', show: ['glass'],
-    marquee: '显微镜 · 切片架 · 留样托盘 · 交班单 · ', info: [{ at: [-0.55, 0.95, -1.7], title: '交班单', item: 'handover' }], view: peek(-0.42, [-0.78, 0.98, -1.8], 44, { reach: 1.2, tilt: 20, y: 1.72 }) },
-  { id: 'ward', label: '拉开帘子 · ', pos: [-0.1, 1.72, -2.95], route: 'lab/ward', show: ['glass'],
-    marquee: '帘子后面 · 5 张采样床 · ',
+  { id: 'batch', label: 'Your batch · ', pos: [0.55, 1.36, -1.72], route: 'lab/batch', show: ['glass'],
+    marquee: 'Your batch · cell density · viability · doubling time · ' },
+  { id: 'bench', label: 'Retained samples · ', pos: [-1.3, 1.08, -1.78], route: 'lab/bench', show: ['glass'],
+    marquee: 'Microscope · slide rack · sample tray · handover sheet · ', info: [{ at: [-0.55, 0.95, -1.7], title: 'Handover sheet', item: 'handover' }], view: peek(-0.42, [-0.78, 0.98, -1.8], 44, { reach: 1.2, tilt: 20, y: 1.72 }) },
+  { id: 'ward', label: 'Open the curtain · ', pos: [-0.1, 1.72, -2.95], route: 'lab/ward', show: ['glass'],
+    marquee: 'Behind the curtain · 5 sampling beds · ',
     view: { mode: 'track', a: [-2.6, 1.78, -0.15], b: [4.2, 1.78, -0.15], look: [0, -0.15, -1], u0: 0.353, tilt: 26, fov: 64, zoomFov: [30, 68] } },
   ...[['P-0932', -6.8, 1.1, -1.7], ['B-0417', -4.1, 1.15, -1.5], ['P-0101', 0, 0.95, 0.2], ['P-1077', 4.1, 1.1, 4.5], ['G-0221', 6.8, 1.08, 4.3]].map(([id, x, y, from], i) => (
     { id: 'bed' + i, label: `${id} · `, pos: [x, y + 0.5, -4.2 + DZ], route: 'lab/bed' + i, show: ['ward'], subtle: true,
-      marquee: `采样床 ${id} · `, view: peek(from, [x, y, -4.35 + DZ], [24, 34, 34, 32, 25][i], { reach: 0.4, tilt: 11, y: 1.86 }) })),
-  { id: 'vessels', label: '高位罐 · ', pos: [1.59, 3.2, -9.2 + DZ], route: 'lab/vessels', show: ['ward'],
-    marquee: '高位培养罐 · HT-01 · HT-02 · HT-03 · ', view: peek(-0.3, [1.3, 3.6, -9.8 + DZ], 32, { reach: 2.4, tilt: 9, y: 1.56 }) },
-  { id: 'returns', label: '回收角 · ', pos: [8.2, 1.4, -9.0 + DZ], route: 'lab/returns', show: ['ward'], subtle: true,
-    marquee: '医疗废品回收角 · ', view: peek(4.3, [8.0, 0.75, -9.4 + DZ], 19, { reach: 0.3, tilt: 8, y: 2.1 }) },
-  { id: 'data', label: '生长数据墙 · ', pos: [-4.9, 2.72, 1.6], route: 'lab/data', show: ['walk'],
-    marquee: '生长数据墙 · 3,412 个批次 · ' },
-  { id: 'cellbank', label: '细胞库 · ', pos: [-4.25, 1.6, -0.84], route: 'lab/cellbank', show: ['walk'], locked: true,
-    marquee: '禁止游客进入 · 仅限授权人员 · ' },
-  { id: 'notice', label: '参观须知 · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', show: ['walk'], subtle: true, nopin: true,   // 不放标签：指到墙上那张纸本身就能点
-    marquee: '请勿拍照 · 请勿拍打玻璃 · ' },
-  { id: 'ask', label: '提问终端 · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask', show: ['walk'], nopin: true,
-    marquee: '提问终端 · ' },
-  { id: 'exit', label: '返回门店 · ', pos: [3.6, 1.55, 3.9], route: '', show: ['walk'], subtle: true,
-    marquee: '返回门店 · ' },
+      marquee: `Sampling bed ${id} · `, view: peek(from, [x, y, -4.35 + DZ], [24, 34, 34, 32, 25][i], { reach: 0.4, tilt: 11, y: 1.86 }) })),
+  { id: 'vessels', label: 'High tanks · ', pos: [1.59, 3.2, -9.2 + DZ], route: 'lab/vessels', show: ['ward'],
+    marquee: 'High culture tanks · HT-01 · HT-02 · HT-03 · ', view: peek(-0.3, [1.3, 3.6, -9.8 + DZ], 32, { reach: 2.4, tilt: 9, y: 1.56 }) },
+  { id: 'returns', label: 'Returns corner · ', pos: [8.2, 1.4, -9.0 + DZ], route: 'lab/returns', show: ['ward'], subtle: true,
+    marquee: 'Clinical waste corner · ', view: peek(4.3, [8.0, 0.75, -9.4 + DZ], 19, { reach: 0.3, tilt: 8, y: 2.1 }) },
+  { id: 'data', label: 'Growth data wall · ', pos: [-4.9, 2.72, 1.6], route: 'lab/data', show: ['walk'],
+    marquee: 'Growth data wall · 3,412 batches · ' },
+  { id: 'cellbank', label: 'Cell bank · ', pos: [-4.25, 1.6, -0.84], route: 'lab/cellbank', show: ['walk'], locked: true,
+    marquee: 'No visitors · authorised staff only · ' },
+  { id: 'notice', label: 'Visitor notice · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', show: ['walk'], subtle: true, nopin: true,   // 不放标签：指到墙上那张纸本身就能点
+    marquee: 'No photos · do not tap the glass · ' },
+  { id: 'ask', label: 'Question terminal · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask', show: ['walk'], nopin: true,
+    marquee: 'Question terminal · ' },
+  { id: 'exit', label: 'Back to the shop · ', pos: [3.6, 1.55, 3.9], route: '', show: ['walk'], subtle: true,
+    marquee: 'Back to the shop · ' },
 ];
 
 // 参观廊里的固定点位：门口，玻璃前左、中、右。views = 停下来只朝这几个方向（沿着一排帘子斜着看进去，前面那支箭头也在画面里）
@@ -301,12 +301,12 @@ export const LAB_NAV = {
   path: { mark: 1.8, width: 0.2, radius: 0.7 },
   pace: { speed: 1.8, accel: 1.35, turn: 70 },
   nodes: {
-    entry: { name: '入口', at: [1.3, 3.05], views: [-7], pitch: -12 },                      // 一进门正对着整面玻璃
-    west:  { name: '显微镜台', at: [-2.6, 0.75], views: [59] },
-    mid:   { name: '留样台', at: [0.1, 0.65], views: [-59, 59] },
-    east:  { name: '培养罐', at: [2.7, 0.75], views: [-59] },
-    data:  { name: '数据墙', at: [-3.4, 1.9], face: -82 },                                  // 左墙的生长数据墙前
-    board: { name: '提问终端', at: [3.0, 2.05], face: 70 },                                 // 右墙：展板、须知、提问终端
+    entry: { name: 'Entrance', at: [1.3, 3.05], views: [-7], pitch: -12 },                      // 一进门正对着整面玻璃
+    west:  { name: 'Microscope bench', at: [-2.6, 0.75], views: [59] },
+    mid:   { name: 'Sample bench', at: [0.1, 0.65], views: [-59, 59] },
+    east:  { name: 'Culture tanks', at: [2.7, 0.75], views: [-59] },
+    data:  { name: 'Data wall', at: [-3.4, 1.9], face: -82 },                                  // 左墙的生长数据墙前
+    board: { name: 'Question terminal', at: [3.0, 2.05], face: 70 },                                 // 右墙：展板、须知、提问终端
   },
   routes: [
     { a: 'entry', b: 'west', via: [[0.6, 1.8], [-1.6, 1.7]] },
@@ -335,12 +335,12 @@ export const LAB_FOCUS = {
 
 // 细胞库：信息确实存在，只是“已向监管部门备案，不向消费者公开”
 export const CELLBANK_ROWS = [
-  ['主细胞库', 'MCB-07 · 工作细胞库 WCB-07-3'],
-  ['储存条件', '−196 ℃ 液氮'],
-  ['来源动物', null],
-  ['采集方式', null],
-  ['采集次数', null],
-  ['供体现状', null],
+  ['Master cell bank', 'MCB-07 · working cell bank WCB-07-3'],
+  ['Storage', '−196 °C liquid nitrogen'],
+  ['Source animal', null],
+  ['Collection method', null],
+  ['Times collected', null],
+  ['Donor status', null],
 ];
 
 // 提问终端：预设问题和品牌的标准回答。涉及供体动物的问题不正面回答。
@@ -360,7 +360,7 @@ export const ASK_ANIMAL = /供体|动物|屠宰|牛|猪|鸡|鱼|活检|取样|�
 // at 是三维锚点，dx/dy 是标注框相对锚点的屏幕偏移（像素）
 export const CALLOUTS = {
   tasting: [
-    { at: [0.45, 1.07, -1.95], title: '试吃块', item: 'sample' },
+    { at: [0.45, 1.07, -1.95], title: 'Tasting piece', item: 'sample' },
   ],
   checkout: [],
   records: [],

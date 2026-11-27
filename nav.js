@@ -128,7 +128,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   const turnBtn = document.createElement('button');
   turnBtn.className = 'turnback';
   turnBtn.innerHTML = TURN;
-  turnBtn.setAttribute('aria-label', '掉头');
+  turnBtn.setAttribute('aria-label', 'Turn around');
   turnBtn.addEventListener('click', () => turnBack());
   layer.appendChild(turnBtn);
   document.body.appendChild(layer);

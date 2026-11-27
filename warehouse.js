@@ -1299,8 +1299,18 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   mistField(root, { center: [0, HT / 2 - 0.3, (Z0 + Z1) / 2], size: [X1 - X0, HT - 0.6, Z0 - Z1], count: 7000, px: 0.007, color: 0x8a9a98, lightColor: 0xffd8a8, strength: 0.32, fall: 0.012, swirl: 0.35,
     lights: [[-1.3, HT - 2.2, -4.5], [-1.3, HT - 2.2, -15.5], [5.8, HT - 2.6, -27.6], [X0 + 1.6, 4.5, -8]] });
   // 体积尘雾：整个大厅一块连续的灰，低处稍浓；四盏高灯附近的被照暖
-  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 4.5, density: 0.09, scale: 0.18, color: 0x5a6a68, light: 0xffc890, lightK: 1.6,
-    lights: [[-1.3, HT - 1.2, -4, 0, -(HT - 1.2), -1, 0.38], [-1.3, HT - 1.2, -15, 0, -(HT - 1.2), -1, 0.38], [5.8, HT - 1.6, -27.6, 0, -1, -0.04, 0.2], [X0 + 0.6, PH + 4.3, -8, 1.9, -4.2, 0, 0.4]], wind: [0.05, 0.015, -0.03], maxDist: 40 };
+  // 高处两排通风百叶：外面院子的探照灯从这里斜着打进来，雾里两道长长的光柱（像参考视频里那种）
+  const VENTS = [[-9.5], [-19.5]];
+  { const glow = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 1.9, 1.3) }), slat = new THREE.MeshStandardMaterial({ color: 0x1a1c1c, metalness: 0.6, roughness: 0.6 });
+    for (const [z] of VENTS) { const g = new THREE.Group(); g.position.set(X1 - 0.06, HT - 1.6, z); g.rotation.y = -Math.PI / 2; root.add(g);
+      const p = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.9), glow); g.add(p);
+      for (let k = 0; k < 7; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.05, 0.08), slat); b.position.set(0, -0.42 + k * 0.14, 0.04); b.rotation.x = -0.5; g.add(b); }
+      const fr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.0, 0.05), slat); fr.position.z = -0.02; fr.scale.set(1, 1, 1); g.add(fr); fr.renderOrder = -1; p.position.z = 0.01; } }
+  // 体积尘雾：整个大厅一层均匀的青灰色雾，远处沉进去；顶灯底下各一道光柱，两道从百叶斜射下来的长光
+  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 6, even: 0.85, density: 0.15, scale: 0.16, color: 0x5a8c88, light: 0xffe2c0, lightK: 0.9,
+    lights: [[-1.3, HT - 1.2, -4, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [-1.3, HT - 1.2, -15, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [5.8, HT - 1.6, -27.6, 0, -1, -0.04, 0.2, { gain: 1.3 }],
+      [X0 + 0.6, PH + 4.3, -8, 1.9, -4.2, 0, 0.4], [X1 + 6, HT + 2.2, -9.5, -1, -0.62, 0.12, 0.08, { gain: 1.7, falloff: 0.006 }], [X1 + 6, HT + 2.2, -19.5, -1, -0.62, 0.08, 0.08, { gain: 1.7, falloff: 0.006 }]],
+    wind: [0.05, 0.015, -0.03], maxDist: 40 };
 
   // ---- 血和脏（第二遍）：运输笼拖到卸货门、月台边上甩的、叉车压过血再带走的胎印、红柱上一只血手印；出库线末端滴的血水、冷藏架底下的化冻血水、退货桶边的一圈
   const bloodMat = (seed, o = {}) => { const { map, roughnessMap } = puddleDecal(seed, { kind: 'blood', size: 256 }); return new THREE.MeshStandardMaterial({ map, roughnessMap, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 1, ...o }); };

@@ -221,7 +221,7 @@ canvas.addEventListener('click', (e) => {
   if (!row || row.padPick) return;
   holdPad(false);
   canvas.style.cursor = ''; menuHover(-1);
-  if (row.out) { toast('售罄'); return; }
+  if (row.out) { toast('Sold out'); return; }
   location.hash = SPECIES[row.go] ? '#/fridge/' + row.go : row.go === 'grow' ? '#/fridge/grow' : '#/' + row.go;
 });
 // 选好的那块肉：屏幕上的商品页直接点（定制、份量、交付、下单、看它生长 / 去结算）
@@ -585,7 +585,7 @@ canvas.addEventListener('wheel', (e) => { if (!(FC.on && state.view === FC.view 
 
 function enterHotspot(h) {
   if (state.busy) return;
-  if (h.needsOrder && !hasCart()) return toast('购物车是空的');
+  if (h.needsOrder && !hasCart()) return toast('Your basket is empty');
   if (room.spots[h.route]) { location.hash = '#/' + h.route; return; }
   const { yaw, pitch } = toYawPitch(h.pos);
   let target = yaw;
@@ -619,7 +619,7 @@ const psEls = ORDER.map((k) => {
 
 const padDot = document.createElement('button');                           // 纸菜单放在柜子上时的交互点：点它 = 拿起来
 padDot.className = 'ps pad-dot';
-padDot.innerHTML = '<span class="dot"></span><span class="tag">纸菜单<b>拿起来看</b></span>';
+padDot.innerHTML = '<span class="dot"></span><span class="tag">Paper menu<b>Pick it up</b></span>';
 padDot.addEventListener('click', () => { if (atFridge() && !state.sel) holdPad(true); });
 padDot.addEventListener('pointerenter', () => padHover(true));
 padDot.addEventListener('pointerleave', () => padHover(false));
@@ -660,7 +660,7 @@ function openGrowPick() {
   document.body.classList.add('product-open'); hideTutorial(); updateBack();
   walkTo(FRIDGE_PRODUCT.eye, FRIDGE_PRODUCT.at, 40);
   showScreen({ mode: 'grow', prices: Object.fromEntries(ORDER.map((k) => [k, Math.round(SPECIES[k].price * GROWTH.plan.b.price)])) });
-  setMarquee('培养定制 · 下单后开始培养 · 14–28 天 · ');
+  setMarquee('Grow to order · grown after you order · 14–28 days · ');
 }
 function fridgeRoute(sub, third) {
   if (SPECIES[sub]) openProduct(sub, 'stock');
@@ -687,7 +687,7 @@ function openProduct(k, mode = 'stock') {
   setFridgePosters(k);
   if (mode === 'grow') {                                                          // 培养定制：柜里的现货不动，屏幕上从细胞系开始定
     showScreen({ mode: 'product', k, opts: state.opts, options: OPTIONS[k], price: price(), base: SPECIES[k].price, x: GROWTH.plan[state.opts.plan].x });
-    setMarquee(`培养定制 · ${SPECIES[k].title} · 细胞系 ${SPECIES[k].id} · `);
+    setMarquee(`Grow to order · ${SPECIES[k].title} · cell line ${SPECIES[k].id} · `);
     return;
   }
   gsap.to(fridge.door.rotation, { y: -1.8, duration: 1.0, ease: 'power2.inOut' });   // 现货：开门把最前面那一盒拿出来给你看
@@ -698,7 +698,7 @@ function openProduct(k, mode = 'stock') {
     .to(hero.scale, { x: 1.5, y: 1.5, z: 1.5, duration: 0.9, ease: 'power3.inOut' }, '<');
   applyMeat();
   showScreen({ mode: 'stock', k, pack: stockPack(k) });                        // 现货页就画在这块玻璃屏上
-  setMarquee(`现货 · ${SPECIES[k].title} · 批次 ${STOCK[k].batch} · `);
+  setMarquee(`In stock · ${SPECIES[k].title} · batch ${STOCK[k].batch} · `);
 }
 // 拿走这一盒：放进袋子（盒子往下收走），屏幕上换成“已放进袋子”
 function takePack() {
@@ -714,7 +714,7 @@ function takePack() {
 }
 function cartLabel() {
   document.body.classList.toggle('has-order', hasCart());
-  $('#cart').textContent = state.order ? `订单 ${state.order.no}` : `购物袋 ${state.basket.length}`;
+  $('#cart').textContent = state.order ? `Order ${state.order.no}` : `Basket ${state.basket.length}`;
 }
 
 function closeProduct(instant = false) {
@@ -789,7 +789,7 @@ const techBlock = (t, body) => `
   <div class="group tech">
     <div class="tname"><b>${t.tech}</b></div>
     ${body}
-    <button class="paper-link" data-paper="${t.paper}">技术报告 →</button>
+    <button class="paper-link" data-paper="${t.paper}">Technical report →</button>
   </div>`;
 const productScreen = createProductScreen();
 function drawProduct() {
@@ -803,20 +803,20 @@ function renderProductHTML() {
   screenBody.innerHTML = `
     <div class="ptitle head"><h2>${s.title}</h2><b>¥${s.price}</b></div>
     <div class="stats">
-      <div class="stat"><div class="flip" data-stat="cycle"></div><span>天 · 培养周期</span></div>
-      <div class="stat"><div class="flip" data-stat="x"></div><span>细胞量</span></div>
-      <div class="stat"><div class="flip" data-stat="kill"></div><span>头 · 屠宰动物</span></div>
+      <div class="stat"><div class="flip" data-stat="cycle"></div><span>days · growth cycle</span></div>
+      <div class="stat"><div class="flip" data-stat="x"></div><span>cell yield</span></div>
+      <div class="stat"><div class="flip" data-stat="kill"></div><span>animals slaughtered</span></div>
     </div>
-    <h4>为你定制 · ${OPTIONS[k].length} 项专利技术</h4>
+    <h4>Made for you · ${OPTIONS[k].length} patented technologies</h4>
     ${OPTIONS[k].map((opt) => techBlock(opt, `<label>${opt.label}</label>${seg(opt.key, opt.choices)}`)).join('')}
-    <h4>培养方案</h4>
-    <div class="group"><label>培养周期</label>${seg('cycle', GROWTH.cycle)}</div>
-    ${techBlock(GROWTH, `<label>产量配方</label>${seg('plan', Object.entries(GROWTH.plan).map(([v, p]) => [v, p.x > 1 ? `${p.label} ×${p.x}` : p.label]))}`)}
-    <h4>订购</h4>
-    <div class="group row"><label>份量</label>
+    <h4>Growth plan</h4>
+    <div class="group"><label>Growth cycle</label>${seg('cycle', GROWTH.cycle)}</div>
+    ${techBlock(GROWTH, `<label>Yield recipe</label>${seg('plan', Object.entries(GROWTH.plan).map(([v, p]) => [v, p.x > 1 ? `${p.label} ×${p.x}` : p.label]))}`)}
+    <h4>Order</h4>
+    <div class="group row"><label>Quantity</label>
       <div class="stepper"><button data-qty="-1">−</button><span>${o.qty}</span><button data-qty="1">+</button></div></div>
-    <div class="group"><label>交付</label>${seg('delivery', [['std', '标准交付'], ['priority', '优先交付 +¥48']])}</div>
-    <div class="buybar"><div class="price">¥<span>${price()}</span></div><button class="buy">下单培养</button></div>`;
+    <div class="group"><label>Delivery</label>${seg('delivery', [['std', 'Standard'], ['priority', 'Priority +¥48']])}</div>
+    <div class="buybar"><div class="price">¥<span>${price()}</span></div><button class="buy">Start growing</button></div>`;
   updateStats();
   applyMeat();
 }
@@ -876,15 +876,15 @@ function placeOrder() {
   productScreen.draw({ mode: 'ordered', k, no: state.order.no, price: state.order.price, days: state.order.opts.cycle - (state.order.opts.delivery === 'priority' ? 5 : 0) });
   return;
   screenBody.innerHTML = `
-    <h2>已开始培养</h2>
+    <h2>Now growing</h2>
     <div class="stats">
-      <div class="stat"><div class="flip" data-v="">${''}</div><span>天后可取</span></div>
+      <div class="stat"><div class="flip" data-v="">${''}</div><span>days to pick-up</span></div>
     </div>
     <div class="actions">
-      <button class="btn" data-go="#/lab/batch">看它生长</button>
-      <button class="btn primary" data-go="#/checkout">去结算</button>
+      <button class="btn" data-go="#/lab/batch">Watch it grow</button>
+      <button class="btn primary" data-go="#/checkout">Checkout</button>
     </div>
-    <button class="link" data-go="#/">回到门店</button>`;
+    <button class="link" data-go="#/">Back to the shop</button>`;
   const f = screenBody.querySelector('.flip');
   delete f.dataset.v;
   setFlip(f, state.order.opts.cycle - (state.order.opts.delivery === 'priority' ? 5 : 0));
@@ -1120,7 +1120,7 @@ function openRoomUI(id) {
   }
   if (surfaces[id]) { SURF[id](surfaces[id].el); surfaces[id].obj.visible = true; }
   let list = (CALLOUTS[id] || []).slice();
-  if (id === 'tasting') list.push({ at: room.spots.survey.at, title: '评价平板', action: ['', '#/survey'] });
+  if (id === 'tasting') list.push({ at: room.spots.survey.at, title: 'Rating tablet', action: ['', '#/survey'] });
   if (list.length) showCallouts(list);
 }
 function closeRoomUI() {
@@ -1190,14 +1190,14 @@ function flipFigurine(i, btn) {
   f.up = !f.up;
   gsap.to(f.pivot.position, { y: f.up ? 0.34 : 0.12, duration: 0.9, ease: 'power2.inOut' });
   gsap.to(f.pivot.rotation, { y: f.up ? -0.9 : 0, z: f.up ? Math.PI / 2 : 0, duration: 0.9, ease: 'power2.inOut' });
-  btn.textContent = f.up ? '放回去' : '翻过来看看';
+  btn.textContent = f.up ? 'Put it back' : 'Turn it over';
   const note = btn.nextElementSibling;
-  note.innerHTML = f.up ? `底部印着：谨以此系列，致敬我们的第一批供体 · <b>${CERAMIC_BASE[i][0]}</b>` : '';
+  note.innerHTML = f.up ? `Printed underneath: this series honours our first donors · <b>${CERAMIC_BASE[i][0]}</b>` : '';
 }
 
 $('#callouts').addEventListener('click', (e) => {
   const buy = e.target.closest('[data-buy]');
-  if (buy) { buy.textContent = '已加入 ✓'; buy.disabled = true; return toast('已加入'); }
+  if (buy) { buy.textContent = 'Added ✓'; buy.disabled = true; return toast('Added'); }
   const fl = e.target.closest('[data-flip]');
   if (fl) return flipFigurine(+fl.dataset.flip, fl);
   const go = e.target.closest('[data-go]');
@@ -1259,16 +1259,16 @@ function setH(key, html) {
 }
 function hudStatic() {
   const b = state.batch, s = SPECIES[b.species];
-  setH('title', `${b.name ? `「${b.name}」` : b.demo ? '演示批次' : '你的批次'}<em>${s.title}</em>`);
-  setH('sub', b.demo ? '下单后，这里会换成你自己的那一份' : `订单 ${b.no} · 细胞系 ${s.id}`);
+  setH('title', `${b.name ? `“${b.name}”` : b.demo ? 'Demo batch' : 'Your batch'}<em>${s.title}</em>`);
+  setH('sub', b.demo ? 'Once you order, this becomes your own batch' : `Order ${b.no} · cell line ${s.id}`);
   setH('k', sci(1.2e7 * b.x));
   setH('src', `
-    <div><span>细胞系</span><b>${b.cell}</b></div>
-    <div><span>传代次数</span><b>P${b.passage}</b></div>
-    <div><span>细胞系启用</span><b>${b.since}</b></div>
-    <div><span>供体</span><b class="redact" data-redact>████████</b></div>
-    <div><span>采集方式</span><b class="redact" data-redact>██████</b></div>
-    <div><span>供体现状</span><b class="redact" data-redact>███████</b></div>`);
+    <div><span>Cell line</span><b>${b.cell}</b></div>
+    <div><span>Passage</span><b>P${b.passage}</b></div>
+    <div><span>Line in use since</span><b>${b.since}</b></div>
+    <div><span>Donor</span><b class="redact" data-redact>████████</b></div>
+    <div><span>Collection method</span><b class="redact" data-redact>██████</b></div>
+    <div><span>Donor status</span><b class="redact" data-redact>███████</b></div>`);
 }
 hudStatic();
 let lastHud = 0;
@@ -1276,17 +1276,17 @@ function updateHud(t, r) {
   const b = state.batch;
   if (t - lastHud < 0.2) return;
   lastHud = t;
-  setH('day', `${pad(r.day)}<small> / ${b.cycle} 天</small>`);
+  setH('day', `${pad(r.day)}<small> / ${b.cycle} days</small>`);
   hud.querySelector('[data-h="pbar"]').style.width = (r.p * 100).toFixed(1) + '%';
-  setH('status', r.done ? r.status : `${r.status} · 约 ${r.eta} 天后出品`);
+  setH('status', r.done ? r.status : `${r.status} · ready in about ${r.eta} days`);
   setH('density', sci(r.N));
   setH('via', `${r.viability.toFixed(1)}<small> %</small>`);
-  setH('grams', `预计产出 ${r.grams} g`);
-  setH('env', [['温度', r.temp.toFixed(1) + ' ℃'], ['pH', r.ph.toFixed(2)], ['溶氧', r.oxygen.toFixed(0) + ' %'],
-    ['葡萄糖', r.glucose.toFixed(1) + ' g/L'], ['乳酸', r.lactate.toFixed(1) + ' g/L']]
+  setH('grams', `Expected yield ${r.grams} g`);
+  setH('env', [['Temp', r.temp.toFixed(1) + ' ℃'], ['pH', r.ph.toFixed(2)], ['Dissolved O₂', r.oxygen.toFixed(0) + ' %'],
+    ['Glucose', r.glucose.toFixed(1) + ' g/L'], ['Lactate', r.lactate.toFixed(1) + ' g/L']]
     .map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join(''));
   setH('mu', r.done ? '—' : `${r.muH.toFixed(3)}<small> /h</small>`);
-  setH('dbl', r.done ? '已停止增殖' : `倍增时间 ${r.doubling.toFixed(1)} h · 较峰值 −${Math.max(0, r.drop)}%`);
+  setH('dbl', r.done ? 'No longer dividing' : `Doubling time ${r.doubling.toFixed(1)} h · −${Math.max(0, r.drop)}% from peak`);
   const cv = curve(b, 44);
   const pts = cv.map((v, i) => `${(i / 44 * 220).toFixed(1)},${(56 - v * 50).toFixed(1)}`).join(' ');
   const n = Math.round(r.p * 44);
@@ -1294,9 +1294,9 @@ function updateHud(t, r) {
     <rect x="${(r.p * 220 - 3).toFixed(1)}" y="${(56 - r.f * 50 - 3).toFixed(1)}" width="6" height="6"/>`);
   // 商家视角：增长放缓的那一刻，就是推销加速包的时机
   let up = '';
-  if (r.done) up = state.order ? `<b>已达出品标准</b><button data-act="checkout">去结算 →</button>` : '';
-  else if (b.boost > 1) up = `<b>加速中 ×1.5</b>`;
-  else if (r.drop >= 30) up = `<b>−${r.drop}%</b><button data-act="boost">立即加速 · ¥28</button>`;
+  if (r.done) up = state.order ? `<b>Ready to harvest</b><button data-act="checkout">Checkout →</button>` : '';
+  else if (b.boost > 1) up = `<b>Boosted ×1.5</b>`;
+  else if (r.drop >= 30) up = `<b>−${r.drop}%</b><button data-act="boost">Boost now · ¥28</button>`;
   setH('upsell', up);
   hud.querySelector('[data-act="boost"]').disabled = b.boost > 1 || r.done;
 }
@@ -1319,12 +1319,12 @@ hud.addEventListener('click', (e) => {
   if (!b) return;
   const act = b.dataset.act;
   if (act === 'boost') {
-    if (!state.order) return toast('先下单');
+    if (!state.order) return toast('Place an order first');
     if (state.batch.boost > 1) return;
     state.batch.boost = 1.5;
     state.order.boost = true;
     state.order.price += 28;
-    toast('已加速 ×1.5');
+    toast('Boosted ×1.5');
   }
   if (act === 'checkout') location.hash = '#/checkout';
 });
@@ -1337,15 +1337,15 @@ const row = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
 const SIGN = (inner) => `<svg viewBox="0 0 48 48" aria-hidden="true">${inner}</svg>`;
 const LAB_PANELS = {
   hall: () => `
-    <h2>加工间</h2>
+    <h2>Processing room</h2>
     <div class="bednav beds">${lab.beds.map((d, i) => `<button data-bed="${i}">${String(i + 1).padStart(2, '0')}<small>${d.id}</small></button>`).join('')}</div>`,
   cellbank: () => `
-    <h2>细胞库</h2>
-    <div class="vault">${[88, 64, 76, 52, 70].map((w) => `<button class="redact" data-redact style="width:${w}%" aria-label="已涂黑"></button>`).join('')}</div>
-    <button class="lbtn" data-act="apply">申请参观</button>
+    <h2>Cell bank</h2>
+    <div class="vault">${[88, 64, 76, 52, 70].map((w) => `<button class="redact" data-redact style="width:${w}%" aria-label="Redacted"></button>`).join('')}</div>
+    <button class="lbtn" data-act="apply">Request a visit</button>
     <div class="reply"></div>`,
   tank: () => tankPanel(),
-  data: () => `<h2>生长数据墙</h2>`,
+  data: () => `<h2>Growth data wall</h2>`,
 };
 // 车间里每一座罐：BR-02 是你的批次，其余是别人的订单
 let selTank = null;
@@ -1391,14 +1391,14 @@ labPanel.addEventListener('click', (e) => {
   if (gl) { location.hash = '#/lab/' + gl.dataset.lab; return; }
   const b = e.target.closest('[data-act="apply"]');
   if (!b) return;
-  b.disabled = true; b.textContent = '已提交';
-  labPanelBody.querySelector('.reply').innerHTML = '申请已提交，会在 7–15 个工作日内联系你。';
+  b.disabled = true; b.textContent = 'Submitted';
+  labPanelBody.querySelector('.reply').innerHTML = 'Request submitted. We will contact you within 7–15 working days.';
 });
 $('#labpanel .close').addEventListener('click', () => { location.hash = '#/' + labParent(); });
 // 一进加工间先选：贴着玻璃看，或者自己在参观廊里走。只有两个词，不写说明
 labChoice = document.createElement('nav');
 labChoice.id = 'labchoice';
-labChoice.innerHTML = '<button data-go="glass">隔着玻璃观察</button><button data-go="walk">在参观廊走走</button>';
+labChoice.innerHTML = '<button data-go="glass">Look through the glass</button><button data-go="walk">Walk the gallery</button>';
 document.body.appendChild(labChoice);
 labChoice.addEventListener('click', (e) => {
   const go = e.target.closest('[data-go]')?.dataset.go;
@@ -1417,7 +1417,7 @@ function updateLabControls() {
   const on = state.view === 'lab' && (state.focus === 'glass' || state.focus === 'ward') && !(FC.on && FC.blend < 0.6);
   labDraw.classList.toggle('on', on);
   if (!on) return;
-  const text = state.focus === 'ward' ? '拉上帘子' : '拉开帘子';
+  const text = state.focus === 'ward' ? 'Close the curtain' : 'Open the curtain';
   if (labDraw.textContent !== text) labDraw.textContent = text;
 }
 let focusTimer;
@@ -1491,7 +1491,7 @@ function unfocusLab(instant = false) {
   setMarquee(LAB_MARQUEE);
 }
 function updateBack() {
-  $('#back span:last-child').textContent = atFridge() && (state.sel || state.fscreen) ? '鲜肉柜' : state.sfocus ? (state.view === 'street' ? '街道' : '仓库') : state.view === 'lab' && state.focus ? ({ 'lab/ward': '病床', 'lab/glass': '实验台' }[labParent()] || '参观廊') : state.rfocus === 'survey' ? '试吃台' : state.view === 'room' && !state.rfocus ? '店外' : '店里';
+  $('#back span:last-child').textContent = atFridge() && (state.sel || state.fscreen) ? 'Meat fridge' : state.sfocus ? (state.view === 'street' ? 'Street' : 'Storage') : state.view === 'lab' && state.focus ? ({ 'lab/ward': 'Beds', 'lab/glass': 'Lab bench' }[labParent()] || 'Gallery') : state.rfocus === 'survey' ? 'Tasting' : state.view === 'room' && !state.rfocus ? 'Outside' : 'Shop';
 }
 
 // ------------------------------------------------------------------ 引导与提示
@@ -1624,7 +1624,7 @@ function setView(v) {
 function route() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   const [page, sub, third] = parts;
-  if (page === 'checkout' && !hasCart()) { location.replace('#/'); return toast('购物车是空的'); }
+  if (page === 'checkout' && !hasCart()) { location.replace('#/'); return toast('Your basket is empty'); }
   if (page === 'live') { location.replace('#/lab' + (state.order ? '/batch' : '')); return; }
 
   if (page === 'lab') {

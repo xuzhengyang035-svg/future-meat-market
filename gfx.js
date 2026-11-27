@@ -31,7 +31,7 @@ export async function initAssets() {
     try {
       const r = await fetch('assets/lite/index.json');
       if (r.ok) lite = new Set(await r.json());
-    } catch (e) { console.warn('没有轻量贴图清单，改用原图', e); }
+    } catch (e) { console.warn('No lite texture manifest, using originals', e); }
   }
   THREE.DefaultLoadingManager.setURLModifier((url) => {
     const i = url.indexOf('assets/ph/');
@@ -67,7 +67,7 @@ async function fetchImage({ url, crossOrigin }) {
       await image.decode?.().catch(() => {});                                  // 解码放到主线程外面做
       return image;
     } catch (e) {
-      if (n >= 2) { console.warn('贴图没有加载出来', url, e); return null; }
+      if (n >= 2) { console.warn('Texture failed to load', url, e); return null; }
       await new Promise((r) => setTimeout(r, 600 * (n + 1)));
     }
   }
@@ -244,5 +244,5 @@ export function createPreparer(renderer, camera, getTarget) {
   }
 
   let chain = Promise.resolve();
-  return (scene, onProgress) => (chain = chain.then(() => prepare(scene, onProgress)).catch((e) => console.error('场景预热失败', e)));
+  return (scene, onProgress) => (chain = chain.then(() => prepare(scene, onProgress)).catch((e) => console.error('Scene warm-up failed', e)));
 }

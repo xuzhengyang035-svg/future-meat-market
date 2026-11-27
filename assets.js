@@ -99,7 +99,7 @@ const jr = () => (js = (js * 16807) % 2147483647) / 2147483647 - 0.5;
 const minY = {};
 export function model(name, { pos = [0, 0, 0], rot = 0, scale = 1, tilt = 0, jitter = 0, parent, sit = false } = {}) {
   const src = models[name];
-  if (!src) console.warn('模型没有预载：', name);
+  if (!src) console.warn('Model not preloaded:', name);
   const o = src ? src.clone(true) : new THREE.Group();
   if (sit && src && minY[name] === undefined) minY[name] = new THREE.Box3().setFromObject(src).min.y;
   o.position.set(pos[0] + jr() * jitter * 0.3, pos[1] - (sit && src ? minY[name] * scale : 0), pos[2] + jr() * jitter * 0.3);

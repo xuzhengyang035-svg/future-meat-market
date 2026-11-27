@@ -553,7 +553,7 @@ export function createLab(env) {
       draco.dispose();
       dressWard({ hall, pivots, beds, kit: meshes.filter((o) => !/^A_/.test(o.name)), curtainMat: cloth });   // 盖单子、针眼和血、拉了一半的隔帘
       resolve(true);
-    }, undefined, (e) => { console.error('实验室模型没有加载出来', e); resolve(false); });
+    }, undefined, (e) => { console.error('Lab model failed to load', e); resolve(false); });
   });
 
   // 打光分三层：远处沉在青色的雾里，中景是三座罐子的绿光，近处是几摊暖黄的台灯。暗的地方就让它暗（不开阴影）
