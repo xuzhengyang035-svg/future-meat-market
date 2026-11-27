@@ -20,6 +20,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { pencil } from './notepad.js';
 import { glassOn } from './lab-signs.js';
+import { drawPorkWordmark, porkBrandTexture } from './pork-brand.js';
 import { addSheets } from './newsprint.js';
 import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { buildOffice, OFFICE } from './office.js';
@@ -355,7 +356,8 @@ export function createRoom(env) {
   for (const x of [-0.6, 0.6, 1.8, 3.0]) box(0.02, 0.02, 0.13, chrome, x, 0.21, FZ + 0.065, counter);
   // 吧台前面贴着几张贴纸
   const sticker = (lines, w, h, bg, x, y, rz) => { const s = plane(w, h, sign(lines, Math.round(w * 800), Math.round(h * 800), { bg }), x, y, FZ + 0.013, 0, counter); s.rotation.z = rz; return s; };
-  sticker([['NO KILL', 46, '#fff', 0.45, 700], ['cultivated meat', 26, 'rgba(255,255,255,.85)', 0.78, 500]], 0.26, 0.15, '#7a2420', -0.35, 0.48, 0.05);
+  const counterLabel = porkBrandTexture('label', 'Cultivated meat', 'BUTCHER & DELI');
+  plane(0.39, 0.195, lit(counterLabel), -0.35, 0.48, FZ + 0.013, 0, counter).rotation.z = 0.05;
   sticker([['REFER A FRIEND', 30, '#222', 0.4, 700], ['¥30 off first order', 26, '#7a2420', 0.75, 600]], 0.22, 0.13, '#e2dac2', 2.75, 0.5, -0.04);
   sticker([['NO PHOTOS INSIDE', 28, '#222', 0.6, 600]], 0.24, 0.07, '#d8c070', 1.75, 0.82, 0.02);
   // 圆凳：镀铬立柱 + 暗红色人造革坐垫
@@ -902,7 +904,7 @@ export function createRoom(env) {
     g.fillStyle = '#8a2a27'; g.font = `600 40px ${SANS}`; g.fillText('Grown from animal cells', 64, 380);
     g.fillStyle = '#9fb094'; g.fillRect(60, 430, W - 120, 470);
     g.fillStyle = '#4b4844'; g.font = `400 30px ${SANS}`; g.fillText('Beef · pork · chicken · croaker   from ¥68 / 200 g', 64, 960);
-    g.font = `400 20px ${SANS}`; g.fillStyle = '#7a756e'; g.fillText('Image for illustration only.', 64, 1040);
+    drawPorkWordmark(g, 64, 991, 54);
     ageCanvas(g, W, H, { amount: 1.1, seed: 33 });
   });
   // 左墙从里到外排开，彼此留 15 cm 以上：主海报 z −3.13…−1.47 | 画框、老照片 −1.35…0.18 | 展板 0.35…3.35 | 杂货架 3.45 起
@@ -912,7 +914,7 @@ export function createRoom(env) {
   agePoster(plane(3.0, 1.2, new THREE.MeshStandardMaterial({ map: mural, roughness: 0.85 }), LX + 0.01, 2.2, 1.85, Math.PI / 2, room), 3.0, 1.2, 7, { glossy: 0.35 });   // 合作牧场展板（缩小，不再压着画框和老照片）
   // （原来随手贴在墙上的 5 张单据会压住展板和照片，去掉了）
   // 一块手写的纸板宣传牌，用铁丝挂在管子下面
-  const board = plane(1.4, 0.5, sign([['MEAT, NO KILL', 60, '#2a2420', 0.5, 700, SERIF], ['cultivated · in stock today', 26, '#7a2420', 0.85, 500]], 700, 250, { bg: '#a8916a' }), -1.5, 2.5, 2.7, 0.2, room);
+  const board = plane(1.4, 0.5, lit(porkBrandTexture('label', 'Cultivated meat', 'ORDER AT THE COUNTER')), -1.5, 2.5, 2.7, 0.2, room);
   board.rotation.z = -0.04;
   for (const x of [-2.1, -0.9]) hose([[x, 3.2, 2.7 - (x + 1.5) * 0.2], [x, 2.75, 2.7 - (x + 1.5) * 0.2]], 0.003, M.ink);
 
@@ -1031,7 +1033,7 @@ export function createRoom(env) {
   plane(0.12, 0.05, sign([['-18°C', 34, '#1a3a6a', 0.75, 700]], 160, 70, { bg: '#e8e4d8' }), -0.5, 0.75, 0.352, 0, chest);
   box(1.36, 0.02, 0.66, new THREE.MeshPhysicalMaterial({ color: 0xc8d8d4, roughness: 0.1, transparent: true, opacity: 0.35 }), 0, 0.86, 0, chest);
   for (let i = 0; i < 6; i++) box(0.3, 0.12, 0.22, new THREE.MeshStandardMaterial({ color: i % 2 ? 0xc4a032 : 0x2a5a7a, roughness: 0.6 }), -0.45 + (i % 3) * 0.45, 0.78, -0.12 + Math.floor(i / 3) * 0.24, chest);
-  plane(0.6, 0.2, sign([['FROZEN MEAT', 40, '#9a2422', 0.62, 700]], 400, 130, { bg: '#d8d0bc' }), 0, 0.55, 0.352, 0, chest);
+  plane(0.6, 0.3, lit(porkBrandTexture('label', 'Frozen cuts', 'KEEP AT −18°C')), 0, 0.49, 0.352, 0, chest).rotation.z = -0.025;
   // 立牌：熟客介绍，首单立减
   // 进门左手边：黑板立牌（和店外那块同一款），正面朝店里写给熟客看，背面朝门口
   chalkStand(room, { pos: [-1.2, 0, 3.75], rot: Math.PI + 0.4, seed: 63,
@@ -1212,7 +1214,7 @@ export function createRoom(env) {
         m.rotation.y = (n % 2 ? -0.18 : 0.14) + (k === 3 ? 0.5 : 0); dc.add(m);
       }
       if (k < 3) { const d = box(0.04, 0.035, 0.66, grass, cx + 0.4, 0.85, -0.02, dc); d.scale.y = 1; }   // 塑料隔草
-      const tag = plane(0.14, 0.07, sign([[name, 30, '#222', 0.42, 700], [`¥${price} / 200 g`, 24, '#9a2422', 0.82, 600]], 280, 140, { bg: '#f0ece0' }), cx, 0.875, 0.31, 0, dc);
+      const tag = plane(0.17, 0.085, lit(porkBrandTexture('label', name, `¥${price} / 200 g`)), cx, 0.88, 0.31, 0, dc);
       tag.rotation.x = -0.5; cyl(0.0015, 0.0015, 0.05, caseSteel, cx, 0.85, 0.3, dc, 4);   // 价签插在托盘前面
     });
     for (const y of [0.76, 0.06]) box(L + 0.02, 0.03, 0.97, caseSteel, 0, y, 0, dc);   // 上下两道不锈钢包边

@@ -13,6 +13,7 @@ import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { addSheets } from './newsprint.js';
 import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { canvasTexture } from './textures.js';
+import { porkBrandTexture } from './pork-brand.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { towel } from './dress.js';
 import { meatGeometry, meatMaterial, texturedMeat } from './meat.js';
@@ -237,8 +238,15 @@ export function createStreet(env) {
   }
   box(SX1 - SX0 + 0.5, 0.55, 0.3, G, (SX0 + SX1) / 2, SH + 0.28, 0.1, root);
   box(SX1 - SX0 + 0.7, 0.12, 0.42, G, (SX0 + SX1) / 2, SH + 0.62, 0.14, root);
-  { const fa = canvasTexture(1600, 100, (g, W, H) => { g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(200,180,120,.2)'; g.font = `600 64px ${SANS}`; g.textAlign = 'center'; g.fillText('B O U C H E R I E', W / 2, 72); });
-    plane(SX1 - SX0, 0.4, new THREE.MeshStandardMaterial({ map: fa, transparent: true, roughness: 0.7 }), (SX0 + SX1) / 2, SH + 0.28, 0.26, 0, root); }
+  { const x = (SX0 + SX1) / 2, y = SH + 0.42;
+    const fascia = porkBrandTexture('fascia');
+    const trim = new THREE.MeshStandardMaterial({ color: 0x382c23, metalness: 0.55, roughness: 0.63 });
+    box(3.08, 0.41, 0.06, trim, x, y, 0.348, root);
+    plane(3, 0.4, lit(fascia, { emissiveMap: fascia, emissive: 0xffffff, emissiveIntensity: 0.28 }), x, y, 0.38, 0, root);
+    for (const dx of [-1.49, 1.49]) {
+      for (const dy of [-0.17, 0.17]) box(0.025, 0.025, 0.018, trim, x + dx, y + dy, 0.389, root);
+    }
+  }
   box(DX1 - DX0 + 0.2, 0.12, 0.2, G, (DX0 + DX1) / 2, 2.85, 0.08, root);
   plane(DX1 - DX0, 0.6, M.glass, (DX0 + DX1) / 2, 3.25, 0.02, 0, root);
   glassDoors(root, { x0: DX0, x1: DX1, y0: 0.15, z: 0.05, h: 2.65 });                  // doors.js: the same glass doors the shop has inside
@@ -246,6 +254,8 @@ export function createStreet(env) {
   box(DX1 - DX0 + 0.3, 0.05, 0.5, M.stone(2, 0.5), (DX0 + DX1) / 2, 0.16, 0.25, root);
   // 左橱窗：店里糊在玻璃内侧的旧报纸（newsprint.js，和店里同一批、同一个位置），从街上看到的是每张的头版
   addSheets(root, 'front', { dx: -1.65, glassZ: 0.02 });
+  const brandAd = porkBrandTexture('poster');
+  plane(0.48, 0.62, lit(brandAd, { emissiveMap: brandAd, emissive: 0xffffff, emissiveIntensity: 0.14 }), WR1 - 0.38, 1.65, 0.039, 0, root).rotation.z = -0.026;
   // 右橱窗：店里这一段是实墙，所以是一个封了背板的浅橱窗，只挂肉
   // 右橱窗：香肠和火腿、切片机、罐子
   { box(WR1 - WR0 + 0.2, 2.9, 0.06, tiles(WR1 - WR0, 2.9), (WR0 + WR1) / 2, 1.45 + 0.15, -0.78, root);              // tiled backboard: the shop wall is right behind it
@@ -365,7 +375,7 @@ export function createStreet(env) {
     const vm = can.clone(); vm.alphaMap = valT; vm.map = cloth;
     const vg = new THREE.PlaneGeometry(W, 0.32, 96, 2), vp = vg.attributes.position; for (let i = 0; i < vp.count; i++) vp.setZ(i, Math.sin(vp.getX(i) * 5) * 0.01); vg.computeVertexNormals();
     const val = new THREE.Mesh(vg, vm); val.position.set(cx, yf - 0.15, zf + 0.02); root.add(val);
-    { const t = canvasTexture(1024, 96, (g, Wt, Ht) => { g.clearRect(0, 0, Wt, Ht); g.fillStyle = 'rgba(236,228,206,.92)'; g.font = `700 40px ${'Georgia, serif'}`; g.textAlign = 'center'; g.fillText('BUTCHER  ·  DELI  ·  EST. 1952', Wt / 2, 46); g.globalCompositeOperation = 'destination-out'; const r = R(5); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${r()})`; g.fillRect(r() * Wt, r() * Ht, 2 + r() * 10, 1 + r() * 3); } });
+    { const t = canvasTexture(1024, 96, (g, Wt, Ht) => { g.clearRect(0, 0, Wt, Ht); g.fillStyle = 'rgba(236,228,206,.92)'; g.font = `700 40px ${'Georgia, serif'}`; g.textAlign = 'center'; g.fillText('PORK.exe  ·  BUTCHER & DELI', Wt / 2, 46); g.globalCompositeOperation = 'destination-out'; const r = R(5); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${r()})`; g.fillRect(r() * Wt, r() * Ht, 2 + r() * 10, 1 + r() * 3); } });
       const lt = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.7, 0.16), new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.8 })); lt.position.set(cx, yf - 0.1, zf + 0.035); root.add(lt); }   // lettering painted on the valance
     // frame: roller box on the fascia, front bar, ribs, two folding side arms with an elbow joint, wall brackets
     const steelP = pbr('rusty_painted_metal', 1, 1, { size: 0.6, metalness: 0.6, roughness: 0.7, color: 0x3a3e3a });
@@ -605,7 +615,7 @@ export function createStreet(env) {
       t('come in', 400, 942, 38, undefined, 'right');
     }, 41);
     const back = chalkSide((g, W, H, t, line) => {
-      t('FUTURE MEAT', W / 2, 120, 78, Y);
+      t('PORK.exe', W / 2, 120, 78, Y);
       t('fresh · frozen · deli', W / 2, 175, 38);
       line([[120, 205], [540, 200]], Y, 3);
       t('OPEN', W / 2, 290, 54, P); t('Mon - Sat  11:00 - 22:00', W / 2, 345, 44); t('Sunday  12:00 - 20:00', W / 2, 395, 44);
