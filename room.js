@@ -23,7 +23,7 @@ import { drawPorkWordmark, porkBrandTexture } from './pork-brand.js';
 import { addSheets } from './newsprint.js';
 import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { buildOffice, OFFICE } from './office.js';
-import { tablecloth, clothMat, dressTable, ITEM, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand, towel, seatCushion } from './dress.js';
+import { tablecloth, clothMat, dressTable, ITEM, emptyWaterBottle, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand, towel, seatCushion } from './dress.js';
 
 const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
 const SERIF = '"Noto Serif SC", "Songti SC", "SimSun", serif';
@@ -1127,11 +1127,31 @@ export function createRoom(env) {
   winText.material.transparent = true;
 
   // 地上散落的单据、电线、积水
-  { const solid = [[3.45, 4.45, 0.55, 3.95], [2.45, 3.95, 4.0, 4.8], [LX, -6.3, 3.3, 4.6], [-6.9, -5.3, 4.4, 5.0], [-3.55, -1.55, 4.25, 4.75], [-1.65, -0.75, 3.3, 4.2], [-4.75, -3.85, 2.6, 3.5]];
-    const ok = (x, z) => !solid.some(([a, b, c, d]) => x > a && x < b && z > c && z < d);
-    let n = 0, seed = 300;
-    while (n < 26) { const x = -6.6 + rnd() * 10.8, z = -1.2 + rnd() * 5.9; seed++; if (!ok(x, z)) continue; litter(room, x, z, seed); n++; }
-    for (const [x, z] of [[-5.3, -1.6], [-4.6, -1.0], [-5.6, 0.8], [-4.2, 1.4], [-2.4, 0.2], [-1.8, 1.5]]) litter(room, x + (rnd() - 0.5) * 0.4, z + (rnd() - 0.5) * 0.4, 400 + Math.round(x * 10 + z));   // 桌子底下掉的
+  // Receipts collect against the till, food wrappers around the benches.
+  for (const [x, z, seed] of [[2.77,-1.36,2],[2.86,-1.44,10],[-5.38,-1.12,5],
+    [-4.84,-1.05,12],[-4.23,1.36,28],[-4.41,1.29,72],[3.31,1.17,18]]) {
+    litter(room, x, z, seed);
+  }
+  emptyWaterBottle(room, -4.17, 0, 1.58, -0.37);
+  emptyWaterBottle(room, 3.17, 0, 3.62, 1.12);
+  // Small areas of missing glaze and a branching hairline fracture. The rest
+  // of each tile is transparent, letting the original checker and grout show.
+  const chippedGlaze = canvasTexture(256, 256, (g) => {
+    const chip = new Path2D('M0 0 L56 0 L51 8 L42 12 L36 12 L30 24 L19 27 L15 41 L5 44 L0 51 Z');
+    g.save(); g.clip(chip); g.fillStyle = '#897a68'; g.fillRect(0, 0, 60, 55);
+    for (let i = 0; i < 390; i++) {
+      g.fillStyle = i % 3 ? '#a0947d' : '#544a3e';
+      g.fillRect((i * 97 % 61), (i * 47 % 53), 2, 1);
+    }
+    g.restore();
+    const crack = new Path2D('M30 22 L46 39 L52 54 L74 65 L81 83 L99 95 L111 121 L132 138 M74 65 L88 61 L103 70 L119 67');
+    g.strokeStyle = '#ab9e86'; g.lineWidth = 3; g.stroke(crack);
+    g.translate(0, 1); g.strokeStyle = '#3a352e'; g.lineWidth = 1.6; g.stroke(crack);
+  });
+  const wear = new THREE.MeshStandardMaterial({ map: chippedGlaze, transparent: true, depthWrite: false, roughness: 0.93 });
+  for (const [x,z,turn] of [[2.875,0.875,0],[3.125,0.875,1],[-4.125,1.875,2],[0.625,3.625,3]]) {
+    const patch = plane(0.25, 0.25, wear, x, 0.001, z, 0, room);
+    patch.rotation.set(-Math.PI / 2, 0, turn * Math.PI / 2);
   }
   hose([[LX + 0.05, 0.3, -3.9], [LX + 1.2, 0.01, -3.5], [-3.2, 0.01, -3.3], [-2.6, 0.15, -3.3]], 0.008, M.ink);
   box(0.4, 0.01, 0.4, M.steelDark, 0.2, 0.006, 0.6, room);                     // 地漏
@@ -1368,7 +1388,7 @@ export function createRoom(env) {
   // 垃圾桶：吧台左端、门口、用餐区墙边各一个；旁边有没扔进去的纸团，底下一圈水印
   for (const [x, z, c, sd] of [[-1.5, -2.55, 0xb8bab4, 3], [1.35, 4.55, 0x9a9c94, 7], [-6.75, 0.1, 0xa8a49a, 11]]) {
     bin(room, x, z, { color: c, seed: sd, fill: 0.85 + (sd % 3) * 0.05 });
-    litter(room, x + 0.28, z + 0.12, sd * 31 + 2); litter(room, x - 0.2, z + 0.25, sd * 31 + 5);
+    if (sd === 7) litter(room, x - 0.24, z + 0.16, 25);
     decal('SurfaceImperfections007', room, { pos: [x + 0.05, 0.0041, z + 0.04], rot: [-Math.PI / 2, 0, sd], w: 0.55, h: 0.55, color: 0x4a4438, opacity: 0.5 });
   }
   // 水渍：水桶底下一摊、往门口去的一串水点；卧式冰柜前面滴的冷凝水；冷藏肉柜底下
