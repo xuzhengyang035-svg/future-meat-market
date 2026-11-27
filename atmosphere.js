@@ -229,7 +229,8 @@ export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lig
           vec3 p = vW * uScale + vec3(uTime * uSpeed, uTime * uSpeed * 0.15, uSeed);
           vec3 q = vec3(fbm(p), fbm(p + vec3(5.2, 1.3, 2.8)), 0.0);                       // domain warp: wisps curl into each other
           float d = fbm(p + q * 1.6 + vec3(0.0, 0.0, uTime * uSpeed * 0.6));
-          vec2 e = (vUv - 0.5) * 2.0; float shape = smoothstep(1.0, 0.25, length(e * vec2(1.0, 1.25)));
+          vec2 e = (vUv - 0.5) * 2.0; float shape = smoothstep(1.0, 0.2, length(e * vec2(1.0, 1.2)));
+          shape *= smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x) * smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.7, vUv.y);   // every edge of the card fades out, no hard rim
           float low = mix(1.0, 0.45, vUv.y);                                              // heavier at the bottom
           float a = smoothstep(0.38, 0.85, d) * shape * low * uA * smoothstep(uNear * 0.5, uNear * 1.6, vZ);
           gl_FragColor = vec4(uColor * (0.75 + d * 0.5), a);

@@ -616,7 +616,7 @@ export function createLab(env) {
   box(0.16, 0.1, 0.04, M.frame, 4.55, 0.2, 3.95, root);
   plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root);
   plane(1.0, 0.35, canvasTexture(400, 140, (g, W, H) => { g.fillStyle = '#a4a29d'; g.fillRect(0, 0, W, H); g.fillStyle = '#34353a'; for (let y = 10; y < H - 6; y += 12) g.fillRect(8, y, W - 16, 6); }), -2.4, 2.6, 3.99, Math.PI, root, false);
-  scene.add(new THREE.HemisphereLight(0x4a9aa0, 0x040c0d, 0.17));
+  scene.add(new THREE.HemisphereLight(0x4a9aa0, 0x040c0d, 0.12));
 
   // ---------------------------------------------------------------- 动画与数据
   let lastWall = -1, scanOn = 0;

@@ -99,13 +99,13 @@ const PLACES = {
     const W = (v) => fridge.group.localToWorld(new THREE.Vector3(...v)).toArray();
     room.spots.fridge = { eye: W(FRIDGE_OVERVIEW.pos), at: W(FRIDGE_OVERVIEW.target), fov: 40 };
     FRIDGE_PRODUCT.eye = W(FRIDGE_PRODUCT.pos); FRIDGE_PRODUCT.at = W(FRIDGE_PRODUCT.target);
-    postRoom = grade(room.scene, { uSat: 0.96, uShadow: [-0.012, 0.01, 0.012], uHigh: [0.035, 0.015, -0.035], uContrast: 1.09, uVignette: 0.62 });   // 门店：暗处偏青，灯泡底下暖黄
+    postRoom = grade(room.scene, { uSat: 0.98, uShadow: [-0.02, 0.012, 0.02], uHigh: [0.045, 0.02, -0.04], uContrast: 1.24, uLift: 0.004, uVignette: 0.76 });   // 门店：暗处偏青，灯泡底下暖黄
   },
   async lab() {
     lab = createLab(env);
     lab.setBatch(state.batch, state.order?.opts);
     mountLabTags();
-    post = grade(lab.scene, { uSat: 1.08, uShadow: [-0.01, 0.005, 0.01], uHigh: [0.035, 0.022, -0.03], uContrast: 1.18, uVignette: 0.68, uLift: 0, uGrain: 0.02 });   // 观察室：黑压下去不发灰，暗部一点青，台灯暖、罐子绿
+    post = grade(lab.scene, { uSat: 1.1, uShadow: [-0.016, 0.008, 0.016], uHigh: [0.04, 0.025, -0.03], uContrast: 1.3, uVignette: 0.78, uLift: 0, uGrain: 0.02 });   // 观察室：黑压下去不发灰，暗部一点青，台灯暖、罐子绿
   },
   async street() {
     street = createStreet(env);
