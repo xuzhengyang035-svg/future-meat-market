@@ -181,6 +181,7 @@ export function makeLedger({ pbr, RB }) {
     }
   }
   const pages = PAGES.map(() => surface(PW, PH, 12));
+  let drawn = false;
   Promise.all([scan('assets/ph/tex/Paper005/diff.jpg'), fontsReady()]).then(([paper]) => {
     pages.forEach(({ t, g }, i) => {
       g.fillStyle = '#e9e2cf'; g.fillRect(0, 0, PW, PH);
@@ -197,6 +198,7 @@ export function makeLedger({ pbr, RB }) {
       PAGES[i](g);
       t.needsUpdate = true;
     });
+    drawn = true;
   });
 
   // 一页纸：amount 0 = 摊在右边，1 = 翻到左边；中间是弯着立起来的
@@ -204,7 +206,7 @@ export function makeLedger({ pbr, RB }) {
     const g = new THREE.PlaneGeometry(1, 1, N, 2);
     return g;
   }
-  function bend(geo, amount) {
+  function bend(geo, amount, leaf = false) {                                 // leaf: the turning sheet always rides 1.5 mm above the pages it lands on
     const p = geo.attributes.position, a = amount * Math.PI, sag = Math.sin(a);
     let x = 0, lift = 0;
     const row = [];
@@ -215,7 +217,7 @@ export function makeLedger({ pbr, RB }) {
       x += (Math.cos(angle) * W) / N;
       lift = Math.max(0, lift + (Math.sin(angle) * W) / N);
     }
-    for (let j = 0, k = 0; j <= 2; j++) for (let i = 0; i <= N; i++, k++) p.setXYZ(k, row[i][0], row[i][1] + (amount > 0 && amount < 1 ? 0.0015 : 0), (j / 2 - 0.5) * D);
+    for (let j = 0, k = 0; j <= 2; j++) for (let i = 0; i <= N; i++, k++) p.setXYZ(k, row[i][0], row[i][1] + (leaf || (amount > 0 && amount < 1) ? 0.0015 : 0), (j / 2 - 0.5) * D);
     p.needsUpdate = true;
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
@@ -233,7 +235,7 @@ export function makeLedger({ pbr, RB }) {
   const left = make(1, THREE.BackSide, true), right = make(0, THREE.FrontSide, false);
   const front = make(0, THREE.FrontSide, false), back = make(0, THREE.BackSide, true);
   const LAST = pages.length / 2 - 1, state = { v: 0 };
-  let spread = 0, flip = null, corner = 0, wanted = 0;
+  let spread = 0, flip = null, corner = 0, wanted = 0, warmed = false;
 
   function show() {
     left.material.map = pages[spread * 2].t;
@@ -248,11 +250,15 @@ export function makeLedger({ pbr, RB }) {
     back.material.map = pages[low * 2 + 2].t;
     left.material.map = pages[low * 2].t;
     right.material.map = pages[low * 2 + 3].t;
-    front.visible = back.visible = true;
+    // pick the leaf up from wherever the hovered corner already lifted it, put the pages under it flat, and pose it
+    // BEFORE it becomes visible: otherwise its first frame shows the leaf where the last turn left it (the flash)
+    state.v = dir > 0 ? Math.max(0, corner) : 1 + Math.min(0, corner);
     corner = wanted = 0;
-    state.v = dir > 0 ? 0 : 1;
-    flip = gsap.to(state, { v: dir > 0 ? 1 : 0, duration: 1.15, ease: 'power1.inOut',
-      onUpdate() { bend(front.geometry, state.v); bend(back.geometry, state.v); },
+    bend(left.geometry, 1); bend(right.geometry, 0);
+    bend(front.geometry, state.v, true); bend(back.geometry, state.v, true);
+    front.visible = back.visible = true;
+    flip = gsap.to(state, { v: dir > 0 ? 1 : 0, duration: 1.15 * (dir > 0 ? 1 - state.v : state.v) + 0.05, ease: 'power1.inOut',
+      onUpdate() { bend(front.geometry, state.v, true); bend(back.geometry, state.v, true); },
       onComplete() { flip = null; spread += dir; show(); } });
   }
   function hover(side) { wanted = side > 0 && spread < LAST ? 0.055 : side < 0 && spread > 0 ? -0.055 : 0; }
@@ -269,6 +275,7 @@ export function makeLedger({ pbr, RB }) {
   const local = new THREE.Vector3();
   return {
     group, turn, hover, tick, textures: pages.map((p) => p.t),
+    warm(renderer) { if (warmed || !drawn) return; warmed = true; for (const p of pages) renderer.initTexture(p.t); },   // upload every page now, not mid-turn
     side(ray) {                                                              // 指在左页还是右页
       const h = ray.intersectObjects([left, right, front, back].filter((m) => m.visible), false)[0];
       return h ? (group.worldToLocal(local.copy(h.point)).x >= 0 ? 1 : -1) : 0;

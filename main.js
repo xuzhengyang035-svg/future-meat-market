@@ -525,6 +525,7 @@ function bookSide(e) {
 canvas.addEventListener('pointermove', (e) => {
   if (state.view !== 'room' || state.rfocus !== 'records') return;
   const side = bookSide(e);
+  room.ledger.warm?.(renderer);
   room.ledger.hover(side);
   canvas.style.cursor = side ? 'pointer' : '';
 });
@@ -563,7 +564,7 @@ canvas.addEventListener('click', (e) => {
   if (t.id === 'ask' && state.focus === 'ask') lab.kiosk.click(t.uv);
 });
 addEventListener('keydown', (e) => {
-  if (state.view === 'room' && state.rfocus === 'records' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { e.preventDefault(); return room.ledger.turn(e.code === 'ArrowRight' ? 1 : -1); }
+  if (state.view === 'room' && state.rfocus === 'records' && (e.code === 'ArrowRight' || e.code === 'ArrowLeft')) { e.preventDefault(); room.ledger.warm?.(renderer); return room.ledger.turn(e.code === 'ArrowRight' ? 1 : -1); }
   if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]')) return;
   if (e.key === 'Enter' && e.target.closest?.('button')) return;            // 焦点在按钮上：回车就是按那个按钮
   if (!inspector.active && NAV[state.view]?.key(e.code)) { e.preventDefault(); hideTutorial(); }
