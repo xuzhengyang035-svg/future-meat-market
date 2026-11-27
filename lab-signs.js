@@ -203,7 +203,7 @@ function createKiosk(root) {
     g.font = `500 24px ${MONO}`; g.fillStyle = GREEN; g.fillText('ASK US · FUTURE MEAT MARKET', 36, 52);
     g.textAlign = 'right'; g.fillStyle = '#8fa592'; g.fillText(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }), SW - 36, 52); g.textAlign = 'left';
     g.fillStyle = 'rgba(184,255,106,.3)'; g.fillRect(36, 72, SW - 72, 2);
-    if (!S.focus && !S.chat.length) {
+    if (!S.focus && !S.near && !S.chat.length) {                              // idle screen, until someone looks at it
       g.textAlign = 'center'; g.fillStyle = '#f2f5f2'; g.font = `300 96px ${SANS}`; g.fillText('ANY', SW / 2, 300); g.fillText('QUESTIONS?', SW / 2, 410);
       g.fillStyle = GREEN; g.font = `500 30px ${MONO}`; g.fillText('ASK US ANYTHING' + (Math.floor(S.t * 2) % 2 ? '_' : ' '), SW / 2, 500); g.textAlign = 'left';
       tex.needsUpdate = true; return;
@@ -251,6 +251,8 @@ function createKiosk(root) {
     focus(on) { S.focus = on; S.hover = -1; if (on) setTimeout(() => field.focus({ preventScroll: true }), 50); else field.blur(); draw(); },
     hover(uv) { const i = S.focus ? rowAt(uv) : -1; if (i !== S.hover) { S.hover = i; draw(); } return i >= 0 || (S.focus && onInput(uv)); },
     click(uv) { if (!S.focus) return false; const i = rowAt(uv); if (i >= 0) { submit(ASK[i][0]); return true; } field.focus({ preventScroll: true }); return true; },
+    aim(uv) { const i = uv ? rowAt(uv) : -1, near = !!uv; if (i !== S.hover || near !== !!S.near) { S.hover = i; S.near = near; draw(); } return i >= 0; },      // walking past: the crosshair highlights a question
+    ask(uv) { const i = rowAt(uv); if (i < 0) return false; submit(ASK[i][0]); return true; },
     tick(dt) {
       S.t += dt;
       if (S.typing) { S.typing.n += dt * 38; if (S.typing.n >= S.typing.text.length) S.typing = null; draw(); return; }

@@ -8,6 +8,7 @@ import { gbp } from './money.js';
 //   右墙      加工间入口（PVC 门帘）、灯箱海报、仓库门
 //   入口      糊着报纸的玻璃门面、杂货架、菜筐、冰柜、立牌
 import * as THREE from 'three';
+import { slab } from './signs.js';
 import { lightCone, glowColumn, hazeLayer, dustMotes } from './atmosphere.js';
 import { buildSmartFridge } from './fridge.js';
 import { canvasTexture, streetTexture, drawAd } from './textures.js';
@@ -887,7 +888,7 @@ export function createRoom(env) {
   agePoster(plane(3.0, 1.2, new THREE.MeshStandardMaterial({ map: mural, roughness: 0.85 }), LX + 0.01, 2.2, 1.85, Math.PI / 2, room), 3.0, 1.2, 7, { glossy: 0.35 });   // 合作牧场展板（缩小，不再压着画框和老照片）
   // （原来随手贴在墙上的 5 张单据会压住展板和照片，去掉了）
   // 一块手写的纸板宣传牌，用铁丝挂在管子下面
-  const board = plane(1.4, 0.5, lit(porkBrandTexture('label', 'Cultivated meat', 'ORDER AT THE COUNTER')), -1.5, 2.5, 2.7, 0.2, room);
+  const board = slab(plane(1.4, 0.5, lit(porkBrandTexture('label', 'Cultivated meat', 'ORDER AT THE COUNTER')), -1.5, 2.5, 2.7, 0.2, room), { depth: 0.022, edge: 0xd8ceb2, back: 'print', roughness: 0.7 });
   board.rotation.z = -0.04;
   for (const x of [-2.1, -0.9]) hose([[x, 3.2, 2.7 - (x + 1.5) * 0.2], [x, 2.75, 2.7 - (x + 1.5) * 0.2]], 0.003, M.ink);
 
@@ -1056,7 +1057,7 @@ export function createRoom(env) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.02, 10, 32), M.steel); ring.position.set(0, 1.5, 0.03); sd.add(ring);
     const port = new THREE.Mesh(new THREE.CircleGeometry(0.16, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.75, 1.0, 0.95) })); port.position.set(0, 1.5, 0.028); sd.add(port);   // 圆窗里加工间的冷光
     box(0.04, 0.3, 0.05, M.steel, 0.38, 1.05, 0.05, sd); box(0.3, 0.06, 0.005, M.ink, 0, 0.3, 0.027, sd);
-    plane(0.44, 0.16, sign([['WORKSHOP', 34, '#f3eee6', 0.5, 700], ['authorised staff only', 18, 'rgba(243,238,230,.75)', 0.85, 500]], 440, 160, { bg: '#2a6a4a' }), 0, 1.92, 0.028, 0, sd);
+    slab(plane(0.44, 0.16, sign([['WORKSHOP', 34, '#f3eee6', 0.5, 700], ['authorised staff only', 18, 'rgba(243,238,230,.75)', 0.85, 500]], 440, 160, { bg: '#2a6a4a' }), 0, 1.92, 0.028, 0, sd), { depth: 0.004 });
     decal('Sign023', sd, { pos: [0.3, 1.5, 0.029], w: 0.16, h: 0.16, roughness: 0.6 });
     decal('SurfaceImperfections017', hall, { pos: [1.2, 0.004, 0], rot: [-Math.PI / 2, 0, 0], w: 2.4, h: 1.5, color: 0x2e2a24, opacity: 0.5 });   // 走廊地上被推车压出来的脏道
     for (const [x, dead] of [[0.7, false], [1.8, true]]) { box(0.7, 0.04, 0.12, M.fixture, x, 2.47, 0, hall); box(0.62, 0.02, 0.05, dead ? M.deadTube : M.tube, x, 2.445, 0, hall); }   // 顶上两盏灯管，里面那盏坏了
@@ -1071,7 +1072,7 @@ export function createRoom(env) {
     for (let i = 0; i < 9; i++) { const sg = new THREE.PlaneGeometry(0.2, 2.38, 1, 10), sp = sg.attributes.position; for (let k = 0; k < sp.count; k++) { const y = sp.getY(k); sp.setZ(k, Math.max(0, -y) ** 2 * 0.03 * (i % 2 ? 1 : -0.6)); } sg.computeVertexNormals();
       const st = new THREE.Mesh(sg, stripM2); st.position.set(0.06 + (i % 2) * 0.006, 1.24, -0.72 + i * 0.18); st.rotation.y = Math.PI / 2 + (rnd() - 0.5) * 0.1; st.renderOrder = 5; hall.add(st); }
     const bar = cyl(0.012, 0.012, 1.7, M.steel, 0.06, 2.44, 0, hall, 10); bar.rotation.x = Math.PI / 2; }
-  plane(1.5, 0.3, sign([['PROCESSING ROOM', 40, '#ddd', 0.5, 500], ['REGULARS · VISITS BY APPOINTMENT', 20, 'rgba(255,255,255,.6)', 0.86, 500, MONO]], 750, 150, { bg: PALETTE.ink }), 4.985, 2.85, -0.3, -Math.PI / 2, room);
+  slab(plane(1.5, 0.3, sign([['PROCESSING ROOM', 40, '#ddd', 0.5, 500], ['REGULARS · VISITS BY APPOINTMENT', 20, 'rgba(255,255,255,.6)', 0.86, 500, MONO]], 750, 150, { bg: PALETTE.ink }), 4.985, 2.85, -0.3, -Math.PI / 2, room), { depth: 0.012, edge: 0x2a2a2a });
   box(0.06, 1.42, 1.06, M.ink, 5.0, 1.55, -1.72, room);                         // 灯箱往前挪，给围裙挂杆让地方
   const lightbox = plane(0.96, 1.28, canvasTexture(8, 8, (g) => { g.fillStyle = '#f3eee6'; g.fillRect(0, 0, 8, 8); }), 4.965, 1.55, -1.72, -Math.PI / 2, room, true);
   lightbox.material.color.setScalar(0.82);
@@ -1163,7 +1164,7 @@ export function createRoom(env) {
     plane(0.5, 0.75, new THREE.MeshStandardMaterial({ color: 0x2a2c2a, roughness: 0.15, metalness: 0.3 }), 0, 1.55, 0.07, 0, d);   // 门上的夹丝玻璃，后面是暗的仓库
     box(0.54, 0.04, 0.03, M.ink, 0, 1.94, 0.075, d); box(0.54, 0.04, 0.03, M.ink, 0, 1.16, 0.075, d);
     box(0.03, 0.12, 0.05, M.steel, 0.38, 1.02, 0.09, d); box(0.12, 0.25, 0.02, M.steel, 0.38, 1.02, 0.07, d);
-    plane(0.6, 0.22, sign([['STAFF ONLY', 36, '#fff', 0.55, 700], ['STORAGE', 18, 'rgba(255,255,255,.7)', 0.88, 500, MONO]], 400, 140, { bg: '#7a2420' }), 0, 2.075, 0.076, 0, d);   // 这扇门通往仓库（牌子在玻璃窗框上面，不压窗框）
+    slab(plane(0.6, 0.22, sign([['STAFF ONLY', 36, '#fff', 0.55, 700], ['STORAGE', 18, 'rgba(255,255,255,.7)', 0.88, 500, MONO]], 400, 140, { bg: '#7a2420' }), 0, 2.075, 0.076, 0, d), { depth: 0.004 });   // 这扇门通往仓库（牌子在玻璃窗框上面，不压窗框）
     box(0.4, 0.06, 0.1, M.fixture, 0, 2.32, 0.08, d); box(0.36, 0.02, 0.04, M.tube, 0, 2.29, 0.1, d); }
   // 后墙右角：一根挂钩横杆，挂着两条沾了血的围裙和一条毛巾
   const apronTex = (seed) => canvasTexture(220, 420, (g, W, H) => {

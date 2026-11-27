@@ -6,6 +6,7 @@
 //   最里面   冷库（细胞库，液氮），门口几只液氮罐
 //   右后角   04 冷藏货架（猪肉按口感分三层）、05 自动出库（滚筒线、机械臂、扫码门、托盘车）、06 档案区（登记册、图谱、退货桶）
 import * as THREE from 'three';
+import { slab } from './signs.js';
 import { drawPorkWordmark, porkBrandTexture } from './pork-brand.js';
 import { canvasTexture } from './textures.js';
 import { createCartonKit } from './cartons.js';
@@ -787,7 +788,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   box(CWd + 0.1, 0.12, CDp + 0.1, M.steel, 0, CHt + 0.06, 0, cold);
   placeKit('04_Cell_Bank_Handover.glb', -1.5, 0, -27.0 + CDp / 2 + 0.36, 0, (o) => { let pnl = null; o.traverse((c) => { if (!pnl && /Insulated.junction.panel/i.test(c.name)) pnl = c; }); if (!pnl) return; const bb = new THREE.Box3().setFromObject(pnl); pnl.visible = false; o.position.z -= bb.max.z - bb.min.z; o.updateMatrix(); o.updateMatrixWorld(true); }); blob(-1.5, -23.3, 1.6, 1.0);   // 细胞库交接处（道具包）：门、软门帘、库位牌、推车上的液氮罐
   const coldSign = canvasTexture(512, 160, (g, W, H) => { g.fillStyle = '#d8d4c4'; g.fillRect(0, 0, W, H); g.fillStyle = '#1a3a6a'; g.font = `700 60px ${SANS}`; g.textAlign = 'center'; fitText(g, 'COLD STORE · AUTHORISED ONLY', W / 2, 78, W - 30); g.font = `400 28px ${SANS}`; g.fillStyle = '#9a2422'; fitText(g, 'CELL BANK MCB-07 · LN₂ −196 ℃ · OXYGEN DEPLETION RISK', W / 2, 126, W - 30); ageCanvas(g, W, H, { amount: 1.2, seed: 13, drips: false }); });
-  plane(2.2, 0.68, lit(coldSign), 0, 3.3, CDp / 2 + 0.02, 0, cold);
+  slab(plane(2.2, 0.68, lit(coldSign), 0, 3.3, CDp / 2 + 0.02, 0, cold), { depth: 0.014, edge: 0xd8d8d2 });
   box(0.3, 0.06, 0.2, M.warn, 1.5, 2.85, CDp / 2 + 0.08, cold);
   const warnL = new THREE.PointLight(0xff4020, 2, 4.5, 2); warnL.position.set(1.5, 2.7, CDp / 2 + 0.4); cold.add(warnL);
   const coldLight = new THREE.PointLight(0xb8e0ff, 4, 5, 2); coldLight.position.set(0, 1.4, CDp / 2 + 1.0); cold.add(coldLight);

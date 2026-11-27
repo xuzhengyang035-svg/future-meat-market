@@ -3,6 +3,7 @@
 // 观众站在参观廊里；玻璃前的展台上是“你的批次”——一个台式灌流培养罐，里面的肉在长大。
 // 左墙是生长数据墙；玻璃最左边是一扇磨砂门：细胞库，非参观区域。
 import * as THREE from 'three';
+import { slab } from './signs.js';
 import { porkBrandTexture } from './pork-brand.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -379,7 +380,7 @@ export function createLab(env) {
   const hallWallMat = (w, h) => new THREE.MeshStandardMaterial({ ...grimeWallMaps(w, h, { tile: false, dado: 1.6, ppm: 40, upper: [138, 142, 134], paint: [62, 76, 68], seed: 9, ao: 0.6 }) });
 
   // 参观廊：x -5..5，z -1..4，层高 3m，偏暗
-  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.33, envMapIntensity: 2.2, color: 0xbcd8d2 }));
+  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.52, envMapIntensity: 1.5, color: 0xe2ece8 }));   // less mirror, more tile: it read as a black hole
   gFloor.rotation.x = -Math.PI / 2; gFloor.position.set(0, 0, 1.5);
   root.add(gFloor);
   const gCeil = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('OfficeCeiling003', 10, 5, { size: 1.2, roughness: 0.9, color: 0x6a6a66 }));   // 矿棉板吊顶（照片扫描）
@@ -417,7 +418,7 @@ export function createLab(env) {
   // 细胞库：磨砂玻璃门、红色标牌、读卡器
   box(1.12, 2.2, 0.06, M.frame, -4.25, 1.1, -0.88, root);
   plane(1.0, 2.1, frostedTexture(), -4.25, 1.07, -0.845, 0, root, false);
-  plane(1.3, 0.24, textSign([['CELL BANK · NO VISITORS', 30, '#ffffff', 0.62, 500, SANS, 'center']], 640, 118, { bg: '#b3262d' }), -4.25, 2.42, -0.89, 0, root);
+  slab(plane(1.3, 0.24, textSign([['CELL BANK · NO VISITORS', 30, '#ffffff', 0.62, 500, SANS, 'center']], 640, 118, { bg: '#b3262d' }), -4.25, 2.42, -0.89, 0, root), { depth: 0.005 });
   box(0.08, 0.13, 0.03, M.frame, -3.6, 1.2, -0.87, root);
   const led = box(0.014, 0.014, 0.01, M.ledRed, -3.6, 1.24, -0.853, root);
 
@@ -431,7 +432,7 @@ export function createLab(env) {
   const vesC = vessel('beef', 0.3, root, ['BR-02 sample', '11/08  P37']); vesC.group.position.set(1.35, 0.936, FZ);
   benchStain(root, 1.37, 0.9362, FZ + 0.03, 0.55, 0.7);
   const vesR = jacketVessel(root, 2.15, FZ, M);
-  const plate = (txt, sub, x, hi) => plane(0.5, 0.09, textSign([[txt, 30, hi ? '#ffffff' : '#1d1f22', 0.48, 500, SANS], [sub, 20, hi ? 'rgba(255,255,255,.75)' : '#6b6762', 0.85, 400, MONO]], 400, 72, { bg: hi ? '#b3262d' : '#ebe9e4' }), x, 0.83, FZ + 0.336, 0, root, false);
+  const plate = (txt, sub, x, hi) => slab(plane(0.5, 0.09, textSign([[txt, 30, hi ? '#ffffff' : '#1d1f22', 0.48, 500, SANS], [sub, 20, hi ? 'rgba(255,255,255,.75)' : '#6b6762', 0.85, 400, MONO]], 400, 72, { bg: hi ? '#b3262d' : '#ebe9e4' }), x, 0.83, FZ + 0.336, 0, root, false), { depth: 0.004 });
   plate('CULTIVATED CHICKEN', 'BR-01 · G-0221', 0.55, false);
   const myPlate = plate('YOUR BATCH', 'BR-02 · DEMO', 1.35, true);
   plate('CULTIVATED PORK', 'BR-03 · P-0932', 2.15, false);
@@ -453,7 +454,7 @@ export function createLab(env) {
   model('metal_stool_01', { pos: [-2.2, 0, 3.6], rot: 0.6, tilt: 0.04, parent: root });
   model('WetFloorSign_01', { pos: [-3.6, 0, 3.4], rot: -0.4, scale: 1.25, parent: root });
   // 参观廊：门口到玻璃前踩出来的脏印、拖地的湿痕；墙角返潮
-  decal('SurfaceImperfections017', root, { pos: [1.2, 0.003, 1.6], rot: [-Math.PI / 2, 0, 0.3], w: 5.0, h: 2.6, color: 0x2e2a24, opacity: 0.45 });
+  decal('SurfaceImperfections017', root, { pos: [1.2, 0.003, 1.6], rot: [-Math.PI / 2, 0, 0.3], w: 5.0, h: 2.6, color: 0x2e2a24, opacity: 0.18 });   // scuffs, not a black carpet
   decal('Smear007', root, { pos: [2.2, 0.0035, 0.9], rot: [-Math.PI / 2, 0, 1.9], w: 2.2, h: 1.3, color: 0x2a2a24, opacity: 0.22, roughness: 0.1 });
   decal('Leaking009', root, { pos: [-4.99, 0.45, 2.9], rot: [0, Math.PI / 2, 0], w: 2.0, h: 0.9, color: 0x5a5040, opacity: 0.6 });
   decal('Leaking004', root, { pos: [4.99, 2.55, 3.2], rot: [0, -Math.PI / 2, 0], w: 1.0, h: 1.2, color: 0x6a5a44, opacity: 0.6 });
@@ -481,7 +482,7 @@ export function createLab(env) {
   // 后墙：回门店的门
   box(1.1, 2.2, 0.06, M.frame, 3.6, 1.1, 3.98, root);
   plane(1.0, 2.1, textSign([['←  STORE', 60, '#ffffff', 0.12, 500, SANS, 'center'], ['BACK TO THE SHOP', 24, 'rgba(255,255,255,.6)', 0.17, 500, MONO, 'center']], 400, 840, { bg: '#3a3c40' }), 3.6, 1.07, 3.945, Math.PI, root, false);
-  plane(0.42, 0.14, textSign([['EXIT', 40, '#ffffff', 0.7, 600, SANS, 'center']], 300, 100, { bg: '#1f8a4c' }), 3.6, 2.42, 3.99, Math.PI, root);
+  slab(plane(0.42, 0.14, textSign([['EXIT', 40, '#ffffff', 0.7, 600, SANS, 'center']], 300, 100, { bg: '#1f8a4c' }), 3.6, 2.42, 3.99, Math.PI, root), { depth: 0.045, edge: 0xdedad2 });
   box(1.8, 0.42, 0.45, M.frame, -0.6, 0.21, 2.9, root);
   box(1.76, 0.06, 0.42, M.fabric, -0.6, 0.45, 2.9, root);
 
@@ -660,7 +661,7 @@ export function createLab(env) {
     cyl(0.042, 0.042, 0.06, M.frame, x, 0.93, z, root, 16);
   };
   post(-4.85, -0.2); post(-3.65, -0.2);
-  plane(1.16, 0.05, textSign([['NO VISITORS BEYOND THIS POINT', 22, '#ffffff', 0.78, 500, SANS, 'center']], 600, 30, { bg: '#b3262d' }), -4.25, 0.88, -0.2, 0, root);
+  slab(plane(1.16, 0.05, textSign([['NO VISITORS BEYOND THIS POINT', 22, '#ffffff', 0.78, 500, SANS, 'center']], 600, 30, { bg: '#b3262d' }), -4.25, 0.88, -0.2, 0, root), { depth: 0.003 });
   blob(-4.85, -0.2, 0.5, root, 0.003); blob(-3.65, -0.2, 0.5, root, 0.003);
   box(3.6, 0.03, 0.05, M.frame, 0.2, 2.975, -0.27, root);
   for (const x of [-1.05, 0.2, 1.45]) {
@@ -673,12 +674,12 @@ export function createLab(env) {
     const d = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), domeMat);
     d.position.set(x, 2.985, z); root.add(d);
   }
-  cyl(0.075, 0.075, 0.5, new THREE.MeshStandardMaterial({ color: 0xc8211f, roughness: 0.35 }), 4.55, 0.4, 3.86, root, 20);
-  cyl(0.03, 0.04, 0.09, M.frame, 4.55, 0.69, 3.86, root, 12);
-  box(0.16, 0.1, 0.04, M.frame, 4.55, 0.2, 3.95, root);
-  plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root);
+  model('korean_fire_extinguisher_01', { pos: [4.55, 0, 3.8], rot: Math.PI, parent: root });   // a real scanned extinguisher (the same one as in the shop), not a red tube
+  slab(plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root), { depth: 0.003 });
   plane(1.0, 0.35, canvasTexture(400, 140, (g, W, H) => { g.fillStyle = '#a4a29d'; g.fillRect(0, 0, W, H); g.fillStyle = '#34353a'; for (let y = 10; y < H - 6; y += 12) g.fillRect(8, y, W - 16, 6); }), -2.4, 2.6, 3.99, Math.PI, root, false);
-  scene.add(new THREE.HemisphereLight(0x4a9aa0, 0x040c0d, 0.12));
+  scene.add(new THREE.HemisphereLight(0x5aa0a4, 0x1a2224, 0.26));
+  for (const x of [-2.2, 2.4]) { const dl = new THREE.PointLight(0xffd8b0, 22, 6.5, 1.5); dl.position.set(x, 2.85, 2.5); root.add(dl);   // gallery downlights: the floor was a black hole
+    cyl(0.07, 0.07, 0.02, M.white, x, 2.99, 2.5, root, 20); cyl(0.05, 0.05, 0.005, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.9, 1.5) }), x, 2.978, 2.5, root, 20); }
 
   // ---------------------------------------------------------------- 动画与数据
   let lastWall = -1, scanOn = 0;
@@ -698,7 +699,7 @@ export function createLab(env) {
       u.uColor.value = opts.shade === 'deep' ? 0.85 : 0.25;
       u.uSteak.value = opts.form === 'steak' ? 1 : 0;
     }
-    const tx = myPlate.material.map;
+    const tx = (myPlate.userData.face || myPlate.material).map;
     const g = tx.userData.ctx, W = 400, H = 72;
     g.fillStyle = '#b3262d'; g.fillRect(0, 0, W, H);
     g.font = `500 30px ${SANS}`; g.fillStyle = '#fff'; g.textAlign = 'left';

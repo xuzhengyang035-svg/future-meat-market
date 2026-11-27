@@ -2,6 +2,7 @@
 // 管文件、记录：供体登记簿、细胞系档案柜、批次白板、监控屏；后墙一道铁门通往仓库。
 // 坐标：大厅左墙在 x = −7.0（墙厚 0.1，办公室这一面在 −7.1）。办公室内部 x −10.6…−7.1，z 1.2…5.0，吊顶 2.9 m。
 import * as THREE from 'three';
+import { slab } from './signs.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { makeLedger, makeWhiteboard } from './office-paper.js';
 import { glassOn } from './lab-signs.js';
@@ -70,7 +71,7 @@ export function buildOffice(ctx) {
   for (const z of [DZ0 - 0.033, DZ1 + 0.033]) box(0.16, DH + 0.07, 0.074, frameM, X1 + 0.05, (DH + 0.07) / 2, z, g);
   box(0.16, 0.074, DZ1 - DZ0 + 0.148, frameM, X1 + 0.05, DH + 0.033, (DZ0 + DZ1) / 2, g);
   const plate = canvasTexture(360, 110, (c, W, Hh) => { c.fillStyle = '#e8e4d8'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1e1e1c'; c.font = `700 44px ${SANS}`; c.textBaseline = 'middle'; c.fillText('OFFICE', 22, 40); c.font = `500 22px ${SANS}`; c.fillStyle = '#9a2422'; c.fillText('STAFF ONLY', 24, 84); });
-  plane(0.3, 0.092, new THREE.MeshPhysicalMaterial({ map: plate, roughness: 0.3, clearcoat: 0.6 }), X1 + 0.125, 2.35, (DZ0 + DZ1) / 2, Math.PI / 2, g);   // 门上方的门牌（大厅这一面）
+  slab(plane(0.3, 0.092, new THREE.MeshPhysicalMaterial({ map: plate, roughness: 0.3, clearcoat: 0.6 }), X1 + 0.125, 2.35, (DZ0 + DZ1) / 2, Math.PI / 2, g), { depth: 0.004, edge: 0xcfc9b8 });   // 门上方的门牌（大厅这一面）
   { const hinge = new THREE.Group(); hinge.position.set(X1 + 0.02, 0, DZ1); hinge.rotation.y = Math.PI * 100 / 180; g.add(hinge);   // 门轴在靠门面那一侧
     const leafM = pbr('wood_table_worn', 0.88, 2.05, { size: 0.9, color: 0x9a8268, roughness: 0.6 });
     const lf = new THREE.Group(); lf.position.set(0, 0, 0); hinge.add(lf);       // 门扇沿本地 −z 方向伸出去
@@ -254,7 +255,7 @@ export function buildOffice(ctx) {
     box(BD1 - BD0 - 0.01, DH - 0.01, 0.05, dm, (BD0 + BD1) / 2, DH / 2, Z0 - 0.02, g);
     box(0.7, 0.04, 0.05, M.steel, (BD0 + BD1) / 2, 1.0, Z0 + 0.04, g); for (const s of [-1, 1]) box(0.03, 0.05, 0.06, M.steel, (BD0 + BD1) / 2 + s * 0.36, 1.0, Z0 + 0.025, g);   // 推杠
     const sg = canvasTexture(400, 260, (c, W, Hh) => { c.fillStyle = '#e8c832'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1a1a1a'; c.font = `800 54px ${SANS}`; c.fillText('WAREHOUSE', 26, 80); c.font = `600 34px ${SANS}`; c.fillText('KEEP DOOR SHUT', 28, 140); c.font = `500 24px ${SANS}`; c.fillText('KEEP CLOSED  →  COLD STORE', 28, 210); });
-    plane(0.4, 0.26, new THREE.MeshStandardMaterial({ map: sg, roughness: 0.6 }), (BD0 + BD1) / 2, 1.55, Z0 + 0.007, 0, g);
+    slab(plane(0.4, 0.26, new THREE.MeshStandardMaterial({ map: sg, roughness: 0.6 }), (BD0 + BD1) / 2, 1.55, Z0 + 0.007, 0, g), { depth: 0.003, edge: 0xe8c832 });
     decal('Scratches003', g, { pos: [(BD0 + BD1) / 2, 0.5, Z0 + 0.006], w: 0.8, h: 0.8, color: 0xc0c0b8, opacity: 0.5 }); }
   // 档案柜右边：小桌子上一台传真机，旁边一摞纸
   { box(0.6, 0.72, 0.5, new THREE.MeshStandardMaterial({ color: 0x4a4e48, roughness: 0.5, metalness: 0.4 }), -7.45, 0.36, Z0 + 0.27, g);

@@ -170,8 +170,8 @@ const STREET_EYE = new THREE.Vector3(-1.0, 1.65, 7.2);   // standing on the kerb
 const WH_EYE = new THREE.Vector3(-1.3, 1.65, 2.6);
 const streetLook = { yaw: 0, pitch: 11, tYaw: 0, tPitch: 11, fov: 62 };
 const whLook = { yaw: -12, pitch: -6, tYaw: -12, tPitch: -6, fov: 64 };
-const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72 }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66, pitch: [-45, 60] },
-  street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70, pitch: [-45, 35] } };
+const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72, pitch: [-52, 35] }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66, pitch: [-55, 60] },
+  street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70, pitch: [-55, 35] } };
 window.__looks = LOOKS;   // 调试 / 截图用
 const canLook = () => LOOKS[state.view] && !state.rfocus && !state.busy && (!state.sfocus || state.view === 'street') && !state.focus && !NAV[state.view]?.walking;   // walked up to something on the street: you can still look around
 let drag = null;
@@ -205,7 +205,7 @@ const lookHint = document.createElement('div'); lookHint.className = 'lookhint';
 const AIM_LISTS = () => ({ room: hsEls, warehouse: whEls, lab: labEls })[state.view];
 const mouseLookHere = () => !!NAV[state.view] && canLook() && !inspector.active && !(state.view === 'lab' && !labChosen);
 const locked = () => document.pointerLockElement === canvas;
-let aimed = null, aimLab = null, noLock = false;
+let aimed = null, aimLab = null, aimRow = false, noLock = false;
 document.addEventListener('pointerlockerror', () => { noLock = true; lookHint.textContent = 'Drag to look around'; });
 const CENTER = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 });
 function setAim(el) {
@@ -228,8 +228,12 @@ function aimTick() {
       const d = Math.hypot(x - cx, y - cy);
       if (d < hit && d < bd) { bd = d; best = el; }
     }
-    aimLab = !best && state.view === 'lab' ? labThing(CENTER()) : null;
-    if (aimLab && !aimLab.free) aimLab = null;
+    const lt = state.view === 'lab' ? labThing(CENTER()) : null;
+    if (lt?.free && lt.id === 'ask' && lt.uv) best = null;                        // on the terminal's screen: the screen itself wins over its ring
+    aimLab = !best && lt?.free ? lt : null;
+    const onKiosk = !!(aimLab?.id === 'ask' && aimLab.uv);                           // looking at the terminal: it wakes up and lists its questions
+    aimRow = onKiosk ? lab.kiosk.aim(aimLab.uv) : false;
+    if (!onKiosk && state.view === 'lab' && lab && !state.focus) lab.kiosk.aim(null);
   } else aimLab = null;
   setAim(best);
   reticle.classList.toggle('on', on);
@@ -240,6 +244,7 @@ addEventListener('pointerdown', (e) => {                                        
   if (locked()) {
     e.stopImmediatePropagation(); e.preventDefault();
     if (aimed) { const el = aimed; setAim(null); el.click(); }
+    else if (aimRow) { lab.kiosk.ask(aimLab.uv); }                                 // ask it right here: the answer types out on the screen
     else if (aimLab) { location.hash = '#/lab/' + aimLab.id; }
     return;
   }
@@ -539,7 +544,8 @@ function labThing(e) {
   const r = canvas.getBoundingClientRect();
   labNdc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   labRay.setFromCamera(labNdc, camera);
-  const h = labRay.intersectObjects([lab.notice.mesh, ...lab.kiosk.pick], false)[0];
+  const hits = labRay.intersectObjects([lab.notice.mesh, ...lab.kiosk.pick], false);
+  const h = hits.find((x) => x.object === lab.kiosk.screen && x.distance - hits[0].distance < 0.15) || hits[0];   // look through the terminal's cover glass to the screen behind it
   if (!h || h.distance > 6) return free ? null : { id: state.focus, uv: null };
   const id = h.object === lab.notice.mesh ? 'notice' : 'ask';
   return { id, uv: h.object === lab.notice.mesh || h.object === lab.kiosk.screen ? h.uv : null, free };
@@ -1696,8 +1702,8 @@ function route() {
         labWalk?.kill();
         NAV.lab.reset();
         camera.fov = labLook.fov; camera.updateProjectionMatrix();
-        labChosen = !!sub;
-        labChoice.classList.toggle('on', !sub);
+        labChosen = true;                                                         // straight into the gallery walk; the glass is a hotspot of its own
+        labChoice.classList.remove('on');
         setMarquee(LAB_MARQUEE);
         if (sub) setTimeout(() => focusLab(sub), 450);
         else if (firstLab) {

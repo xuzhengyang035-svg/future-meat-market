@@ -376,7 +376,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   // Walls and furniture stop you (rays at knee and chest height against the meshes near you); the floor is found with
   // a ray straight down, so low steps and stairs (up to 0.3 m) are climbed and benches or tables are not.
   const held = new Set(), vel = new THREE.Vector2(), MOVE = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
-  const R = 0.35, STEP = 0.22, near = [], floors = [], hray = new THREE.Raycaster(), dray = new THREE.Raycaster(), o = new THREE.Vector3(), dv = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
+  const R = 0.35, STEP = 0.22, near = [], floors = [], props = [], hray = new THREE.Raycaster(), dray = new THREE.Raycaster(), o = new THREE.Vector3(), dv = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
   let solids = null, nearAt = new THREE.Vector3(1e9, 0, 0), floorY = null, hint = null, moved = false;
   hray.firstHitOnly = dray.firstHitOnly = true;
   function collectSolids() {
@@ -399,11 +399,14 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   }
   function gather() {
     solids ??= collectSolids();
-    near.length = floors.length = 0;
+    near.length = floors.length = props.length = 0;
     if (!solids) return;
     nearAt.copy(eye);
+    const base = floorY ?? eye.y - graph.eye;
     for (const s of solids) if (s.box.distanceToPoint(eye) < 3) {
       near.push(s.m);
+      const b = s.box, wx = b.max.x - b.min.x, wz = b.max.z - b.min.z;
+      if (Math.max(wx, wz) < 1.25 && b.max.y - b.min.y > 0.25 && b.max.y - b.min.y < 1.9 && b.min.y < base + 0.45 && b.max.y > base + 0.3) props.push(b);   // a free-standing prop: chairs, A-boards, stools, bins: solid as a whole, no slipping between its legs
       if (Math.min(s.box.max.x - s.box.min.x, s.box.max.z - s.box.min.z) > 0.7) floors.push(s.m);   // only wide things are walked on: floors, steps, platforms (not stool feet)
     }
   }
@@ -418,7 +421,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   function wall(x, z, dx, dz, len, base) {
     let best = null;
     dv.set(dx, 0, dz).normalize();
-    for (const h of [0.35, 0.9, 1.45]) {
+    for (const h of [0.3, 0.68, 1.0, 1.5]) {                                       // knee, table-top, waist, chest
       hray.set(o.set(x, base + h, z), dv); hray.far = len + R;
       const hit = hray.intersectObjects(near, false).find((x) => x.distance > 0.03);   // a hit right at the start = we're already overlapping it: let us walk out
       if (hit && (!best || hit.distance < best.distance)) best = hit;
@@ -430,6 +433,16 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
     hitN.normalize();
     if (hitN.x * dv.x + hitN.z * dv.z > 0) hitN.negate();                             // a face seen from behind
     return { nx: hitN.x, nz: hitN.z, d: best.distance };
+  }
+  const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4), Math.sin(i * Math.PI / 4)]);
+  function pushOut(x, z, base) {
+    let px = 0, pz = 0;
+    for (const h of [0.5, 1.2]) for (const [cx, cz] of RING) {
+      hray.set(o.set(x, base + h, z), dv.set(cx, 0, cz)); hray.far = R * 0.9;
+      const hit = hray.intersectObjects(near, false)[0];
+      if (hit) { const push = R * 0.9 - hit.distance; px -= cx * push; pz -= cz * push; }
+    }
+    return [x + px * 0.35, z + pz * 0.35];
   }
   const outOfBounds = (ox, oz, x, z) => (graph.keepOut || []).some(([x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1 && !(ox > x0 && ox < x1 && oz > z0 && oz < z1));
   function freeTick(dt) {
@@ -457,6 +470,9 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
         if (into < 0) { rx -= w.nx * into; rz -= w.nz * into; }
         mx = rx; mz = rz;
       } else { qx += mx; qz += mz; }
+      const inProp = (x, z) => props.some((b) => x > b.min.x - R * 0.6 && x < b.max.x + R * 0.6 && z > b.min.z - R * 0.6 && z < b.max.z + R * 0.6 && !(P.x > b.min.x - R * 0.6 && P.x < b.max.x + R * 0.6 && P.z > b.min.z - R * 0.6 && P.z < b.max.z + R * 0.6));
+      if (inProp(qx, qz)) { if (!inProp(qx, P.z)) qz = P.z; else if (!inProp(P.x, qz)) qx = P.x; else { qx = P.x; qz = P.z; } }
+      if (near.length) [qx, qz] = pushOut(qx, qz, base);                            // already brushing something: ease back out of it
       if (outOfBounds(P.x, P.z, qx, P.z)) qx = P.x;
       if (outOfBounds(P.x, P.z, qx, qz)) qz = P.z;
       const g = near.length ? groundAt(qx, qz, base) : null;
