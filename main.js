@@ -57,7 +57,9 @@ await stage(0.02, 'Unlocking the shutters');
 await initAssets();
 // 画布上的文字（海报、标牌）要等字体加载好再画
 await Promise.race([
-  Promise.all(['500 20px "Noto Serif SC"', '600 20px "Noto Serif SC"', '400 20px "Noto Sans SC"', '500 20px "Noto Sans SC"', '500 20px "IBM Plex Mono"', '500 20px Inter']
+  Promise.all(['500 20px "Noto Serif SC"', '600 20px "Noto Serif SC"', '400 20px "Noto Sans SC"', '500 20px "Noto Sans SC"', '500 20px "IBM Plex Mono"', '500 20px Inter',
+    '700 20px "Bodoni Moda"', '700 20px "Cormorant Garamond"',
+    'italic 700 20px "Cormorant Garamond"', '600 20px Jost']
     .map((f) => document.fonts.load(f))),
   new Promise((r) => setTimeout(r, 3000)),
 ]).catch(() => {});

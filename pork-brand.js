@@ -4,7 +4,9 @@ import { canvasTexture } from './textures.js';
 const CREAM = '#f0e3c5';
 const RED = '#8e302d';
 const GREEN = '#203a31';
-const MONO = '"Courier New", monospace';
+const DISPLAY = '"Bodoni Moda", Didot, Georgia, serif';
+const BOOK = '"Cormorant Garamond", Georgia, serif';
+const DETAILS = 'Jost, Arial, sans-serif';
 
 function wordmark(g, x, y, height, ink, accent = ink) {
   g.save();
@@ -26,12 +28,13 @@ function wordmark(g, x, y, height, ink, accent = ink) {
   g.fillStyle = ink;
   g.textAlign = 'left';
   g.textBaseline = 'middle';
-  g.font = 'bold 104px Georgia, serif';
-  g.fillText('PORK', 151, 55);
-  const next = 151 + g.measureText('PORK').width;
+  g.font = '700 104px ' + DISPLAY;
+  const nameWidth = Math.min(g.measureText('PORK').width, 330);
+  g.fillText('PORK', 151, 55, nameWidth);
+  const next = 151 + nameWidth + 8;
   g.fillStyle = accent;
-  g.font = 'bold 84px ' + MONO;
-  g.fillText('.exe', next, 59);
+  g.font = 'italic 700 84px ' + BOOK;
+  g.fillText('.exe', next, 59, 165);
   g.restore();
 }
 
@@ -45,7 +48,7 @@ export function porkBrandTexture(format, product, price) {
     wordmark(g, 36, 23, 114, GREEN, RED);
     g.fillStyle = RED;
     g.fillRect(828, 38, 3, 84);
-    g.font = 'bold 30px ' + MONO;
+    g.font = '600 32px ' + DETAILS;
     g.fillText('CULTIVATED', 868, 73);
     g.fillText('BUTCHER & DELI', 868, 110);
     ageCanvas(g, W, H, { amount: 0.45, seed: 52, drips: false });
@@ -61,17 +64,17 @@ export function porkBrandTexture(format, product, price) {
     g.fillRect(30, 32, W - 60, 100);
     wordmark(g, 48, 57, 50, GREEN, RED);
     g.textAlign = 'center';
-    g.font = 'bold 26px ' + MONO;
+    g.font = '600 26px ' + DETAILS;
     g.fillText('CULTIVATED PORK', W / 2, 200);
-    g.font = 'bold 64px Georgia, serif';
-    g.fillText('Pick your fat.', W / 2, 292);
+    g.font = 'italic 700 76px ' + BOOK;
+    g.fillText('Pick your fat.', W / 2, 292, W - 90);
     g.fillStyle = CREAM;
     g.fillRect(56, 344, W - 112, 2);
-    g.font = '25px ' + MONO;
+    g.font = '600 25px ' + DETAILS;
     g.fillText('PORK CHOP · 200 g', W / 2, 405);
-    g.font = 'bold 62px Georgia, serif';
+    g.font = '700 62px ' + DISPLAY;
     g.fillText('¥98', W / 2, 483);
-    g.font = 'bold 19px ' + MONO;
+    g.font = '600 20px ' + DETAILS;
     g.fillText('ORDER AT THE COUNTER', W / 2, 554);
     ageCanvas(g, W, H, { amount: 0.5, seed: 62, drips: false });
   });
@@ -84,11 +87,11 @@ export function porkBrandTexture(format, product, price) {
     g.strokeRect(8, 8, W - 16, H - 16);
     wordmark(g, 24, 22, 49, GREEN, RED);
     g.fillStyle = GREEN;
-    g.font = 'bold 56px Georgia, serif';
-    g.fillText(product, 24, 145);
+    g.font = '700 62px ' + BOOK;
+    g.fillText(product, 24, 145, W - 48);
     g.fillStyle = RED;
-    g.font = 'bold 29px ' + MONO;
-    g.fillText(price, 24, 199);
+    g.font = '600 33px ' + DETAILS;
+    g.fillText(price, 24, 199, W - 48);
   });
 }
 

@@ -900,10 +900,10 @@ export function createRoom(env) {
   const heroPoster = canvasTexture(800, 1100, (g, W, H) => {
     g.fillStyle = '#cfc6ae'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#8a2a27'; g.fillRect(0, 0, W, 14); g.fillRect(0, H - 14, W, 14);
-    g.fillStyle = '#2a2420'; g.font = `700 112px ${SERIF}`; g.fillText('Cultivated.', 60, 170); g.fillText('No kill.', 60, 300);
-    g.fillStyle = '#8a2a27'; g.font = `600 40px ${SANS}`; g.fillText('Grown from animal cells', 64, 380);
+    g.fillStyle = '#2a2420'; g.font = '700 112px "Bodoni Moda", Didot, Georgia, serif'; g.fillText('Cultivated.', 60, 170, 680); g.font = 'italic 700 130px "Cormorant Garamond", Georgia, serif'; g.fillText('No kill.', 60, 300, 680);
+    g.fillStyle = '#8a2a27'; g.font = '600 40px Jost, Arial, sans-serif'; g.fillText('Grown from animal cells', 64, 380, 672);
     g.fillStyle = '#9fb094'; g.fillRect(60, 430, W - 120, 470);
-    g.fillStyle = '#4b4844'; g.font = `400 30px ${SANS}`; g.fillText('Beef · pork · chicken · croaker   from ¥68 / 200 g', 64, 960);
+    g.fillStyle = '#4b4844'; g.font = '600 30px Jost, Arial, sans-serif'; g.fillText('Beef · pork · chicken · croaker   from ¥68 / 200 g', 64, 960, 672);
     drawPorkWordmark(g, 64, 991, 54);
     ageCanvas(g, W, H, { amount: 1.1, seed: 33 });
   });
