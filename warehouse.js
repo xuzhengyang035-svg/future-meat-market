@@ -6,6 +6,7 @@
 //   最里面   冷库（细胞库，液氮），门口几只液氮罐
 //   右后角   04 冷藏货架（猪肉按口感分三层）、05 自动出库（滚筒线、机械臂、扫码门、托盘车）、06 档案区（登记册、图谱、退货桶）
 import * as THREE from 'three';
+import { drawPorkWordmark, porkBrandTexture } from './pork-brand.js';
 import { canvasTexture } from './textures.js';
 import { createCartonKit } from './cartons.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -313,6 +314,11 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     box(X1 - D1, HT - WB, 0.2, wallMat((X1 - D1) / 2), (X1 + D1) / 2, WB + (HT - WB) / 2, Z1 - 0.1, root);
     box(D1 - D0, HT - DH, 0.2, wallMat((D1 - D0) / 2), (D0 + D1) / 2, (HT + DH) / 2, Z1 - 0.1, root); }
   box(WD, HT - WB, 0.2, wallMat(12), CX, WB + (HT - WB) / 2, Z0 + 0.1, root);
+  const dispatchSign = porkBrandTexture('wall', 'Cold-chain dispatch', 'WAREHOUSE A  /  PALLET COLLECTION');
+  const dispatchMat = lit(dispatchSign, { emissive: 0xffffff, emissiveMap: dispatchSign, emissiveIntensity: 0.24 });
+  box(4.16, 2.1, 0.08, M.rackDark, 0.8, 5.75, Z1 + 0.07, root);
+  plane(4.05, 2.025, dispatchMat, 0.8, 5.75, Z1 + 0.116, 0, root);
+
   const ironMat = pbr('corrugated_iron', DP, HT - WB, { size: 2.4, roughness: 0.72, metalness: 0.3, color: 0xb0aea6 });   // 两侧墙上半截：镀锌瓦楞铁皮
   box(0.2, HT - WB, DP, ironMat, X0 - 0.1, WB + (HT - WB) / 2, CZ, root);
   box(0.2, HT - WB, DP, ironMat, X1 + 0.1, WB + (HT - WB) / 2, CZ, root);
@@ -425,7 +431,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     for (const [dx, dy, a] of [[0, 0, 0.92], [1.6, 0.8, 0.55], [-0.8, 1.2, 0.35]]) { g.fillStyle = `rgba(14,14,18,${a})`; g.fillText(t, dx, dy); }   // 马克笔：笔画边缘有点洇
     if (r() < 0.35) { g.strokeStyle = 'rgba(14,14,18,.85)'; g.lineWidth = 4; g.beginPath(); g.moveTo(-90, 34); g.lineTo(90, 30 + r() * 8); g.stroke(); }   // 有的底下划了一道
     const t2 = new THREE.CanvasTexture(c); t2.colorSpace = THREE.SRGBColorSpace; t2.anisotropy = 8; return new THREE.MeshStandardMaterial({ map: t2, transparent: true, depthWrite: false, roughness: 0.55, polygonOffset: true, polygonOffsetFactor: -3 }); });
-  const shipLabel = lit(printed('Paper006', 256, 180, (g, W, H) => { g.fillStyle = '#1a1a1a'; g.textAlign = 'left'; g.font = `800 26px ${SANS}`; g.fillText('PALLET LABEL', 14, 34); g.font = `600 17px ${MONO}`;
+  const shipLabel = lit(printed('Paper006', 256, 180, (g, W, H) => { g.fillStyle = '#1a1a1a'; g.textAlign = 'left'; g.font = `800 26px ${SANS}`; drawPorkWordmark(g, 14, 13, 36); g.fillStyle = '#1a1a1a'; g.font = `600 17px ${MONO}`;
     ['FROM  WAREHOUSE A', 'TO    SHOP FLOOR / COLD', 'QTY   40 CTN', 'DATE  2026-11-20'].forEach((t, k) => g.fillText(t, 14, 70 + k * 26)); g.lineWidth = 3; g.strokeRect(6, 6, W - 12, H - 12); }, [['Fingerprints008', [60, 50, 40], 0.5, 0.5, 0.3, 0.5, 0.7]]), { roughness: 0.85 });
   const tapeStrip = (p, len, wdt, mat, x, y, z, rx, ry) => { const g = new THREE.PlaneGeometry(wdt, len); const U = g.attributes.uv; for (let i = 0; i < U.count; i++) U.setY(i, U.getY(i) * len / 0.35); const m = new THREE.Mesh(g, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0, 'YXZ'); p.add(m); return m; };
   const wrapStack = (g, x, y, S, { film = true, tape = true } = {}) => { const { h, w, d } = S; if (h < 0.1) return;

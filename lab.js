@@ -3,6 +3,7 @@
 // 观众站在参观廊里；玻璃前的展台上是“你的批次”——一个台式灌流培养罐，里面的肉在长大。
 // 左墙是生长数据墙；玻璃最左边是一扇磨砂门：细胞库，非参观区域。
 import * as THREE from 'three';
+import { porkBrandTexture } from './pork-brand.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { deferImages } from './gfx.js';
@@ -406,6 +407,10 @@ export function createLab(env) {
   box(8.5, 0.1, 0.16, M.frame, 0.8, 2.72, -1.0, root);
   box(8.4, 0.05, 0.3, M.frame, 0.8, 0.875, -0.95, root);
   box(1.8, 3, 0.2, wallMat(1.8, 3), -4.3, 1.5, -1.0, root);
+  const labIdentity = porkBrandTexture('wall', 'Cultivation lab', 'PILOT PRODUCTION');
+  box(0.046, 0.99, 1.95, M.steel, 4.972, 2.27, 0.95, root);
+  plane(1.88, 0.94, labIdentity, 4.945, 2.27, 0.95, -Math.PI / 2, root);
+  plane(1.26, 0.63, labIdentity, -1.55, 2.1, 3.981, Math.PI, root, false);
   plane(0.14, 0.14, noPhotoSticker(), -3.15, 2.5, -0.99, 0, root);
   plane(0.14, 0.14, noPhotoSticker(), 4.75, 2.5, -0.99, 0, root);
 

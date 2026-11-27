@@ -16,8 +16,6 @@ import { makeAnimal } from './animals.js';
 import { CERAMIC_BASE } from './data.js';
 import { pbr, model, decal, userDecal, userTex, userMat } from './assets.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
-import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { pencil } from './notepad.js';
 import { glassOn } from './lab-signs.js';
 import { drawPorkWordmark, porkBrandTexture } from './pork-brand.js';
@@ -302,12 +300,6 @@ export function createRoom(env) {
     for (const x of [-w / 2, w / 2]) for (const z of [-d / 2, d / 2]) cyl(0.012, 0.012, h, M.steel, x, h / 2, z, parent, 8);
     for (const y of levels) { box(w, 0.012, d, M.steel, 0, y, 0, parent); for (const z of [-d / 2, d / 2]) box(w, 0.025, 0.006, M.steel, 0, y + 0.01, z, parent); }
   };
-  const neon = (text, w, h, size, color) => canvasTexture(w, h, (g, W, H) => {
-    g.clearRect(0, 0, W, H); g.font = `700 ${size}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.shadowColor = color; g.shadowBlur = size * 0.35; g.fillStyle = '#fff'; g.fillText(text, W / 2, H / 2);
-    g.shadowBlur = 0; g.lineWidth = size * 0.06; g.strokeStyle = color; g.strokeText(text, W / 2, H / 2);
-  });
-
   // ================================================================ 后墙：熟食柜台（参考老式快餐店的不锈钢吧台）
   // 客人坐在吧台前试吃、看价目表；厨师在后面的铁板上煎肉；结算终端在吧台右端。
   // 吧台后墙：左边一柜写着细胞系编号的小抽屉，中间是通往后厨的传菜窗，右边是放调料和餐具的开放架。
@@ -673,30 +665,10 @@ export function createRoom(env) {
   // 前沿下面挂着几道油垢流痕
   { const dr = canvasTexture(1024, 96, (g, W, H) => { g.clearRect(0, 0, W, H); const rr = ((n) => () => (n = (n * 16807) % 2147483647) / 2147483647)(91); for (let i = 0; i < 40; i++) dripStreak(g, rr() * W, 0, 20 + rr() * 70, 2 + rr() * 5, rr, '70,56,30', 0.25 + rr() * 0.25); });
     plane(HX1 - HX0, 0.36, new THREE.MeshStandardMaterial({ map: dr, transparent: true, depthWrite: false, roughness: 0.3, metalness: 0.5 }), (HX0 + HX1) / 2, HY + 0.2, HZ0 + 0.016, 0, room); }
-  const nameTex = canvasTexture(1600, 170, (g, W, H) => {
-    g.clearRect(0, 0, W, H);
-    g.font = `800 92px ${SANS}`; g.textBaseline = 'middle'; g.textAlign = 'left';
-    g.fillStyle = 'rgba(30,30,28,.75)'; g.fillText('FUTURE MEAT  FRESH · DELI', 60, H / 2 + 3);
-    g.fillStyle = 'rgba(200,198,190,.35)'; g.fillText('FUTURE MEAT  FRESH · DELI', 58, H / 2);
-  });
-  const slopeRot = -Math.atan2(HSL - HZ0 < 0 ? (HZ0 - HSL) : 1, HTOP - 3.0);
-  const neonMat = new THREE.MeshBasicMaterial({ map: neon('NO KILL', 640, 200, 130, '#ff3a3a'), transparent: true, color: new THREE.Color(2.6, 2.2, 2.2), depthWrite: false });
-  // 罩子正面（顾客站着平视就能看见的那一截竖板）装一排塑料立体字：左边奶白色面 + 红色侧边的店名，右边红色的一句 NO SLAUGHTER NEEDED
-  //（原来斜面上那行红色霓虹“无需屠宰”在头顶，没人看得见，去掉）
-  new FontLoader().load('https://cdn.jsdelivr.net/npm/three@0.169.0/examples/fonts/helvetiker_bold.typeface.json', (font) => {
-    const plastic = (c, o = {}) => new THREE.MeshPhysicalMaterial({ color: c, roughness: 0.32, clearcoat: 0.7, clearcoatRoughness: 0.2, emissive: c, emissiveIntensity: 0.12, ...o });
-    const word = (text, size, depth, face, sideM, x, y) => {
-      const g = new TextGeometry(text, { font, size, depth, curveSegments: 6, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2 });
-      g.computeBoundingBox(); const bb = g.boundingBox; g.translate(-(bb.min.x + bb.max.x) / 2, -(bb.min.y + bb.max.y) / 2, 0);
-      const m = new THREE.Mesh(g, [face, sideM]); m.position.set(x, y, HZ0 + 0.012 + 0.012); room.add(m);   // 离板面 1.2 cm（后面有支脚顶着）
-      const w = bb.max.x - bb.min.x;
-      for (let i = 0; i < Math.max(2, Math.round(w / 0.35)); i++) cyl(0.004, 0.004, 0.014, M.steel, x - w / 2 + 0.05 + i * (w - 0.1) / Math.max(1, Math.round(w / 0.35) - 1), y, HZ0 + 0.017, room, 6).rotation.x = Math.PI / 2;   // 支脚
-      return m; };
-    const midY = (HY + 3.0) / 2 + 0.005;
-    word('FUTURE MEAT', 0.2, 0.035, plastic(0xf0e6d2), plastic(0xa8241c, { emissiveIntensity: 0.05 }), HX0 + 1.35, midY);
-    word('NO SLAUGHTER NEEDED', 0.115, 0.03, plastic(0xc0261e), plastic(0x7a1812, { emissiveIntensity: 0.05 }), HX1 - 1.2, midY);
-    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.022, 20), plastic(0xc0261e)); dot.position.set((HX0 + 2.6 + HX1 - 2.25) / 2, midY, HZ0 + 0.03); room.add(dot);
-  });
+  const counterGuide = porkBrandTexture('counter-guide');
+  plane(4.68, 0.312, lit(counterGuide, {
+    emissive: 0xffffff, emissiveMap: counterGuide, emissiveIntensity: 0.3
+  }), (HX0 + HX1) / 2, (HY + 3.0) / 2, HZ0 + 0.027, 0, room);
   // 价目表：挂在罩子下面的三块黑板，粉笔手写 + 画了几笔（牛的分割图、香肠、牛排）
   const CHALK = '"Segoe Print", "Comic Sans MS", "Noto Sans SC", cursive';
   const CF = (px) => `600 ${px}px Caveat, "Segoe Print", cursive`;
@@ -917,6 +889,16 @@ export function createRoom(env) {
   const board = plane(1.4, 0.5, lit(porkBrandTexture('label', 'Cultivated meat', 'ORDER AT THE COUNTER')), -1.5, 2.5, 2.7, 0.2, room);
   board.rotation.z = -0.04;
   for (const x of [-2.1, -0.9]) hose([[x, 3.2, 2.7 - (x + 1.5) * 0.2], [x, 2.75, 2.7 - (x + 1.5) * 0.2]], 0.003, M.ink);
+
+  const retailPoster = porkBrandTexture('poster');
+  const retailPosterMat = lit(retailPoster, { emissive: 0xffffff, emissiveMap: retailPoster, emissiveIntensity: 0.18 });
+  box(0.036, 1.68, 1.32, M.ink, 4.975, 2.8, 3.35, room);
+  plane(1.24, 1.6, retailPosterMat, 4.951, 2.8, 3.35, -Math.PI / 2, room);
+  const customWall = porkBrandTexture('wall', 'Custom orders', '←  ORDER AT THE LEFT COUNTER');
+  box(1.68, 0.86, 0.045, M.ink, -5.72, 3.05, -3.99, room);
+  plane(1.62, 0.81, lit(customWall, {
+    emissive: 0xffffff, emissiveMap: customWall, emissiveIntensity: 0.22
+  }), -5.72, 3.05, -3.962, 0, room);
 
   // ================================================================ 左边：用餐区（两张连凳餐桌、吊灯；参考快餐店的长条桌）
   const enamelShade = new THREE.MeshStandardMaterial({ color: 0x3e4a40, roughness: 0.35, metalness: 0.2, side: THREE.DoubleSide, map: grimeMap(48) });
@@ -1471,7 +1453,6 @@ export function createRoom(env) {
     const on = ph > 6.6 ? (Math.sin(ph * 63) > 0.1 ? 0.25 : 1) : ph < 0.25 ? 0.6 + Math.random() * 0.4 : 1;
     flickerTube.color.setRGB(2.3 * on, 2.6 * on, 2.4 * on);
     flickerLight.intensity = 4.5 * (0.35 + 0.65 * on);
-    neonMat.color.setScalar(t % 11 > 10.7 ? 0.8 : 2.4);                          // 霓虹偶尔暗一下
   }
   // 海报和“供体照片”在主程序里渲染好之后再贴上来
   function setPosters(tex, photos) {
