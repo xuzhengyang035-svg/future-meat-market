@@ -380,7 +380,7 @@ export function createLab(env) {
   const hallWallMat = (w, h) => new THREE.MeshStandardMaterial({ ...grimeWallMaps(w, h, { tile: false, dado: 1.6, ppm: 40, upper: [138, 142, 134], paint: [62, 76, 68], seed: 9, ao: 0.6 }) });
 
   // 参观廊：x -5..5，z -1..4，层高 3m，偏暗
-  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.52, envMapIntensity: 1.5, color: 0xe2ece8 }));   // less mirror, more tile: it read as a black hole
+  const gFloor = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('worn_tile_floor', 10, 5, { size: 2.4, roughness: 0.78, envMapIntensity: 0.7, color: 0xd6e0dc }));   // less mirror, more tile: it read as a black hole
   gFloor.rotation.x = -Math.PI / 2; gFloor.position.set(0, 0, 1.5);
   root.add(gFloor);
   const gCeil = new THREE.Mesh(new THREE.PlaneGeometry(10, 5), pbr('OfficeCeiling003', 10, 5, { size: 1.2, roughness: 0.9, color: 0x6a6a66 }));   // 矿棉板吊顶（照片扫描）
@@ -401,7 +401,7 @@ export function createLab(env) {
   glass.position.set(0.8, 1.775, -1.0); glass.renderOrder = 6;
   root.add(glass);
   // 玻璃上手扶高度的手印和擦拭痕
-  const smudge = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 1.85), new THREE.MeshStandardMaterial({ map: smudgeMap(8.4, 1.85, 0.12), transparent: true, depthWrite: false, roughness: 0.7, opacity: 0.6 }));
+  const smudge = new THREE.Mesh(new THREE.PlaneGeometry(8.4, 1.85), new THREE.MeshStandardMaterial({ map: smudgeMap(8.4, 1.85, 0.12), transparent: true, depthWrite: false, roughness: 0.7, opacity: 0.15 }));   // fingerprints, not big wiped circles
   smudge.position.set(0.8, 1.775, -0.985); smudge.renderOrder = 7;
   root.add(smudge);
   for (const x of [-3.4, -1.3, 0.8, 2.9, 5.0]) box(0.11, 1.9, 0.16, M.frame, x, 1.775, -1.0, root);
@@ -620,9 +620,9 @@ export function createLab(env) {
   });
 
   // 打光分三层：远处沉在青色的雾里，中景是三座罐子的绿光，近处是几摊暖黄的台灯。暗的地方就让它暗（不开阴影）
-  for (const [x, y, z] of [[-1.73, 3.98, -9.78], [1.81, 4.18, -9.59], [5.7, 3.91, -9.91]]) { const l = new THREE.PointLight(0x62f0a0, 9, 6, 1.8); l.position.set(x, y - 0.7, z + 0.7); ward.add(l); }
+  for (const [x, y, z] of [[-1.73, 3.98, -9.78], [1.81, 4.18, -9.59], [5.7, 3.91, -9.91]]) { const l = new THREE.PointLight(0x62f0a0, 17, 6.5, 1.8); l.position.set(x, y - 0.7, z + 0.7); ward.add(l); }   // the tanks are the light source of this room
   for (const [x, y, z] of [[-1.95, 3.85, -10.0], [1.59, 4.05, -9.83], [5.48, 3.65, -10.15]]) {
-    glowColumn(ward, [x, y, z], { radius: 1.05, height: 3.2, color: 0x43d97a, strength: 0.15 });
+    glowColumn(ward, [x, y, z], { radius: 1.05, height: 3.2, color: 0x43d97a, strength: 0.24 });
     lightCone(ward, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.5, radius: 1.15, top: 0.4, color: 0x4fe8a0, strength: 0.26 });   // 罐底漏下来的光
     dustMotes(ward, [x, y - 1.35, z], [0, -1, 0.12], { length: 2.4, radius: 1.0, top: 0.4, count: 160, color: 0xa8ffc8, strength: 0.6 });
   }
@@ -638,12 +638,12 @@ export function createLab(env) {
   ]) { lightCone(ward, from, dir, o); dustMotes(ward, from, dir, { ...o, top: 0.1, count: 170, strength: 0.65 }); }
   dirtyHall(ward, -12.4);                                                  // 车间后墙和两侧墙上的水痕、墙根的脏
   for (const [col, i, dist, outer, inner, [x, y, z], [dx, dy, dz]] of [
-    [0xffb468, 34, 5, 0.82, 0.4, [-1.55, 2.7, -1.6], [0, -1, -0.07]],          // 显微镜台：一摊暖黄
-    [0x7fe0d2, 52, 7, 0.95, 0.42, [-5.55, 3.05, -3.57], [0.04, -0.88, -0.47]], // 左边两张床
-    [0x62c8d4, 54, 7, 0.95, 0.42, [4.25, 3.16, -3.69], [0.04, -0.93, -0.37]],  // 右边两张床
-    [0x2a88cc, 64, 9, 1.0, 0.5, [-6.7, 3.13, -6.92], [0.78, -0.39, -0.49]],    // 工作区：冷青的侧光
-    [0xff9440, 38, 5, 0.8, 0.4, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18]],   // 回收角：钠灯一样的橙
-    [0xdcffe6, 30, 5, 0.58, 0.3, [0.1, 2.88, -4.51], [0, -1, -0.04]],          // 停用的空床：单独一束，垫子上擦过的血痕要看得见
+    [0xffb468, 26, 5, 0.82, 0.4, [-1.55, 2.7, -1.6], [0, -1, -0.07]],          // 显微镜台：一摊暖黄
+    [0x7fe0d2, 28, 7, 0.95, 0.42, [-5.55, 3.05, -3.57], [0.04, -0.88, -0.47]], // 左边两张床
+    [0x62c8d4, 28, 7, 0.95, 0.42, [4.25, 3.16, -3.69], [0.04, -0.93, -0.37]],  // 右边两张床
+    [0x2a88cc, 36, 9, 1.0, 0.5, [-6.7, 3.13, -6.92], [0.78, -0.39, -0.49]],    // 工作区：冷青的侧光
+    [0xff9440, 26, 5, 0.8, 0.4, [8.16, 2.98, -8.86], [-0.03, -0.98, -0.18]],   // 回收角：钠灯一样的橙
+    [0xdcffe6, 20, 5, 0.58, 0.3, [0.1, 2.88, -4.51], [0, -1, -0.04]],          // 停用的空床：单独一束，垫子上擦过的血痕要看得见
   ]) {
     const l = new THREE.SpotLight(col, i, dist, outer, 1 - inner / outer, 2);
     l.position.set(x, y, z); l.target.position.set(x + dx, y + dy, z + dz); (z > -2 ? hall : ward).add(l, l.target);
@@ -678,7 +678,7 @@ export function createLab(env) {
   slab(plane(0.2, 0.26, textSign([['FIRE', 44, '#fff', 0.45, 600, SANS, 'center'], ['EXTINGUISHER', 18, '#fff', 0.8, 500, MONO, 'center']], 200, 260, { bg: '#c8211f' }), 4.55, 1.05, 3.99, Math.PI, root), { depth: 0.003 });
   plane(1.0, 0.35, canvasTexture(400, 140, (g, W, H) => { g.fillStyle = '#a4a29d'; g.fillRect(0, 0, W, H); g.fillStyle = '#34353a'; for (let y = 10; y < H - 6; y += 12) g.fillRect(8, y, W - 16, 6); }), -2.4, 2.6, 3.99, Math.PI, root, false);
   scene.add(new THREE.HemisphereLight(0x5aa0a4, 0x1a2224, 0.26));
-  for (const x of [-2.2, 2.4]) { const dl = new THREE.PointLight(0xffd8b0, 22, 6.5, 1.5); dl.position.set(x, 2.85, 2.5); root.add(dl);   // gallery downlights: the floor was a black hole
+  for (const x of [-2.2, 2.4]) { const dl = new THREE.PointLight(0xffd8b0, 11, 6, 1.6); dl.position.set(x, 2.85, 2.5); root.add(dl);   // gallery downlights: the floor was a black hole
     cyl(0.07, 0.07, 0.02, M.white, x, 2.99, 2.5, root, 20); cyl(0.05, 0.05, 0.005, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 1.9, 1.5) }), x, 2.978, 2.5, root, 20); }
 
   // ---------------------------------------------------------------- 动画与数据

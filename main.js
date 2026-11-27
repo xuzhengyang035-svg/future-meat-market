@@ -136,7 +136,7 @@ const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned
 window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; }, get camera() { return camera; } };   // 调试用
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
 // 三个场景统一偏暗、偏冷（调色在 post.js 里）
-const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.12], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
+const TONE = { lab: [THREE.NeutralToneMapping, 0.84], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.12], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
 
 const $ = (s) => document.querySelector(s);
 const state = { view: 'boot', rfocus: null, sel: null, mode: null, fscreen: null, opts: null, order: null, basket: [], busy: false, focus: null, batch: makeBatch(null) };
