@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Future Meat Market · 迭代版本</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #141312; --card: #1d1b19; --line: #34302b; --ink: #efe9dc; --dim: #a39a8a; --red: #c0392f; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.6 Inter, "Noto Sans SC", sans-serif; padding: 56px 24px 80px; }
+  main { max-width: 980px; margin: 0 auto; }
+  .eyebrow { font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .18em; color: var(--dim); text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+  .eyebrow i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--red); display: inline-block; }
+  h1 { font: 700 34px/1.2 Inter, "Noto Sans SC", sans-serif; margin: 14px 0 10px; letter-spacing: -.01em; }
+  .lead { color: var(--dim); max-width: 640px; }
+  ol { list-style: none; padding: 0; margin: 40px 0 0; display: grid; gap: 16px; position: relative; }
+  li a { display: grid; grid-template-columns: 92px 1fr auto; gap: 24px; align-items: center; padding: 24px 26px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; color: inherit; text-decoration: none; transition: border-color .2s, transform .2s; }
+  li a:hover { border-color: #6a5f52; transform: translateY(-1px); }
+  .num { font: 700 46px/1 "IBM Plex Mono", monospace; color: #5a5248; }
+  li.now .num { color: var(--red); }
+  .meta { font: 500 12px "IBM Plex Mono", monospace; color: var(--dim); letter-spacing: .06em; }
+  h2 { font: 600 20px/1.3 Inter, "Noto Sans SC", sans-serif; margin: 4px 0 6px; }
+  p.d { color: var(--dim); font-size: 14px; }
+  .go { font: 500 13px Inter, sans-serif; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; white-space: nowrap; }
+  li.now .go { background: var(--red); border-color: var(--red); }
+  .tag { display: inline-block; font: 500 11px "IBM Plex Mono", monospace; color: var(--dim); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin-left: 8px; vertical-align: 2px; }
+  footer { margin-top: 36px; color: #6f675c; font-size: 13px; }
+  @media (max-width: 640px) { li a { grid-template-columns: 1fr; gap: 10px; } .num { font-size: 34px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow"><i></i>Future Meat Market · Iteration</div>
+  <h1>三个版本，按时间顺序</h1>
+  <p class="lead">同一个项目从本地原型到现在的样子。每个版本都是当时的原样代码，可以直接打开操作。</p>
+  <ol>
+    <li><a href="01/">
+      <div class="num">01</div>
+      <div><div class="meta">2026-11-03 · 本地原型 · 从未推送</div>
+        <h2>定制你的肉<span class="tag">future_meat/</span></h2>
+        <p class="d">一个页面、一间店：选物种、调参数，肉块实时变化，最后出一张证书。还没有街道、仓库和实验室。</p></div>
+      <div class="go">打开 →</div></a></li>
+    <li><a href="02/">
+      <div class="num">02</div>
+      <div><div class="meta">2026-11-14 · 门店雏形 · 从未推送（从开发快照还原）</div>
+        <h2>有了门店、冷柜和实验室<span class="tag">本地开发中途</span></h2>
+        <p class="d">肉店变成一间可以走动的门店，冷柜里选肉、实验室里看培养。全部是程序生成的简单几何体，还没有街道、仓库和扫描贴图。</p></div>
+      <div class="go">打开 →</div></a></li>
+    <li class="now"><a href="../">
+      <div class="num">03</div>
+      <div><div class="meta">2026-11-27 · 现在 · main 分支最新</div>
+        <h2>现在的版本</h2>
+        <p class="d">真实扫描材质、可以走近和拿起来看的物件、店里店外互相对应的视野、报纸和街区细节。</p></div>
+      <div class="go">打开 →</div></a></li>
+  </ol>
+  <footer>01 → 02 相隔 11 天；11 月 21 日第一次推送到 GitHub，之后到 03 又有 23 次提交。</footer>
+</main>
+</body>
+</html>

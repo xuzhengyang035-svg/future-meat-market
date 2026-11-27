@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Future Meat Market</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    } }
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="hotspots"></div>
+  <div id="products"></div>
+  <div id="labspots"></div>
+  <div id="tankspots"></div>
+
+  <!-- 观察室：你的批次的数据化标注层 -->
+  <section id="hud">
+    <svg class="lines" aria-hidden="true"></svg>
+    <div class="hcol l">
+      <div class="htitle">
+        <div class="tag"><i></i>LIVE · BR-02</div>
+        <h3 data-h="title"></h3>
+        <div class="sub" data-h="sub"></div>
+      </div>
+      <div class="hbox" data-anchor="lid"><label>培养进度 · DAY</label><div class="val" data-h="day"></div><div class="bar"><i data-h="pbar"></i></div><div class="sub" data-h="status"></div></div>
+      <div class="hbox" data-anchor="medium"><label>细胞密度 · CELL DENSITY</label><div class="val" data-h="density"></div><div class="sub">cells / mL · 上限 <span data-h="k"></span></div></div>
+      <div class="hbox" data-anchor="tissue"><label>存活率 · VIABILITY</label><div class="val" data-h="via"></div><div class="sub" data-h="grams"></div></div>
+      <div class="hactions">
+        <button class="hbtn" data-act="boost">加速生长 ×1.5 · ¥28</button>
+      </div>
+    </div>
+    <div class="hcol r">
+      <div class="hbox" data-anchor="probe"><label>培养环境 · ENVIRONMENT</label><div class="env" data-h="env"></div></div>
+      <div class="hbox" data-anchor="bubbles"><label>生长速率 · μ</label><div class="val" data-h="mu"></div><div class="sub" data-h="dbl"></div><svg class="curve" viewBox="0 0 220 60" data-h="curve"></svg></div>
+      <div class="hbox" data-anchor="base"><label>细胞来源 · ORIGIN</label><div class="src" data-h="src"></div></div>
+      <div class="upsell" data-h="upsell"></div>
+    </div>
+  </section>
+
+  <aside id="labpanel">
+    <button class="close" aria-label="关闭">×</button>
+    <div class="body"></div>
+  </aside>
+
+  <header class="top">
+    <button id="back" aria-label="返回"><span class="circle">←</span><span>门店</span></button>
+    <div class="brand"><span class="mark"></span>FUTURE MEAT MARKET</div>
+    <div id="cart"></div>
+  </header>
+
+  <section id="screen">
+    <button class="close" aria-label="关闭">×</button>
+    <div class="body"></div>
+  </section>
+
+  <!-- 门店：走近之后的引线标注 -->
+  <section id="callouts"><svg aria-hidden="true"></svg><div class="boxes"></div></section>
+
+  <!-- 技术报告 -->
+  <section id="paper">
+    <div class="sheet">
+      <button class="close" aria-label="关闭">×</button>
+      <div class="body"></div>
+    </div>
+  </section>
+
+  <div id="tutorial"><div class="icon"></div><div class="big"></div><div class="small"></div></div>
+  <div id="toast"></div>
+  <div id="marquee"><div class="track"></div></div>
+  <div id="fade"></div>
+  <div id="loading">正在开门营业…</div>
+
+  <script type="module" src="main.js"></script>
+
+<!-- version badge (versions/) -->
+<a href="../" style="position:fixed;left:16px;bottom:16px;z-index:2147483647;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;border-radius:999px;background:rgba(20,19,18,.82);border:1px solid rgba(255,255,255,.14);color:#efe9dc;font:500 12px/1.2 Inter,'Noto Sans SC',sans-serif;text-decoration:none;backdrop-filter:blur(6px)">
+  <span style="font:700 15px 'IBM Plex Mono',monospace;color:#c0392f">02</span><span>版本 02 / 03 · 2026-11-14 门店雏形</span><span style="opacity:.6">· 全部版本</span></a>
+</body>
+</html>
