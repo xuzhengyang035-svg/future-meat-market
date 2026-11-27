@@ -197,6 +197,62 @@ canvas.addEventListener('pointermove', (e) => {
 });
 const endDrag = () => { lastDragMoved = drag ? drag.moved : 0; drag = null; document.body.classList.remove('grabbing'); };
 canvas.addEventListener('pointerup', endDrag);
+
+// ---- game-style looking indoors: click the view once and the mouse turns your head (no dragging); a faint dot in the
+// middle is where you aim, and a click uses whatever the dot is on. Esc gives the mouse back; so does opening anything.
+const reticle = document.createElement('div'); reticle.id = 'reticle'; document.body.appendChild(reticle);
+const lookHint = document.createElement('div'); lookHint.className = 'lookhint'; lookHint.textContent = 'Click to look around · Esc to release'; document.body.appendChild(lookHint);
+const AIM_LISTS = () => ({ room: hsEls, warehouse: whEls, lab: labEls })[state.view];
+const mouseLookHere = () => !!NAV[state.view] && canLook() && !inspector.active && !(state.view === 'lab' && !labChosen);
+const locked = () => document.pointerLockElement === canvas;
+let aimed = null, aimLab = null, noLock = false;
+document.addEventListener('pointerlockerror', () => { noLock = true; lookHint.textContent = 'Drag to look around'; });
+const CENTER = () => ({ clientX: innerWidth / 2, clientY: innerHeight / 2 });
+function setAim(el) {
+  if (aimed === el) return;
+  if (aimed) { aimed.classList.remove('aim'); aimed.dispatchEvent(new PointerEvent('pointerleave')); }
+  aimed = el;
+  if (el) { el.classList.add('aim'); el.dispatchEvent(new PointerEvent('pointerenter')); }
+}
+function aimTick() {
+  const on = locked();
+  if (on && !mouseLookHere()) document.exitPointerLock();
+  document.body.classList.toggle('mouselook', on);
+  lookHint.classList.toggle('on', !on && mouseLookHere());
+  let best = null, bd = Infinity;
+  if (on) {
+    const cx = innerWidth / 2, cy = innerHeight / 2;
+    for (const { el } of AIM_LISTS() || []) {
+      if (el.classList.contains('hidden')) continue;
+      const r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, hit = (parseFloat(el.style.getPropertyValue('--hit')) || 64) / 2 + 6;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d < hit && d < bd) { bd = d; best = el; }
+    }
+    aimLab = !best && state.view === 'lab' ? labThing(CENTER()) : null;
+    if (aimLab && !aimLab.free) aimLab = null;
+  } else aimLab = null;
+  setAim(best);
+  reticle.classList.toggle('on', on);
+  reticle.classList.toggle('hot', !!(best || aimLab));
+}
+addEventListener('pointerdown', (e) => {                                          // runs before the canvas handlers
+  if (e.target !== canvas) return;
+  if (locked()) {
+    e.stopImmediatePropagation(); e.preventDefault();
+    if (aimed) { const el = aimed; setAim(null); el.click(); }
+    else if (aimLab) { location.hash = '#/lab/' + aimLab.id; }
+    return;
+  }
+  if (mouseLookHere() && e.button === 0 && !noLock) { try { canvas.requestPointerLock?.()?.catch?.(() => {}); } catch {} }   // if the browser says no, dragging still works
+}, true);
+addEventListener('click', (e) => { if (e.target === canvas && locked()) e.stopImmediatePropagation(); }, true);
+document.addEventListener('mousemove', (e) => {
+  if (!locked() || !LOOKS[state.view]) return;
+  const L = LOOKS[state.view].l, [lo, hi] = LOOKS[state.view].pitch || [-28, 28];
+  L.tYaw -= e.movementX * 0.11; L.yaw = L.tYaw;
+  L.tPitch = THREE.MathUtils.clamp(L.tPitch - e.movementY * 0.09, lo, hi); L.pitch = L.tPitch;
+});
+document.addEventListener('pointerlockchange', () => { if (!locked()) setAim(null); });
 // 冷柜触摸屏上的电子菜单（同一页手写便签）：指针移上去那一行涂上荧光笔；
 // 点培养肉那几行 → 在冷柜里打开这件商品下单；点堂食 → 去吧台试吃；划掉的那行今天没有
 const menuRay = new THREE.Raycaster(), menuNdc = new THREE.Vector2();
@@ -1769,6 +1825,7 @@ function loop() {
   const t = clock.elapsedTime;
   if (preparing || !readyViews.has(state.view)) { requestAnimationFrame(loop); return; }                    // 正在备场景：盖着转场画面，不用画
   watchFps();
+  aimTick();
   inspector.update(dt);
   // 批次一直在长，不管观众在不在看
   stepBatch(state.batch, dt);

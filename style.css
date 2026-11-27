@@ -692,3 +692,20 @@ body.inspecting #callouts, body.inspecting .ways, body.inspecting #hotspots, bod
 .walkhint.on { opacity: 1; transform: translate(-50%, 0); }
 .walkhint span { display: flex; align-items: center; gap: 4px; }
 .walkhint kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid rgba(239, 233, 220, .45); border-radius: 4px; font: 600 11px/1 "IBM Plex Mono", monospace; }
+
+/* game-style mouse look: a faint dot in the middle; it opens into a ring over something you can use */
+#reticle { position: fixed; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; z-index: 8; pointer-events: none;
+  background: rgba(255, 255, 255, .55); box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); opacity: 0; transition: opacity .2s, width .15s, height .15s, margin .15s, background .15s; }
+#reticle.on { opacity: 1; }
+#reticle.hot { width: 16px; height: 16px; margin: -8px 0 0 -8px; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .85), 0 0 0 1px rgba(0, 0, 0, .2); }
+body.mouselook, body.mouselook canvas { cursor: none; }
+body.mouselook .hs { pointer-events: none; }
+.hs.aim { z-index: 2; }
+.hs.aim .halo { width: var(--hit, 64px); height: var(--hit, 64px); border-color: #fff; }
+.hs.aim .halo::after { animation: none; opacity: 0; }
+.hs.aim .core { width: 5px; height: 5px; }
+.hs.aim .title { opacity: 1; transform: translate(0, -50%); left: calc(50% + var(--hit, 64px) / 2 + 8px); }
+.hs.aim.flip .title { left: auto; right: calc(50% + var(--hit, 64px) / 2 + 8px); }
+.lookhint { position: fixed; left: 50%; bottom: 110px; transform: translateX(-50%); z-index: 7; padding: 7px 14px; border-radius: 999px; background: rgba(14, 13, 12, .55);
+  color: rgba(239, 233, 220, .9); font: 500 12px/1 Inter, sans-serif; letter-spacing: .04em; pointer-events: none; opacity: 0; transition: opacity .3s; }
+.lookhint.on { opacity: 1; }
