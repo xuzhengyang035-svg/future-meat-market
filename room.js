@@ -1099,7 +1099,7 @@ export function createRoom(env) {
   // Outside the glass is the real street (street.js), rendered once from in here with an off-axis camera and baked:
   // street = room − (1.65, 0, 5); picture plane 0.26 m outside the glass, framed for an eye at (−1.5, 1.6, 1.5).
   { const bc = new THREE.PerspectiveCamera(); bc.position.set(-3.15, 1.6, -3.5); bc.lookAt(-3.15, 1.6, 100); bc.updateMatrixWorld();   // bake camera, street coordinates
-    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), depthWindow('assets/room/street.jpg?v=gbp', 'assets/room/street_depth.png?v=gbp', {
+    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), depthWindow('assets/room/street.jpg?v=rb2', 'assets/room/street_depth.png?v=rb2', {
       view: bc.matrixWorldInverse.clone().multiply(new THREE.Matrix4().makeTranslation(-1.65, 0, -5)), proj: new THREE.Matrix4().makePerspective(-2.95, 3.76, 1.07, -1.72, 3.76, 60), near: 3.76, far: 60, maxT: 30, tint: 0.9 }));
     street.position.set(-1.905, 1.275, 5.26); street.rotation.y = Math.PI; room.add(street);
     const far = new THREE.Mesh(new THREE.PlaneGeometry(18, 7.8), new THREE.MeshBasicMaterial({ color: 0x05070a }));   // anything outside that frame: night

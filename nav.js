@@ -470,7 +470,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
     P.y += ((floorY ?? base) + graph.eye - P.y) * (1 - Math.exp(-dt * 12));
     bob += (Math.min(1, speed / 2.05) - bob) * (1 - Math.exp(-dt * (speed ? 6 : 4)));   // ease into and out of the stride
     const ry = rad(look.yaw), dip = Math.sin(phase * Math.PI * 2), sway = Math.sin(phase * Math.PI);
-    eye.set(P.x + Math.cos(ry) * sway * 0.016 * bob, P.y + (dip * 0.028 - 0.012) * bob, P.z + Math.sin(ry) * sway * 0.016 * bob);
+    eye.set(P.x + Math.cos(ry) * sway * 0.005 * bob, P.y + (dip * 0.009 - 0.004) * bob, P.z + Math.sin(ry) * sway * 0.005 * bob);   // barely there: a hint of steps, not a march
     lastEye.copy(eye);
     if (!speed) return;
     home.eye.copy(P); home.yaw = look.tYaw; home.pitch = look.tPitch; home.fov = look.fov;

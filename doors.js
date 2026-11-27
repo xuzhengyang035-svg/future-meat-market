@@ -8,7 +8,7 @@ import * as THREE from 'three';
 const alu = new THREE.MeshStandardMaterial({ color: 0x2a2c2c, metalness: 0.75, roughness: 0.4 });
 const steel = new THREE.MeshStandardMaterial({ color: 0xb8bab6, metalness: 1, roughness: 0.32 });
 const iron = new THREE.MeshStandardMaterial({ color: 0x1c1d1e, metalness: 0.8, roughness: 0.45 });
-const glass = new THREE.MeshPhysicalMaterial({ color: 0xdfe8e6, metalness: 0, roughness: 0.04, transparent: true, opacity: 0.16, envMapIntensity: 1.8, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false, side: THREE.DoubleSide });
+const glass = new THREE.MeshPhysicalMaterial({ color: 0xdfe8e6, metalness: 0, roughness: 0.04, transparent: true, opacity: 0.09, envMapIntensity: 1.1, clearcoat: 1, clearcoatRoughness: 0.05, depthWrite: false, side: THREE.DoubleSide });
 function bx(p, w, h, d, m, x, y, z) { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); p.add(o); return o; }
 function leaf(w, h) {
   const g = new THREE.Group(), F = 0.065, T = 0.05;
