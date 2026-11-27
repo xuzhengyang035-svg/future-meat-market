@@ -11,9 +11,9 @@ import { createCartonKit } from './cartons.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { deferImages } from './gfx.js';
-import { rayShaft, glowColumn, hazeLayer, dustMotes, mistField, fogPuffs } from './atmosphere.js';
+import { glowColumn, dustMotes, mistField } from './atmosphere.js';
 // 每道光柱里都飘着灰：高处的灯照下来，光锥本身稍微亮一点，里面几百粒灰在慢慢转
-const lightCone = (p, from, dir, o) => { const m = rayShaft(p, from, dir, { ...o, strength: o.strength * 2.4 });
+const lightCone = (p, from, dir, o) => { const m = null;
   dustMotes(p, from, dir, { length: o.length, radius: o.radius * 0.9, top: o.top ?? 0.1, count: Math.round(220 + o.radius * 120), color: 0xffe6c0, size: 0.0075, strength: 0.85 }); return m; };
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -1295,15 +1295,12 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   // 主通道上方两盏暖一点的投光灯
   for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffb668, 62, 14, 0.5, 0.65, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target);
     lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 2.9, color: 0xffb668, strength: 0.1 }); }
-  hazeLayer(root, [0, 3.2, -23.2], { width: 24, height: 7, color: 0x1c6a6e, strength: 0.07 });
-  hazeLayer(root, [0, 2.6, -9], { width: 24, height: 5.5, color: 0x2a5a5c, strength: 0.05 });
   // 整个仓库空气里的浮尘：很淡，几乎看不见，只有飘进灯下的那些被照亮
   mistField(root, { center: [0, HT / 2 - 0.3, (Z0 + Z1) / 2], size: [X1 - X0, HT - 0.6, Z0 - Z1], count: 7000, px: 0.007, color: 0x8a9a98, lightColor: 0xffd8a8, strength: 0.32, fall: 0.012, swirl: 0.35,
     lights: [[-1.3, HT - 2.2, -4.5], [-1.3, HT - 2.2, -15.5], [5.8, HT - 2.6, -27.6], [X0 + 1.6, 4.5, -8]] });
-  // 大厅里几团慢慢漂的尘雾：高处的灯底下最亮，墙角、货架后面沉着
-  { let n = 911; const r = () => (n = (n * 16807) % 2147483647) / 2147483647, puffs = [];
-    for (let i = 0; i < 26; i++) puffs.push({ pos: [X0 + 1.5 + r() * (X1 - X0 - 3), 1.2 + r() * 5, Z0 - 2 - r() * (Z0 - Z1 - 4)], w: 6 + r() * 5, h: 3 + r() * 3, k: 0.6 + r() * 0.6 });
-    fogPuffs(root, puffs, { color: 0x6a7c7a, warm: 0xffcf98, lights: [[-1.3, HT - 3, -4], [-1.3, HT - 3, -15], [5.8, HT - 3, -27.6], [X0 + 1.6, 4, -8]], opacity: 0.46, scale: 0.25, speed: 0.03, nearFade: 2.4, bounds: { min: [X0, 0, Z1], max: [X1, HT - 1.6, Z0] }, margin: 1.6, floor: 1.2 }); }
+  // 体积尘雾：整个大厅一块连续的灰，低处稍浓；四盏高灯附近的被照暖
+  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 4.5, density: 0.09, scale: 0.18, color: 0x5a6a68, light: 0xffc890, lightK: 1.6,
+    lights: [[-1.3, HT - 1.2, -4, 0, -(HT - 1.2), -1, 0.38], [-1.3, HT - 1.2, -15, 0, -(HT - 1.2), -1, 0.38], [5.8, HT - 1.6, -27.6, 0, -1, -0.04, 0.2], [X0 + 0.6, PH + 4.3, -8, 1.9, -4.2, 0, 0.4]], wind: [0.05, 0.015, -0.03], maxDist: 40 };
 
   // ---- 血和脏（第二遍）：运输笼拖到卸货门、月台边上甩的、叉车压过血再带走的胎印、红柱上一只血手印；出库线末端滴的血水、冷藏架底下的化冻血水、退货桶边的一圈
   const bloodMat = (seed, o = {}) => { const { map, roughnessMap } = puddleDecal(seed, { kind: 'blood', size: 256 }); return new THREE.MeshStandardMaterial({ map, roughnessMap, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 1, ...o }); };

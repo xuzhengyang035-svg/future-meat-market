@@ -10,6 +10,78 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
+
+// ------------------------------------------------------------------ 体积雾：每个像素从镜头往它看到的那个表面走十几步，沿路把三维噪声里的雾浓度累加起来。
+// 雾是一整块连续的空间，不是一张张面片，所以永远切不出直线、方块；靠近灯的雾被照暖。低分辨率算，再铺回全屏。
+// 场景用 scene.userData.fog 打开：{ min, max, floor, up, density, scale, color, light, lights, wind, maxDist }
+const FOG_MARCH = /* glsl */`
+  uniform sampler2D tDepth; uniform mat4 uProjInv, uCamWorld; uniform float uTime, uDensity, uScale, uMaxDist, uFloor, uUp, uLK;
+  uniform vec3 uColor, uLight, uMin, uMax, uWind; uniform vec3 uL[6], uD[6]; uniform float uCos[6]; varying vec2 vUv;
+  float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float n3(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+  float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 3; i++) { s += a * n3(p); p = p * 2.07 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return s; }
+  float dens(vec3 p) {
+    vec3 lo = smoothstep(uMin, uMin + vec3(2.0, 0.0001, 2.0), p), hi = 1.0 - smoothstep(uMax - vec3(2.0, 1.5, 2.0), uMax, p);
+    float box = lo.x * lo.z * hi.x * hi.y * hi.z;
+    float ground = exp(-max(p.y - uMin.y, 0.0) / uFloor), ceil = exp(-max(uMax.y - p.y, 0.0) / uFloor);
+    vec3 q = p * uScale + uWind * uTime;
+    float n = fbm(q + vec3(n3(q * 0.5 + 3.1), 0.0, n3(q * 0.5 + 7.7)) * 1.4);           // warped: billows and wisps
+    return box * mix(ground, ceil, uUp) * (0.15 + 0.85 * smoothstep(0.35, 0.72, n));   // a thin base everywhere, billows on top
+  }
+  void main() {
+    float z = texture2D(tDepth, vUv).x;
+    vec4 v = uProjInv * vec4(vUv * 2.0 - 1.0, z * 2.0 - 1.0, 1.0); v /= v.w;
+    vec3 cam = uCamWorld[3].xyz, wp = (uCamWorld * v).xyz, dir = normalize(wp - cam);
+    float dist = z > 0.99999 ? uMaxDist : min(length(wp - cam), uMaxDist);
+    const int N = 24; float dt = dist / float(N);
+    float t = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) * dt;   // interleaved-gradient jitter: even, no clumps
+    float T = 1.0; vec3 L = vec3(0.0);
+    for (int i = 0; i < N; i++) {
+      vec3 p = cam + dir * t; float rho = dens(p) * uDensity;
+      if (rho > 0.0001) {
+        float lit = 0.0; for (int k = 0; k < 6; k++) { vec3 d = p - uL[k]; float r2 = dot(d, d);
+          if (uCos[k] > 0.0) { float c = dot(d * inversesqrt(r2 + 1e-4), uD[k]); lit += smoothstep(uCos[k], uCos[k] + (1.0 - uCos[k]) * 0.6, c) * 1.2 / (1.0 + r2 * 0.08) + 0.5 / (1.0 + r2 * 3.0); }   // spot: a shaft through the fog
+          else lit += 1.0 / (1.0 + r2 * 1.1); }
+        float a = 1.0 - exp(-rho * dt);
+        L += T * a * (uColor + uLight * lit * uLK); T *= 1.0 - a;
+      }
+      t += dt;
+    }
+    gl_FragColor = vec4(L, T);
+  }`;
+class FogPass extends Pass {
+  constructor() {
+    super(); this.needsSwap = true;
+    this.rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType });
+    this.march = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: FOG_MARCH,
+      uniforms: { tDepth: { value: null }, uProjInv: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() }, uTime: { value: 0 }, uDensity: { value: 0.2 }, uScale: { value: 0.2 },
+        uMaxDist: { value: 40 }, uFloor: { value: 2 }, uUp: { value: 0 }, uLK: { value: 1 }, uColor: { value: new THREE.Color() }, uLight: { value: new THREE.Color() },
+        uMin: { value: new THREE.Vector3() }, uMax: { value: new THREE.Vector3() }, uWind: { value: new THREE.Vector3() }, uL: { value: Array.from({ length: 6 }, () => new THREE.Vector3(1e4, 1e4, 1e4)) }, uD: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) }, uCos: { value: new Array(6).fill(0) } } });
+    this.mix = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: `uniform sampler2D tDiffuse, tFog; uniform vec2 uTexel; varying vec2 vUv;
+        void main(){ vec4 c = texture2D(tDiffuse, vUv), f = vec4(0.0); float w = 0.0;
+          for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { float k = (x == 0 ? 2.0 : 1.0) * (y == 0 ? 2.0 : 1.0); f += texture2D(tFog, vUv + vec2(x, y) * uTexel) * k; w += k; }   // soften the low-res fog
+          f /= w; gl_FragColor = vec4(c.rgb * f.a + f.rgb, c.a); }`,
+      uniforms: { tDiffuse: { value: null }, tFog: { value: this.rt.texture }, uTexel: { value: new THREE.Vector2() } } });
+    this.quad = new FullScreenQuad(this.march); this.cfg = null; this.camera = null; this.depth = null;
+  }
+  setSize(w, h) { const k = Math.min(0.5, Math.sqrt(0.7e6 / (w * h))), W = Math.max(1, Math.round(w * k)), H = Math.max(1, Math.round(h * k)); this.rt.setSize(W, H); this.mix.uniforms.uTexel.value.set(1 / W, 1 / H); }
+  render(r, writeBuffer, readBuffer) {
+    const f = this.cfg, u = this.march.uniforms, cam = this.camera;
+    u.tDepth.value = this.depth; u.uProjInv.value.copy(cam.projectionMatrixInverse); u.uCamWorld.value.copy(cam.matrixWorld); u.uTime.value = performance.now() / 1000;
+    u.uDensity.value = f.density ?? 0.2; u.uScale.value = f.scale ?? 0.2; u.uMaxDist.value = f.maxDist ?? 40; u.uFloor.value = f.floor ?? 2; u.uUp.value = f.up ?? 0; u.uLK.value = f.lightK ?? 1;
+    u.uColor.value.set(f.color ?? 0x101418).convertSRGBToLinear(); u.uLight.value.set(f.light ?? 0xffb070).convertSRGBToLinear();
+    u.uMin.value.set(...f.min); u.uMax.value.set(...f.max); u.uWind.value.set(...(f.wind ?? [0.12, 0.01, 0.05]));
+    u.uL.value.forEach((v, i) => { const l = f.lights?.[i]; if (!l) { v.set(1e4, 1e4, 1e4); u.uCos.value[i] = 0; return; }
+      v.set(l[0], l[1], l[2]); if (l.length > 3) { u.uD.value[i].set(l[3], l[4], l[5]).normalize(); u.uCos.value[i] = Math.cos(l[6] ?? 0.45); } else u.uCos.value[i] = 0; });
+    this.quad.material = this.march; r.setRenderTarget(this.rt); this.quad.render(r);
+    this.mix.uniforms.tDiffuse.value = readBuffer.texture; this.quad.material = this.mix;
+    r.setRenderTarget(this.renderToScreen ? null : writeBuffer); this.quad.render(r);
+  }
+}
 
 const FilmShader = {
   uniforms: {
@@ -83,6 +155,7 @@ function createCore(renderer, scene, camera) {
     ao.renderPass(r, ao.blendMaterial, readBuffer);
   };
   composer.addPass(ao);
+  const fog = new FogPass(); fog.depth = ao.depthTexture; fog.enabled = false; composer.addPass(fog);
   const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.4, 0.55, 1.1);
   const bloomSize = bloom.setSize.bind(bloom);
   bloom.setSize = (w, h) => bloomSize(...capped(w, h, 0.5, 0.6e6));
@@ -91,7 +164,7 @@ function createCore(renderer, scene, camera) {
   const film = new ShaderPass(FilmShader);
   composer.addPass(film);
   return {
-    composer, ao, bloom, renderPass, film,
+    composer, ao, bloom, renderPass, film, fog,
     resize(w, h) {
       const r = pixelRatio();
       composer.setPixelRatio(r); composer.setSize(w, h);
@@ -100,6 +173,7 @@ function createCore(renderer, scene, camera) {
 }
 
 export const postTarget = () => core?.composer.readBuffer ?? null;
+export const postCore = () => core;                                           // debug: inspect / toggle passes
 export function resizePost(w, h) { core?.resize(w, h); }
 
 export function createPost(renderer, scene, camera, grade = {}) {
@@ -113,6 +187,7 @@ export function createPost(renderer, scene, camera, grade = {}) {
       core.bloom.strength = grade.bloomStrength ?? 0.4;
       core.bloom.threshold = grade.bloomThreshold ?? 1.1;
       renderPass.scene = scene; ao.scene = scene;
+      const fc = scene.userData.fog; core.fog.enabled = !!fc; if (fc) { core.fog.cfg = fc; core.fog.camera = renderPass.camera; core.fog.depth = ao.depthTexture; }
       for (const [k, v] of look) {
         const u = film.uniforms[k];
         if (v.isVector3) u.value.copy(v); else u.value = v;

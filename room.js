@@ -7,7 +7,7 @@
 //   右墙      加工间入口（PVC 门帘）、灯箱海报、仓库门
 //   入口      糊着报纸的玻璃门面、杂货架、菜筐、冰柜、立牌
 import * as THREE from 'three';
-import { lightCone, glowColumn, hazeLayer, rayShaft, dustMotes, fogPuffs } from './atmosphere.js';
+import { lightCone, glowColumn, hazeLayer, dustMotes } from './atmosphere.js';
 import { buildSmartFridge } from './fridge.js';
 import { canvasTexture, streetTexture, drawAd } from './textures.js';
 import { blobShadow, grimeWallMaps, grimeFloorMaps, stainedCeilingMaps, ageCanvas, grimeMap, tapeLabel, gaugeMap, puddleDecal, bloodSplatter, grimeLayer, brushedSteelMaps, dripStreak } from './materials.js';
@@ -937,7 +937,6 @@ export function createRoom(env) {
     model('hanging_industrial_lamp', { pos: [0.15, 3.75, 0.05], parent: g });                    // 工业吊灯
     cyl(0.004, 0.004, HT - 3.75, M.ink, 0.15, (HT + 3.75) / 2, 0.05, g, 4);
     const l = new THREE.PointLight(0xffa657, 10, 5.5, 1.7); l.position.set(0.15, 2.2, 0.05); g.add(l);
-    rayShaft(g, [0.15, 3.1, 0.05], [0, -1, 0], { length: 2.3, radius: 1.2, top: 0.22, color: 0xffa657, strength: 0.2 });
     dustMotes(g, [0.15, 3.1, 0.05], [0, -1, 0], { length: 2.2, radius: 1.0, top: 0.22, count: 160, color: 0xffd6a8, strength: 0.7 });
   };
   // 调料架：不锈钢架子里一瓶辣酱、一瓶芥末，旁边盐和胡椒
@@ -1462,10 +1461,8 @@ export function createRoom(env) {
   // ================================================================ 灯光：暖黄的灯泡为主，几支日光灯（一盏坏、一盏闪），红色霓虹
   scene.add(new THREE.HemisphereLight(0x5fa8a0, 0x16120d, 0.17));
   // 店里的空气：铁板上的油烟在抽油烟罩下面打着卷，用餐区天花板下压着一层很淡的烟，吊灯下面最亮
-  fogPuffs(room, [
-    { pos: [0.6, 2.75, -3.05], w: 2.4, h: 1.4, k: 1.0 }, { pos: [1.9, 2.9, -3.1], w: 2.6, h: 1.5, k: 0.9 }, { pos: [2.9, 2.7, -2.95], w: 2.0, h: 1.3, k: 0.8 },
-    { pos: [-5.0, 3.4, -1.2], w: 4.2, h: 1.6, k: 0.6 }, { pos: [-3.2, 3.5, 0.8], w: 4.5, h: 1.6, k: 0.55 }, { pos: [-5.4, 3.3, 2.6], w: 4, h: 1.5, k: 0.5 }, { pos: [-1.4, 3.6, -1.6], w: 3.6, h: 1.5, k: 0.5 },
-  ], { color: 0x8a8a7e, warm: 0xffc890, lights: [[-5.0, 2.4, -1.4], [-3.0, 2.4, 0.9], [1.3, 2.9, -2.9]], opacity: 0.22, scale: 0.6, speed: 0.04, nearFade: 1.6, bounds: { min: [LX, 0, -4], max: [5, HT - 0.25, 5] }, margin: 0.7 });
+  scene.userData.fog = { min: [LX, 0, -4], max: [5, HT, 5], floor: 1.8, up: 0.6, density: 0.1, scale: 0.5, color: 0x6a645a, light: 0xffb878, lightK: 1.0,
+    lights: [[-4.85, 3.15, -1.35, 0, -1, 0, 0.45], [-4.85, 3.15, 1.05, 0, -1, 0, 0.45], [-1.95, 3.15, 0.75, 0, -1, 0, 0.45], [1.3, 3.0, -2.9]], wind: [0.04, 0.03, 0.02], maxDist: 18 };
   const tubeLights = [];
   for (const [x, z] of [[0.6, 1.4], [2.6, 3.6]]) {
     const l = new THREE.PointLight(0x9fd8cc, 4.2, 10, 1.6);

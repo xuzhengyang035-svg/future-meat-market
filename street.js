@@ -7,7 +7,7 @@
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
 import { addMarketLane } from './market-lane.js';
-import { mistField, lampHalo, fogPuffs, rayShaft } from './atmosphere.js';
+import { mistField } from './atmosphere.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { addSheets } from './newsprint.js';
 import { canvasTexture } from './textures.js';
@@ -547,18 +547,10 @@ export function createStreet(env) {
   const LAMPS = [[BX0 + 0.15, 4.25, 0.5], [SDX, 3.7, 0.25], [-9, 4.4, 19.6], [9, 4.4, 19.6]];
   mistField(root, { center: [0, 2.4, 6], size: [30, 5, 15], count: 16000, px: 0.006, strength: 0.45, lights: LAMPS, lightColor: 0xffc080, fall: 0.025, swirl: 0.3 });
   mistField(root, { center: [0, 0.9, 6], size: [30, 1.6, 15], count: 6000, px: 0.007, strength: 0.35, lights: LAMPS, lightColor: 0xffb070, fall: 0.006, swirl: 0.4 });   // 贴着湿地面的那层更密
-  // 一团一团的雾：贴着湿路面一条翻滚的雾带，上面零散几团，小巷和桥洞里更浓；离镜头近的自己淡掉
-  { const fr = R(707), puffs = [];
-    for (const [z, y0, k] of [[0.9, 1.0, 1.2], [1.8, 1.7, 0.9], [3.0, 1.0, 1.1], [6.5, 1.05, 1.0], [10.5, 1.1, 1.2], [14.5, 1.2, 1.3], [18.6, 1.3, 1.4]])
-      for (let x = -17; x < 17; x += 3.2 + fr() * 2) puffs.push({ pos: [x + fr(), y0 + fr() * 0.4, Math.min(19.5, z + (fr() - 0.5) * 1.6)], w: 6 + fr() * 4, h: 2 + fr() * 1.4, k: k * (0.7 + fr() * 0.6) });
-    for (let i = 0; i < 14; i++) puffs.push({ pos: [-14 + fr() * 28, 2.8 + fr() * 1.8, 4 + fr() * 14], w: 7 + fr() * 5, h: 2.6 + fr() * 1.4, k: 0.55 + fr() * 0.3 });   // clear of the facades and roofs
-    const alley = []; for (let i = 0; i < 6; i++) alley.push({ pos: [-11.6 + (fr() - 0.5) * 1.2, 1 + fr() * 1.8, -1 - fr() * 9], w: 3.4 + fr() * 1.2, h: 2.4 + fr() * 1.2, k: 1.4 });   // the alley
-    for (let i = 0; i < 5; i++) puffs.push({ pos: [-21.5 + fr() * 1.5, 1 + fr() * 2, 6 + fr() * 8], w: 5 + fr() * 2, h: 3, k: 1.5 });           // under the viaduct
-    fogPuffs(root, puffs, { color: 0x7f8f98, warm: 0xffbe80, lights: LAMPS, opacity: 0.42, scale: 0.32, speed: 0.06, nearFade: 2.2, bounds: { min: [-23.5, 0.1, 0.2], max: [30, 7.5, 22.3] }, floor: 1.0 });
-    fogPuffs(root, alley, { color: 0x7f8f98, warm: 0xffbe80, lights: LAMPS, opacity: 0.42, scale: 0.32, speed: 0.06, nearFade: 2.2, bounds: { min: [-14.4, 0.1, -12], max: [-8.9, 5.2, 0.6] }, margin: 0.8, floor: 1.0 }); }
-  for (const [x, y, z] of LAMPS) { lampHalo(root, [x, y, z + (z > 10 ? -0.3 : 0.3)], { radius: 1.7, color: 0xffc080, strength: 0.55 }); { const wall = z < 5;                                                                     // wall lamps: a narrow shaft that leans away from the wall instead of cutting into it
-      rayShaft(root, [x, y - 0.1, z + (wall ? 0.35 : -0.2)], [0, -1, wall ? 0.32 : -0.12], { length: (y - 0.2) * (wall ? 0.8 : 1), radius: wall ? 0.75 : 1.6, top: 0.1, color: 0xffc080, strength: 0.16 }); } }
-  lampHalo(root, [-1.1, 2.6, 0.8], { radius: 2.2, color: 0xffd0a0, strength: 0.16 });                          // 门口透出来的暖光，在雨雾里散开
+  // 体积雾（post.js 里按深度一步步累加的那种）：整条街一块连续的雾，贴着地面最浓、往上散，小巷和桥洞里自然更深；路灯附近的雾被照暖
+  scene.userData.fog = { min: [-26, 0, -14], max: [32, 9, 26], floor: 2.4, density: 0.38, scale: 0.2, color: 0x7a8892, light: 0xffd2a0, lightK: 0.8,
+    lights: [[BX0 + 0.15, 4.2, 0.6, 0, -1, 0.25, 0.55], [SDX, 3.65, 0.35, 0, -1, 0.2, 0.5], [-9, 4.35, 19.6, 0, -1, 0, 0.6], [9, 4.35, 19.6, 0, -1, 0, 0.6], [-1.1, 2.2, 0.6], [-11.6, 4, -6]],
+    wind: [0.16, 0.01, 0.06], maxDist: 45 };                                     // street lamps and wall lamps are spots: their shafts are carved out of the fog
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗
   scene.add(new THREE.HemisphereLight(0xbac9d2, 0x594c3d, 3.05));
   const moon = new THREE.DirectionalLight(0xb6ced8, 1.42); moon.position.set(5, 14, 10); scene.add(moon);

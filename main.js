@@ -130,7 +130,7 @@ function buildPlace(view, onProgress = () => {}) {
 }
 const HDRI = { room: ['abandoned_factory_canteen_01', 0.55], fridge: ['abandoned_factory_canteen_01', 0.55],
   street: ['cobblestone_street_night', 0.32], lab: ['abandoned_tiled_room', 0.26], warehouse: ['empty_warehouse_01', 0.42] };   // 环境光照片也是进哪个房间才下载哪张
-window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; } };   // 调试用
+window.__dbg = { renderer, get street() { return street; }, get wh() { return wh; }, get room() { return room; }, get fr() { return fr; }, get lab() { return lab; }, get camera() { return camera; } };   // 调试用
 const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 120);
 // 三个场景统一偏暗、偏冷（调色在 post.js 里）
 const TONE = { lab: [THREE.NeutralToneMapping, 0.94], room: [THREE.NeutralToneMapping, 0.82], fridge: [THREE.NeutralToneMapping, 0.66], street: [THREE.NeutralToneMapping, 1.12], warehouse: [THREE.NeutralToneMapping, 1.22], other: [THREE.ACESFilmicToneMapping, 0.72] };
