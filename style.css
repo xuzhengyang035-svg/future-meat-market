@@ -393,7 +393,7 @@ body[data-view="lab"] #tutorial { bottom: 146px; }
 
 /* ================================================================== 门店：走近之后 */
 body.room-focus #hotspots { display: none; }
-body.room-focus #back { opacity: 1; transform: none; }
+body.room-focus #back, body.scene-focus #back { opacity: 1; transform: none; }
 body.room-focus canvas#c { cursor: default; }
 #css3d { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
 #css3d > div { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: auto; }

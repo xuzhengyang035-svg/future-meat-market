@@ -141,9 +141,9 @@ export const STREET_HOTSPOTS = [
   { id: 'menu', label: "Today's menu · ", pos: [-2.75, 1.5, 1.8], eye: [-2.2, 1.55, 3.4], at: [-2.75, 0.95, 1.75], fov: 46,
     marquee: "Today's menu · prices · where it comes from · ",
     info: [{ at: [-2.7, 1.0, 1.9], title: 'Menu card', item: 'menucard' }] },
-  { id: 'gas', label: 'Gas cylinders · CO₂ · ', pos: [3.74, 1.95, 0.4], eye: [3.2, 1.6, 2.1], at: [3.74, 1.3, 0.35], fov: 50,
+  { id: 'gas', label: 'Gas cylinders · CO₂ · ', pos: [3.74, 1.42, 0.4], eye: [3.2, 1.45, 1.9], at: [3.74, 0.95, 0.35], fov: 50,
     marquee: 'Food-grade CO₂ · modified-atmosphere packing · keeps the meat red on the shelf · ',
-    info: [{ at: [3.56, 1.72, 0.36], title: 'Open the valve', act: 'valve' }] },
+    info: [{ at: [3.56, 1.3, 0.36], title: 'Open the valve', act: 'valve' }] },
 ];
 
 // ------------------------------------------------------------------ 仓库（交互文字用中文；场景里的牌子、印字保持英文）

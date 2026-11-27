@@ -6,6 +6,7 @@
 //   左边   墙角一盏铸铁壁灯；往左是一条更窄的老街，远处的窗都亮着
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { addMarketLane } from './market-lane.js';
 import { mistField } from './atmosphere.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
@@ -13,6 +14,7 @@ import { addSheets } from './newsprint.js';
 import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
+import { towel } from './dress.js';
 import { meatGeometry, meatMaterial, texturedMeat } from './meat.js';
 import { grimeMap, ageCanvas, blobShadow, puddleDecal, grimeLayer, brushedSteelMaps } from './materials.js';
 
@@ -150,8 +152,17 @@ export function createStreet(env) {
     canvasTexture(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); g.strokeStyle = 'rgba(90,90,90,.8)'; g.beginPath(); g.moveTo(0, 14); g.lineTo(W, 16); g.stroke(); for (const [x, c, w, h] of [[6, '#6a7a8a', 16, 30], [26, '#8a4a3a', 12, 22], [42, '#c8c0b0', 16, 34]]) { g.fillStyle = c; g.fillRect(x, 15, w, h); } }),
   ].map((map) => new THREE.MeshStandardMaterial({ map, transparent: true, roughness: 0.9, color: 0x707070, depthWrite: false }));
   // 阳台栏杆上晾的衣服、一串小彩灯
-  const clothM = [0x8a3a30, 0xd8d0c0, 0x3a4a6a, 0x5a6a4a, 0xc8a050].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, side: THREE.DoubleSide, map: grimeMap(58) }));
-  const laundry = (x, y, z, n) => { const rr = R(n * 31); for (let k = 0; k < n; k++) { const w = 0.18 + rr() * 0.22, h = 0.25 + rr() * 0.35, o = new THREE.Mesh(new THREE.PlaneGeometry(w, h, 1, 4), clothM[Math.floor(rr() * 5)]); const pa = o.geometry.attributes.position; for (let v = 0; v < pa.count; v++) pa.setZ(v, Math.sin((pa.getY(v) / h + 0.5) * 3) * 0.015); o.geometry.computeVertexNormals(); o.position.set(x - 0.55 + k * (1.1 / n) + rr() * 0.05, y - h / 2 + 0.03, z + 0.03); o.rotation.z = (rr() - 0.5) * 0.08; root.add(o); } };
+  // 阳台栏杆上搭着的毛巾、茶巾、小方巾：真的织物扫描（华夫格、平纹、针织、格子、牛仔布），有厚度、两头织边、褶子；被雨淋湿，颜色发深、下摆在滴水
+  const FABRICS = [['waffle_pique_cotton', 0xb8a890, 0.3], ['cotton_jersey', 0x6a3a34, 0.3], ['rough_linen', 0xc8c0a8, 0.3], ['gingham_check', 0x9aa0b0, 0.35], ['fabric_pattern_05', 0xb0a898, 0.35],
+    ['denim_fabric_03', 0x7a8490, 0.35], ['fabric_pattern_07', 0xa89890, 0.35], ['cotton_jersey', 0x4a5a44, 0.3]];
+  const fabM = FABRICS.map(([n, c, sz]) => { const m = pbr(n, 0.3, 0.8, { size: sz, color: c, roughness: 0.85 }); m.side = THREE.DoubleSide; m.color.multiplyScalar(0.82); return m; });   // wet: darker
+  const bandM = [0x7a2a22, 0x2a3a5a, 0x6a6a3a].map((c) => pbr('rough_linen', 0.3, 0.05, { size: 0.3, color: c }));
+  const laundry = (x, y, z, n) => { const rr = R(n * 31 + Math.round(x * 7)); let cx = x - 0.62;
+    for (let k = 0; k < n; k++) { const w = 0.2 + rr() * 0.16; if (cx + w > x + 0.66) break;
+      const tg = new THREE.Group(); tg.position.set(cx + w / 2, y + 0.012, z); tg.rotation.y = Math.PI; root.add(tg);   // local +z → the wall side
+      tg.add(towel({ w, lenA: 0.12 + rr() * 0.12, lenB: 0.28 + rr() * 0.3, r: 0.014, ampA: 0.2, ampB: 1, seed: 40 + k * 7 + n, mat: fabM[Math.floor(rr() * fabM.length)], bandMat: rr() < 0.6 ? bandM[Math.floor(rr() * 3)] : null, thick: 0.003 + rr() * 0.002, skew: (rr() - 0.5) * 0.06, dirt: 0.5 + rr() * 0.3 }));
+      for (let d = 0; d < 2; d++) { const dr = new THREE.Mesh(new THREE.SphereGeometry(0.006, 6, 4), new THREE.MeshPhysicalMaterial({ color: 0xc8d0d4, roughness: 0, clearcoat: 1, transparent: true, opacity: 0.7 })); dr.scale.y = 1.6; dr.position.set(cx + w * (0.25 + d * 0.5), y - 0.33 - rr() * 0.25, z + 0.03); root.add(dr); }
+      cx += w + 0.03 + rr() * 0.08; } };
   const fairy = (x, y, z) => { const bulbs = [0xffd080, 0xff6a6a, 0x80c0ff, 0x90ff90].map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(2.2) })); const bg = new THREE.SphereGeometry(0.014, 6, 4); for (let k = 0; k < 15; k++) { const t = k / 14, b = new THREE.Mesh(bg, bulbs[k % 4]); b.position.set(x - 0.72 + t * 1.44, y + 0.01 - Math.sin(t * Math.PI) * 0.12, z + 0.02); root.add(b); } const l = new THREE.PointLight(0xffc0a0, 0.6, 2.5, 2); l.position.set(x, y, z + 0.3); root.add(l); };
   const LAUNDRY = { '0,1': 4, '1,4': 3, '2,0': 5, '3,2': 3 };
   const WXS = [-6.2, -3.1, 0, 3.1, 6.2];
@@ -271,14 +282,50 @@ export function createStreet(env) {
       }
       k++;
     }
-    box(WR1 - WR0, 0.05, 0.6, M.steel, (WR0 + WR1) / 2, 1.0, -0.45, root);
-    const sl = new THREE.Group(); sl.position.set(WR0 + 0.7, 1.03, -0.45); sl.rotation.y = 0.5; root.add(sl);
-    const enamel = new THREE.MeshStandardMaterial({ color: 0xe0dcd0, roughness: 0.3 });
-    box(0.42, 0.12, 0.34, enamel, 0, 0.06, 0, sl); box(0.12, 0.3, 0.16, enamel, 0.14, 0.24, -0.06, sl);
-    const bl = cyl(0.15, 0.15, 0.012, new THREE.MeshPhysicalMaterial({ map: brushedSteelMaps(61, { scuff: false }).map, metalness: 1, roughness: 0.2 }), -0.02, 0.27, 0.05, sl, 40); bl.rotation.x = Math.PI / 2;
-    cyl(0.04, 0.04, 0.03, M.iron, -0.02, 0.27, 0.07, sl, 16).rotation.x = Math.PI / 2;
-    box(0.26, 0.02, 0.2, M.steel, -0.08, 0.14, 0.12, sl);
-    for (let i = 0; i < 4; i++) cyl(0.05, 0.05, 0.16, new THREE.MeshStandardMaterial({ color: [0x8a3a1a, 0xc8a050, 0x5a6a2a, 0xd8c8a0][i], roughness: 0.15, transparent: true, opacity: 0.88 }), WR1 - 0.6 + i * 0.13, 1.11, -0.5, root, 14);
+    // window bed: a worn end-grain butcher's block running the width of the window, white tile kick below
+    const cxw = (WR0 + WR1) / 2, Y = 1.0, Zc = -0.45;
+    box(WR1 - WR0, 0.08, 0.6, pbr('wood_table_worn', WR1 - WR0, 0.6, { size: 0.5, color: 0xb08a68, roughness: 0.6 }), cxw, Y - 0.015, Zc, root);
+    // butcher's paper with sliced salami fanned out, a sprig of rosemary
+    { const pap = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.3, 6, 4), new THREE.MeshStandardMaterial({ color: 0xc8a878, roughness: 0.9, side: THREE.DoubleSide }));
+      const pp = pap.geometry.attributes.position; for (let i = 0; i < pp.count; i++) pp.setZ(i, Math.sin(pp.getX(i) * 18) * 0.003 + (Math.abs(pp.getY(i)) > 0.13 ? 0.006 : 0)); pap.geometry.computeVertexNormals();
+      pap.rotation.set(-Math.PI / 2, 0, 0.12); pap.position.set(cxw - 0.05, Y + 0.027, Zc + 0.05); root.add(pap);
+      const salT = canvasTexture(128, 128, (g, W, H) => { const r = R(83); g.fillStyle = '#8a2a22'; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill(); for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(240,220,200,${0.6 + r() * 0.4})`; g.beginPath(); g.ellipse(64 + (r() - 0.5) * 100, 64 + (r() - 0.5) * 100, 2 + r() * 5, 2 + r() * 4, r() * 3, 0, 7); g.fill(); } g.strokeStyle = '#4a1a10'; g.lineWidth = 5; g.beginPath(); g.arc(64, 64, 60, 0, 7); g.stroke(); });
+      const salM = new THREE.MeshStandardMaterial({ map: salT, roughness: 0.45 });
+      for (let k = 0; k < 9; k++) { const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.003, 20), salM); sl.position.set(cxw - 0.18 + k * 0.03, Y + 0.03 + k * 0.0012, Zc + 0.04 + Math.sin(k * 0.6) * 0.03); sl.rotation.set(0.12, 0, -0.18); root.add(sl); }
+      const stub = sausage(0.14, 0.03, new THREE.MeshPhysicalMaterial({ map: sausageTex(), roughness: 0.5, clearcoat: 0.3 }), 0.01); stub.rotation.z = Math.PI / 2 + 0.05; stub.position.set(cxw + 0.12, Y + 0.058, Zc + 0.06); root.add(stub);
+      const leafM = new THREE.MeshStandardMaterial({ color: 0x3a5a2a, roughness: 0.7 }); for (let k = 0; k < 10; k++) { const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.002, 0.014, 2, 4), leafM); l.position.set(cxw - 0.02 + k * 0.006, Y + 0.035, Zc - 0.06 + (k % 2 ? 0.006 : -0.006)); l.rotation.set(Math.PI / 2, 0, (k % 2 ? 0.6 : -0.6)); root.add(l); } }
+    // a vintage gravity slicer, red enamel with a chrome blade and carriage
+    { const sl = new THREE.Group(); sl.position.set(WR0 + 0.38, Y + 0.025, Zc - 0.02); sl.rotation.y = 0.55; root.add(sl);
+      const red = new THREE.MeshPhysicalMaterial({ color: 0x8a1c18, roughness: 0.35, clearcoat: 0.7, clearcoatRoughness: 0.25 }), chrome = new THREE.MeshStandardMaterial({ color: 0xd8dcdc, metalness: 1, roughness: 0.18 });
+      const base = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.09, 0.34, 3, 0.03), red); base.position.y = 0.045; sl.add(base);
+      const col = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.26, 0.14, 3, 0.03), red); col.position.set(0.14, 0.21, -0.07); sl.add(col);
+      const blade = cyl(0.145, 0.145, 0.006, new THREE.MeshPhysicalMaterial({ map: brushedSteelMaps(61, { scuff: false }).map, metalness: 1, roughness: 0.15 }), 0.0, 0.24, 0.03, sl, 48); blade.rotation.x = Math.PI / 2;
+      const guard = new THREE.Mesh(new THREE.TorusGeometry(0.152, 0.012, 8, 40, Math.PI * 1.3), chrome); guard.position.set(0, 0.24, 0.036); guard.rotation.z = 0.35; sl.add(guard);
+      cyl(0.04, 0.04, 0.035, chrome, 0, 0.24, 0.05, sl, 20).rotation.x = Math.PI / 2;
+      const tray = box(0.24, 0.012, 0.18, chrome, -0.08, 0.12, 0.1, sl); tray.rotation.z = 0.08;
+      cyl(0.012, 0.012, 0.16, chrome, -0.22, 0.15, 0.1, sl, 10).rotation.z = Math.PI / 2;
+      const knob = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.3 })); knob.position.set(-0.3, 0.15, 0.1); sl.add(knob);
+      decal('Fingerprints003', sl, { pos: [0.14, 0.22, 0.002], w: 0.1, h: 0.1, color: 0xd8d0c8, opacity: 0.35 }); }
+    // preserving jars: glass, wire-bail lids, things in brine; a paper price tag on each
+    { const glassM = new THREE.MeshPhysicalMaterial({ color: 0xe8f0ec, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.28, clearcoat: 1, depthWrite: false, side: THREE.DoubleSide });
+      const brine = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.15, transparent: true, opacity: 0.55, depthWrite: false });
+      const lidM = new THREE.MeshStandardMaterial({ color: 0xb8a070, metalness: 0.8, roughness: 0.35 }), wireM = new THREE.MeshStandardMaterial({ color: 0xaaaaa4, metalness: 1, roughness: 0.3 });
+      [['onions', 0xd8d0a0, 0xe8e0c0], ['gherkins', 0x8a9a5a, 0x5a6a2a], ['mustard', 0xc89a30, 0xc89a30], ['chutney', 0x7a3418, 0x5a2410]].forEach(([n, bc, fc], i) => {
+        const j = new THREE.Group(); j.position.set(WR1 - 0.62 + i * 0.15, Y + 0.025, Zc - 0.1 + (i % 2) * 0.05); j.rotation.y = (i - 1.5) * 0.3; root.add(j);
+        const h = 0.13 + (i % 2) * 0.03, rr = 0.045;
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, h, 24, 1, true), glassM); body.position.y = h / 2; body.renderOrder = 4; j.add(body);
+        const fill = new THREE.Mesh(new THREE.CylinderGeometry(rr - 0.004, rr - 0.004, h * 0.82, 20), brine(bc)); fill.position.y = h * 0.41 + 0.002; fill.renderOrder = 3; j.add(fill);
+        if (n === 'onions') for (let k = 0; k < 9; k++) { const o = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshStandardMaterial({ color: fc, roughness: 0.3 })); o.position.set((Math.random() - 0.5) * 0.05, 0.02 + Math.random() * h * 0.7, (Math.random() - 0.5) * 0.05); j.add(o); }
+        if (n === 'gherkins') for (let k = 0; k < 5; k++) { const o = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.07, 4, 8), new THREE.MeshStandardMaterial({ color: fc, roughness: 0.5 })); o.position.set((k - 2) * 0.014, 0.06, (k % 2 - 0.5) * 0.02); o.rotation.z = (k - 2) * 0.12; j.add(o); }
+        const lid = cyl(rr + 0.004, rr + 0.004, 0.015, lidM, 0, h + 0.008, 0, j, 24);
+        const bail = new THREE.Mesh(new THREE.TorusGeometry(rr * 0.9, 0.0018, 4, 20, Math.PI), wireM); bail.position.y = h + 0.005; bail.rotation.y = 0.4; j.add(bail);
+        const tag = canvasTexture(128, 64, (g, W, H) => { g.fillStyle = '#efe6cc'; g.fillRect(0, 0, W, H); g.fillStyle = '#1b2a5a'; g.font = `400 30px "Nanum Pen Script", Caveat, cursive`; g.textAlign = 'center'; g.fillText(n, W / 2, 28); g.fillStyle = '#8a1a14'; g.fillText(['¥18', '¥22', '¥15', '¥26'][i], W / 2, 56); });
+        const tg = plane(0.05, 0.025, lit(tag), 0, h * 0.5, rr + 0.002, 0, j); tg.rotation.z = (Math.random() - 0.5) * 0.15;
+      }); }
+    // brass price spike with a ticket for the hanging salami
+    { const sp = cyl(0.003, 0.003, 0.2, new THREE.MeshStandardMaterial({ color: 0xb89048, metalness: 1, roughness: 0.3 }), cxw + 0.32, Y + 0.12, Zc + 0.12, root, 6); cyl(0.02, 0.025, 0.012, sp.material, cxw + 0.32, Y + 0.03, Zc + 0.12, root, 12);
+      const t = canvasTexture(192, 128, (g, W, H) => { g.fillStyle = '#f2ecd8'; g.fillRect(0, 0, W, H); g.strokeStyle = '#8a1a14'; g.lineWidth = 4; g.strokeRect(6, 6, W - 12, H - 12); g.fillStyle = '#1b1b1b'; g.textAlign = 'center'; g.font = `400 40px "Nanum Pen Script", Caveat, cursive`; g.fillText('Cured salami', W / 2, 48); g.fillStyle = '#8a1a14'; g.font = `600 46px Caveat, cursive`; g.fillText('¥74 / 100g', W / 2, 100); });
+      const tk = plane(0.09, 0.06, lit(t), cxw + 0.32, Y + 0.2, Zc + 0.122, 0, root); tk.rotation.z = -0.06; }
   }
 
   // ---------------------------------------------------------------- 遮雨篷：一条老式条纹帆布伸缩篷（墨绿 / 奶白），钢管骨架、顶上卷轴箱、两侧折臂、前沿一道波浪边
@@ -376,7 +423,7 @@ export function createStreet(env) {
     const labelM = new THREE.MeshStandardMaterial({ map: label, roughness: 0.85, color: 0xb8b2a4 });
     const wheels = [], outlets = [];
     [[3.52, 0.32, 0.4], [3.96, 0.36, -0.6]].forEach(([x, z, turn], k) => {
-      const c = new THREE.Group(); c.position.set(x, 0.15, z); c.rotation.y = turn; root.add(c);
+      const c = new THREE.Group(); c.position.set(x, 0.15, z); c.rotation.y = turn; c.scale.setScalar(0.7); root.add(c);   // a 10 kg beverage cylinder: about 1.1 m, not a welding bottle
       c.add(new THREE.Mesh(new THREE.LatheGeometry(split(0, shoulderAt), 32), bodyM));
       c.add(new THREE.Mesh(new THREE.LatheGeometry(split(shoulderAt, 1.6), 32), greyM));
       const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.1172, 0.1172, 0.24, 32, 1, true, -1.1, 2.2), labelM); lb.position.y = 0.98; c.add(lb);
@@ -385,7 +432,7 @@ export function createStreet(env) {
       const hwG = new THREE.Group(); hwG.position.y = 1.7; c.add(hwG); wheels.push(hwG);
       const hw = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.006, 6, 18), wheelM); hw.rotation.x = Math.PI / 2; hwG.add(hw);
       for (let s = 0; s < 3; s++) { const sp = box(0.06, 0.006, 0.006, wheelM, 0, 0, 0, hwG); sp.rotation.y = s * Math.PI / 3; }
-      outlets.push(c.localToWorld(new THREE.Vector3(0.068, 1.635, 0)));
+      c.updateMatrixWorld(true); outlets.push(c.localToWorld(new THREE.Vector3(0.068, 1.635, 0)));
       const guard = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 6, 24), greyM); guard.rotation.x = Math.PI / 2; guard.position.y = 1.73; c.add(guard);
       for (let s = 0; s < 3; s++) { const a = s * Math.PI * 2 / 3; cyl(0.006, 0.006, 0.16, greyM, Math.cos(a) * 0.07, 1.65, Math.sin(a) * 0.07, c, 6); }
       // tag on string
@@ -396,17 +443,67 @@ export function createStreet(env) {
       decal('Leaking007', c, { pos: [0, 0.2, 0.118], w: 0.24, h: 0.4, color: 0x3a2a1a, opacity: 0.6, rot: [0, 0, Math.PI] });
     });
     // wall bracket and a chain across the front of both cylinders
-    box(0.86, 0.05, 0.08, M.iron, 3.70, 1.2, 0.05, root);
+    box(0.86, 0.05, 0.08, M.iron, 3.70, 0.88, 0.05, root);
     const chainM = new THREE.MeshStandardMaterial({ color: 0x8a8a84, metalness: 1, roughness: 0.45 });
-    const ch = new THREE.CatmullRomCurve3([[3.29, 1.2, 0.08], [3.32, 1.18, 0.3], [3.4, 1.16, 0.44], [3.52, 1.15, 0.458], [3.74, 1.13, 0.48], [3.96, 1.15, 0.498], [4.09, 1.16, 0.44], [4.11, 1.18, 0.3], [4.11, 1.2, 0.08]].map((p) => new THREE.Vector3(...p)));
+    const ch = new THREE.CatmullRomCurve3([[3.32, 0.88, 0.08], [3.35, 0.865, 0.28], [3.42, 0.85, 0.4], [3.52, 0.84, 0.42], [3.74, 0.82, 0.44], [3.96, 0.84, 0.45], [4.06, 0.85, 0.41], [4.08, 0.865, 0.28], [4.08, 0.88, 0.08]].map((p) => new THREE.Vector3(...p)));
     for (let i = 0; i < 64; i++) { const t = i / 63, p = ch.getPoint(t), d = ch.getTangent(t); const l = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0035, 5, 10), chainM); l.position.copy(p); l.lookAt(p.clone().add(d)); l.rotateY(Math.PI / 2); if (i % 2) l.rotateX(Math.PI / 2); l.scale.set(1.5, 1, 1); root.add(l); }
     // the valve: crack it open and the handwheel turns, a cold white jet hisses out of the outlet for a few seconds
     const puffMap = canvasTexture(64, 64, (g) => { const gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); });
     const puffs = []; for (let i = 0; i < 40; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffMap, transparent: true, depthWrite: false, opacity: 0, color: 0xe8eef0 })); sp.userData.ph = i / 40; root.add(sp); puffs.push(sp); }
     valve = { wheels, outlets, puffs, t0: -99 };
   }
-  const note = (t, s, seed) => canvasTexture(200, 260, (g, W, H) => { g.fillStyle = '#ddd6c2'; g.fillRect(0, 0, W, H); g.fillStyle = '#222'; g.font = `700 36px ${SANS}`; g.textAlign = 'center'; g.fillText(t, W / 2, 60); g.font = `400 20px ${SANS}`; s.forEach((l, i) => g.fillText(l, W / 2, 110 + i * 30)); ageCanvas(g, W, H, { amount: 1.2, seed }); });
-  for (const [x, y, t, l] of [[4.55, 2.05, 'NOTICE', ['Basement works', 'at night']], [4.85, 1.65, 'HIRING', ['Night packers', 'paid daily']], [4.45, 1.45, 'REGULARS', ['Use side door', 'knock 3 times']], [5.0, 2.3, 'LOST CAT', ['Grey · female', 'reward']]]) plane(0.24, 0.31, lit(note(t, l, Math.round(x * 10))), x, y, 0.02, 0, root).rotation.z = (rnd() - 0.5) * 0.12;
+  // 墙上的告示：几张真的纸——A4 打印的招工启事（底下一排撕号码的条，撕掉了几条）、手写的熟客须知、复印的寻猫启事（照片发糊）、
+  //   一张施工通知；纸的白不一样，被雨打湿的地方发灰起皱、墨水晕开，角上贴着胶带或者图钉，没贴牢的角翘起来
+  { const PEN = (px) => `400 ${px}px "Nanum Pen Script", "Caveat", cursive`;
+    const sheet = (w, h, draw, { x, y, rz = 0, seed = 1, tint = '#e8e4d8', curl = 0.02, tabs = 0, pins = 'tape' }) => {
+      const W = Math.round(w * 1400), H = Math.round(h * 1400), r = R(seed);
+      const tex = canvasTexture(W, H, (g) => {
+        g.fillStyle = tint; g.fillRect(0, 0, W, H);
+        for (let i = 0; i < 700; i++) { g.fillStyle = `rgba(0,0,0,${r() * 0.03})`; g.fillRect(r() * W, r() * H, 1 + r() * 3, 1 + r() * 3); }   // paper grain
+        g.fillStyle = '#1c1c1c'; g.textAlign = 'center'; draw(g, W, H, r);
+        // rain: grey damp patches, ink running down from the lower lines, a tide line
+        for (let i = 0; i < 5; i++) { const cx = r() * W, cy = H * (0.4 + r() * 0.6), rr = 20 + r() * 60, gr = g.createRadialGradient(cx, cy, 2, cx, cy, rr); gr.addColorStop(0, 'rgba(90,92,96,.1)'); gr.addColorStop(0.8, 'rgba(90,92,96,.06)'); gr.addColorStop(0.95, 'rgba(110,95,60,.1)'); gr.addColorStop(1, 'rgba(110,95,60,0)'); g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.fill(); }
+        for (let i = 0; i < 14; i++) { const x0 = r() * W, y0 = H * (0.35 + r() * 0.5), l = 10 + r() * 50; g.strokeStyle = `rgba(30,30,60,${0.08 + r() * 0.15})`; g.lineWidth = 1 + r() * 2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + (r() - 0.5) * 3, y0 + l); g.stroke(); }
+        g.fillStyle = 'rgba(120,100,60,.18)'; g.fillRect(0, H * 0.93, W, H * 0.07);
+        if (tabs) { const tw = W / tabs; g.globalCompositeOperation = 'destination-out'; for (let k = 0; k < tabs; k++) { if (r() < 0.45) { g.fillStyle = '#000'; g.beginPath(); g.moveTo(k * tw + 2, H); g.lineTo(k * tw + 2, H * 0.8 + r() * 6); for (let j = 0; j < 6; j++) g.lineTo(k * tw + j / 5 * (tw - 4), H * 0.8 + (r() - 0.5) * 8); g.lineTo((k + 1) * tw - 2, H); g.fill(); } } g.globalCompositeOperation = 'source-over'; }
+      });
+      const geo = new THREE.PlaneGeometry(w, h, 6, 8), P = geo.attributes.position, lc = r() < 0.5 ? 1 : -1;
+      for (let i = 0; i < P.count; i++) { const u = P.getX(i) / w * 2, v = P.getY(i) / h * 2; P.setZ(i, 0.002 + 0.003 * (1 - v * v) + curl * Math.max(0, u * lc) ** 2 * Math.max(0, -v) ** 2 + Math.sin(u * 5 + v * 3 + seed) * 0.0015); }   // bellied, one lower corner curling off the wall
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, alphaTest: 0.4, transparent: false, side: THREE.DoubleSide }));
+      m.position.set(x, y, 0.012); m.rotation.z = rz; root.add(m);
+      const tapeM = new THREE.MeshStandardMaterial({ color: 0xe0d8b0, roughness: 0.4, transparent: true, opacity: 0.75 });
+      for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { if (sx === lc && sy === -1) continue;
+        if (pins === 'tape') { const t = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.016), tapeM); t.position.set(sx * w / 2 * 0.92, sy * h / 2 * 0.94, 0.0045); t.rotation.z = sx * sy * 0.7; m.add(t); }
+        else if (sy > 0) { const pin = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshStandardMaterial({ color: [0xb02020, 0x2050a0, 0xe0c020][Math.floor(r() * 3)], roughness: 0.3 })); pin.position.set(sx * w / 2 * 0.85, h / 2 * 0.9, 0.006); m.add(pin); } }
+      return m;
+    };
+    sheet(0.21, 0.297, (g, W, H, r) => {                                      // printed A4, phone-number tabs along the bottom
+      g.font = `800 ${W * 0.13}px ${SANS}`; g.fillText('HIRING', W / 2, H * 0.14);
+      g.font = `600 ${W * 0.06}px ${SANS}`; g.fillText('NIGHT PACKERS', W / 2, H * 0.24); g.font = `400 ${W * 0.045}px ${SANS}`;
+      ['Mon–Sat · 22:00–06:00', 'Cash paid daily', 'No experience needed', 'Ask for Danny at Door 02'].forEach((t, i) => g.fillText(t, W / 2, H * (0.36 + i * 0.07)));
+      g.save(); for (let k = 0; k < 8; k++) { g.save(); g.translate(k * W / 8 + W / 16, H * 0.9); g.rotate(-Math.PI / 2); g.font = `500 ${W * 0.032}px ${SANS}`; g.fillText('07700 900' + (300 + k), 0, 4); g.restore(); g.strokeStyle = 'rgba(0,0,0,.4)'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(k * W / 8, H * 0.8); g.lineTo(k * W / 8, H); g.stroke(); } g.restore();
+    }, { x: 4.88, y: 1.62, rz: 0.03, seed: 11, tint: '#eeece4', tabs: 8 });
+    sheet(0.15, 0.2, (g, W, H, r) => {                                         // handwritten on lined pad paper
+      g.strokeStyle = 'rgba(80,110,160,.35)'; for (let y = H * 0.18; y < H; y += H * 0.085) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+      g.fillStyle = '#1b2a5a'; g.textAlign = 'left';
+      [['Regulars —', 0.16, 0.13], ['use the side door', 0.26, 0.1], ['after 9pm.', 0.35, 0.1], ['knock 3 times', 0.47, 0.11], ['— D.', 0.6, 0.1]].forEach(([t, y, s], i) => { g.save(); g.translate(W * 0.08 + r() * 4, H * y); g.rotate((r() - 0.5) * 0.05); g.font = PEN(W * s * 1.4); g.fillText(t, 0, 0); g.restore(); });
+      g.strokeStyle = '#1b2a5a'; g.lineWidth = 2; g.beginPath(); g.moveTo(W * 0.55, H * 0.49); g.quadraticCurveTo(W * 0.75, H * 0.52, W * 0.92, H * 0.47); g.stroke();
+    }, { x: 4.42, y: 1.36, rz: -0.06, seed: 23, tint: '#f2efe0', pins: 'pin', curl: 0.03 });
+    sheet(0.148, 0.21, (g, W, H, r) => {                                       // photocopied lost-cat poster: grey, grainy, the photo blotchy
+      g.fillStyle = '#d8d8d2'; g.fillRect(0, 0, W, H); g.fillStyle = '#111'; g.font = `900 ${W * 0.16}px ${SANS}`; g.fillText('LOST CAT', W / 2, H * 0.14);
+      g.fillStyle = '#555'; g.fillRect(W * 0.15, H * 0.2, W * 0.7, H * 0.36); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(${r() < 0.5 ? 20 : 200},${r() < 0.5 ? 20 : 200},${r() < 0.5 ? 20 : 200},${r() * 0.5})`; g.fillRect(W * 0.15 + r() * W * 0.7, H * 0.2 + r() * H * 0.36, 2, 2); }
+      g.fillStyle = 'rgba(20,20,20,.75)'; g.beginPath(); g.ellipse(W / 2, H * 0.42, W * 0.2, H * 0.1, 0, 0, 7); g.fill(); g.beginPath(); g.ellipse(W / 2, H * 0.3, W * 0.12, H * 0.07, 0, 0, 7); g.fill();
+      g.fillStyle = '#111'; g.font = `700 ${W * 0.085}px ${SANS}`; g.fillText('"BISCUIT"', W / 2, H * 0.65); g.font = `400 ${W * 0.055}px ${SANS}`;
+      ['Grey tabby · female · 9 yrs', 'Shy. Last seen Cable St.', 'REWARD · 07700 900461'].forEach((t, i) => g.fillText(t, W / 2, H * (0.74 + i * 0.07)));
+      g.globalCompositeOperation = 'multiply'; g.fillStyle = 'rgba(200,200,190,.4)'; for (let i = 0; i < 40; i++) g.fillRect(0, r() * H, W, 1); g.globalCompositeOperation = 'source-over';
+    }, { x: 5.08, y: 2.24, rz: 0.05, seed: 37, tint: '#dcdcd6' });
+    sheet(0.21, 0.148, (g, W, H, r) => {                                       // council works notice, landscape
+      g.fillStyle = '#1a3a6a'; g.fillRect(0, 0, W, H * 0.2); g.fillStyle = '#fff'; g.font = `800 ${H * 0.12}px ${SANS}`; g.fillText('NOTICE OF WORKS', W / 2, H * 0.14);
+      g.fillStyle = '#1c1c1c'; g.font = `400 ${H * 0.075}px ${SANS}`; ['Basement drainage works will take place', 'overnight 11 Nov – 2 Dec.', 'We apologise for any disturbance.'].forEach((t, i) => g.fillText(t, W / 2, H * (0.38 + i * 0.13)));
+      g.font = `600 ${H * 0.06}px ${SANS}`; g.fillText('Southwark Building Control · ref. BC/26/0941', W / 2, H * 0.86);
+    }, { x: 4.6, y: 2.06, rz: -0.02, seed: 49, tint: '#f0eee8' });
+  }
   const SDX = 6.4;
   // 仓库的 02 号门（和仓库里那扇是同一扇）：卷帘门拉起来一半，里面暖黄的灯照出来，看得见运输笼和托盘
   { const DW = 2.0, DTop = 3.15, OPEN = 1.35, y0 = 0.15;
@@ -436,7 +533,19 @@ export function createStreet(env) {
   model('wooden_crate_01', { pos: [7.8, 0.15, 0.6], rot: 0.1, parent: root }); model('wooden_crate_01', { pos: [7.75, 0.5, 0.55], rot: -0.12, parent: root }); model('wooden_crate_01', { pos: [7.85, 0.85, 0.6], rot: 0.2, tilt: 0.04, parent: root });
   model('wooden_crate_02', { pos: [7.6, 0.15, 1.5], rot: 1.5, parent: root });
   model('trashbag', { pos: [4.95, 0.15, 0.65], rot: 0.5, parent: root });
-  box(0.45, 0.45, 0.3, M.steel, SDX + 0.9, 4.1, 0.12, root);
+  // kitchen extract above the side door: galvanised hood with a louvred face and a bird mesh, a duct going up the wall,
+  // grease weeping out of the louvres and down the render, rust at the fixings
+  { const galv = pbr('Metal009', 0.5, 0.5, { size: 0.5, metalness: 0.85, roughness: 0.55, color: 0x8a8c88 }), dark = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.8 });
+    const v = new THREE.Group(); v.position.set(SDX + 0.9, 4.1, 0.05); root.add(v);
+    box(0.5, 0.46, 0.26, galv, 0, 0, 0.13, v); box(0.42, 0.38, 0.01, dark, 0, 0, 0.262, v);
+    for (let k = 0; k < 7; k++) { const sl = box(0.44, 0.012, 0.06, galv, 0, -0.17 + k * 0.055, 0.27, v); sl.rotation.x = -0.6; }
+    const mesh = canvasTexture(64, 64, (g) => { g.clearRect(0, 0, 64, 64); g.strokeStyle = 'rgba(60,60,58,.9)'; g.lineWidth = 1.2; for (let i = 0; i < 64; i += 6) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 64); g.moveTo(0, i); g.lineTo(64, i); g.stroke(); } });
+    mesh.wrapS = mesh.wrapT = THREE.RepeatWrapping; mesh.repeat.set(6, 6); plane(0.44, 0.4, new THREE.MeshStandardMaterial({ map: mesh, transparent: true, alphaTest: 0.3, metalness: 0.6, roughness: 0.6 }), 0, 0, 0.295, 0, v);
+    box(0.54, 0.03, 0.3, galv, 0, 0.245, 0.14, v);
+    cyl(0.09, 0.09, 1.6, galv, 0, 1.05, 0.12, v, 16); for (const y of [0.55, 1.15, 1.7]) cyl(0.096, 0.096, 0.03, galv, 0, y, 0.12, v, 16);
+    decal('Leaking006', root, { pos: [SDX + 0.9, 3.35, 0.012], w: 0.5, h: 1.3, color: 0x3a2c14, opacity: 0.75 });   // grease run
+    decal('Leaking007', root, { pos: [SDX + 0.9, 3.75, 0.304], w: 0.46, h: 0.3, color: 0x2a2010, opacity: 0.6 });
+    for (const x of [-0.22, 0.22]) decal('Leaking006', root, { pos: [SDX + 0.9 + x, 3.6, 0.012], w: 0.12, h: 0.6, color: 0x4a2410, opacity: 0.7 }); }
   const steamTex = canvasTexture(128, 128, (g, W, H) => { const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64); gr.addColorStop(0, 'rgba(220,226,224,.5)'); gr.addColorStop(1, 'rgba(220,226,224,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
   const steam = [];
   for (let i = 0; i < 10; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, transparent: true, depthWrite: false, opacity: 0.4 })); s.userData.ph = i / 10; root.add(s); steam.push(s); }
@@ -451,11 +560,27 @@ export function createStreet(env) {
       let n = seed; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
       g.filter = 'blur(10px)'; for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(220,224,218,${0.015 + r() * 0.03})`; g.beginPath(); g.ellipse(r() * W, r() * H, 50 + r() * 110, 10 + r() * 22, (r() - 0.5) * 0.6, 0, 7); g.fill(); } g.filter = 'none';   // 擦过没擦干净的粉笔灰：淡、横向、边缘模糊
       g.lineCap = g.lineJoin = 'round'; g.textBaseline = 'alphabetic';
-      const t = (txt, x, y, px, col = 'rgba(240,238,228,.95)', align = 'center', rot = 0) => { g.save(); g.translate(x, y); g.rotate(rot + (r() - 0.5) * 0.03); g.font = f(px); g.textAlign = align; g.fillStyle = col; g.fillText(txt, 0, 0); g.restore(); };
+      // written by hand in chalk: letter by letter, each with its own lean, size and height, the line drifting uphill a little;
+      //   big headings in a brushier hand, small print in a scratchier one; every stroke gone over twice, unevenly
+      const t = (txt, x, y, px, col = 'rgba(240,238,228,.95)', align = 'center', rot = 0) => {
+        const big = px >= 56, fam = big ? `${px}px "Caveat Brush", Caveat, cursive` : `${Math.round(px * 1.32)}px "Nanum Pen Script", Caveat, cursive`;
+        g.save(); g.translate(x, y); g.rotate(rot + (r() - 0.5) * 0.05); g.font = fam; g.textAlign = 'left'; g.fillStyle = col; g.strokeStyle = col;
+        const glyphs = [...txt].map((ch) => ({ ch, w: g.measureText(ch).width, s: 0.9 + r() * 0.2, a: (r() - 0.5) * 0.12, dy: (r() - 0.5) * px * 0.06 }));
+        const total = glyphs.reduce((a, q) => a + q.w * q.s * 0.98, 0); let cx = align === 'center' ? -total / 2 : align === 'right' ? -total : 0;
+        const drift = (r() - 0.5) * 0.04;
+        glyphs.forEach((q, i) => { g.save(); g.translate(cx, q.dy + cx * drift); g.rotate(q.a); g.scale(q.s, q.s * (0.95 + r() * 0.1));
+          g.globalAlpha = 0.72 + r() * 0.28; g.fillText(q.ch, 0, 0);
+          g.globalAlpha = 0.25 + r() * 0.2; g.fillText(q.ch, 1.2 + r() * 1.5, -0.8 + r() * 1.2);          // second pass of the chalk, a hair off
+          g.globalAlpha = 0.15; g.lineWidth = 0.8; g.strokeText(q.ch, 0, 0); g.restore(); cx += q.w * q.s * (0.94 + r() * 0.08); });
+        g.restore(); };
       const line = (pts, col = 'rgba(240,238,228,.85)', w = 4) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x + (r() - 0.5) * 3, y + (r() - 0.5) * 3) : g.moveTo(x, y))); g.stroke(); };
       draw(g, W, H, t, line, r);
-      g.globalCompositeOperation = 'destination-out';                              // 粉笔的颗粒：随机抠掉一些像素
-      for (let i = 0; i < 9000; i++) { g.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.5})`; g.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2); }
+      g.globalCompositeOperation = 'destination-out';                              // 粉笔的颗粒：随机抠掉一些像素，再加上顺着笔势拖出来的断线
+      for (let i = 0; i < 14000; i++) { g.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.55})`; g.fillRect(r() * W, r() * H, 1 + r() * 2, 1 + r() * 2); }
+      g.lineWidth = 1.2; for (let i = 0; i < 2600; i++) { const x0 = r() * W, y0 = r() * H, l = 4 + r() * 12; g.strokeStyle = `rgba(0,0,0,${0.3 + r() * 0.5})`; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + l * 0.94, y0 - l * 0.34); g.stroke(); }
+      g.globalCompositeOperation = 'source-over';
+      g.filter = 'blur(3px)'; for (let i = 0; i < 10; i++) { g.fillStyle = `rgba(230,230,222,${0.03 + r() * 0.05})`; g.beginPath(); g.ellipse(r() * W, r() * H, 14 + r() * 40, 5 + r() * 12, r() * 3, 0, 7); g.fill(); } g.filter = 'none';   // thumb smudges
+      g.globalCompositeOperation = 'destination-out';
       g.globalCompositeOperation = 'source-over';
     };
       const tx = canvasTexture(660, 1000, paint); tx.userData.redraw = () => { paint(tx.userData.ctx, 660, 1000); tx.needsUpdate = true; }; return tx; };   // 手写字体到了再写一遍
@@ -496,7 +621,7 @@ export function createStreet(env) {
     const chalkM = (map) => new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 });
     const fp = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.97), chalkM(front)); fp.position.set(0.015, cy, cz + 0.004); fp.rotation.x = -TILT; cb.add(fp);
     const bp = new THREE.Mesh(new THREE.PlaneGeometry(0.64, 0.97), chalkM(back)); bp.position.set(0.015, cy, -cz - 0.004); bp.rotation.set(TILT, Math.PI, 0); cb.add(bp);
-    document.fonts.load(f(60), 'TODAY').then(() => { for (const t of [front, back]) { t.userData?.redraw?.(); } }).catch(() => {});
+    Promise.all([document.fonts.load(f(60), 'TODAY'), document.fonts.load('60px "Caveat Brush"', 'TODAY'), document.fonts.load('60px "Nanum Pen Script"', 'made')]).then(() => { for (const t of [front, back]) { t.userData?.redraw?.(); } }).catch(() => {});
   }
   model('exterior_aircon_unit', { pos: [4.65, GH + FH + 0.55, 0.24], parent: root });            // 二楼窗户之间的空调外机
   model('exterior_aircon_unit', { pos: [-4.65, GH + FH * 2 + 0.55, 0.24], parent: root });

@@ -170,7 +170,7 @@ const whLook = { yaw: -12, pitch: -6, tYaw: -12, tPitch: -6, fov: 64 };
 const LOOKS = { room: { eye: ROOM_EYE, l: look, min: 38, max: 72 }, lab: { eye: LAB_EYE, l: labLook, min: 34, max: 66, pitch: [-45, 60] },
   street: { eye: STREET_EYE, l: streetLook, min: 34, max: 70 }, warehouse: { eye: WH_EYE, l: whLook, min: 34, max: 70, pitch: [-45, 35] } };
 window.__looks = LOOKS;   // 调试 / 截图用
-const canLook = () => LOOKS[state.view] && !state.rfocus && !state.busy && !state.sfocus && !state.focus && !NAV[state.view]?.walking;
+const canLook = () => LOOKS[state.view] && !state.rfocus && !state.busy && (!state.sfocus || state.view === 'street') && !state.focus && !NAV[state.view]?.walking;   // walked up to something on the street: you can still look around
 let drag = null;
 const toYawPitch = (p, eye = ROOM_EYE) => {
   const d = new THREE.Vector3(...p).sub(eye);

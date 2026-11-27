@@ -584,10 +584,26 @@ export function addMarketLane(root) {
     const side=k<7?-1:1,x=side*(6.2+((k%7)*1.05))+(hash(k)-.5)*.3,y=1.35+(hash(k+1)-.5)*.5+(k%3===0?.9:0);
     const o=new T.Mesh(new T.PlaneGeometry(.62,.87),posterMats[(k*3+1)%5]);o.position.set(x,y,.012+k*.0004);o.rotation.z=(hash(k+2)-.5)*.06;bridge.add(o);
   }
-  { const map=canvasTexture(512,128,(c,W,H)=>{c.fillStyle='#e8c22a';c.fillRect(0,0,W,H);c.fillStyle='#111';for(let x=-H;x<W;x+=48){c.beginPath();c.moveTo(x,0);c.lineTo(x+24,0);c.lineTo(x+24+H,H);c.lineTo(x+H,H);c.fill();}
-      c.fillStyle='#e8c22a';c.fillRect(24,18,W-48,H-36);c.fillStyle='#111';c.font='800 64px "Arial Black", sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText("21'-11\"   6.7 m",W/2,H/2+2);});
-    const o=new T.Mesh(new T.PlaneGeometry(2.2,.55),new T.MeshStandardMaterial({map,roughness:.6}));o.position.set(0,7.25,.03);bridge.add(o);
-    decal('Leaking006',bridge,{pos:[0,6.5,.025],w:.8,h:1.4,color:0x2a1a10,opacity:.7}); }
+  // Headroom plate: an enamelled steel sign on two rails bolted to the brick, the enamel chipped to rust at the edges and bolts,
+  // soot from the trains over the top half, a scrape where a lorry once caught the arch below it.
+  { const map=canvasTexture(1024,256,(c,W,H)=>{let n=9;const r=()=>(n=(n*16807)%2147483647)/2147483647;
+      c.fillStyle='#d9b021';c.fillRect(0,0,W,H);c.fillStyle='#151515';
+      for(let x=-H;x<W+H;x+=72){c.beginPath();c.moveTo(x,0);c.lineTo(x+36,0);c.lineTo(x+36-H*0.35,H);c.lineTo(x-H*0.35,H);c.fill();}
+      c.fillStyle='#ecebe4';c.fillRect(40,34,W-80,H-68);c.strokeStyle='#151515';c.lineWidth=5;c.strokeRect(40,34,W-80,H-68);
+      c.fillStyle='#151515';c.font='900 112px "Arial Narrow", Arial, sans-serif';c.textAlign='center';c.textBaseline='middle';c.fillText("21'11\"",W*0.3,H/2+4);c.fillText('6.7 m',W*0.72,H/2+4);
+      c.beginPath();c.moveTo(W*0.5,52);c.lineTo(W*0.5-16,80);c.lineTo(W*0.5+16,80);c.fill();c.beginPath();c.moveTo(W*0.5,H-52);c.lineTo(W*0.5-16,H-80);c.lineTo(W*0.5+16,H-80);c.fill();c.fillRect(W*0.5-3,78,6,H-156);
+      c.globalCompositeOperation='multiply';const soot=c.createLinearGradient(0,0,0,H);soot.addColorStop(0,'rgba(60,55,50,.85)');soot.addColorStop(.6,'rgba(150,145,140,.35)');soot.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=soot;c.fillRect(0,0,W,H);c.globalCompositeOperation='source-over';
+      for(let i=0;i<70;i++){const edge=r()<.7,x=edge?(r()<.5?r()*60:W-r()*60):r()*W,y=edge?r()*H:(r()<.5?r()*40:H-r()*40);c.fillStyle=`rgba(${90+r()*50},${45+r()*25},${15},${.6+r()*.4})`;c.beginPath();for(let k=0;k<7;k++){const a=k/7*6.28,rr=(3+r()*14);c.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr*.7);}c.fill();}   // chipped enamel, rust beneath
+      for(const bx of [28,W-28])for(const by of [28,H-28]){const g=c.createRadialGradient(bx,by,2,bx,by,30);g.addColorStop(0,'rgba(80,35,10,.9)');g.addColorStop(1,'rgba(80,35,10,0)');c.fillStyle=g;c.fillRect(bx-30,by-30,60,90);}
+      c.strokeStyle='rgba(60,55,50,.7)';c.lineWidth=2;for(let i=0;i<18;i++){const y=H*(.75+r()*.2),x=W*(.2+r()*.5);c.beginPath();c.moveTo(x,y);c.lineTo(x+60+r()*120,y+(r()-.5)*6);c.stroke();}   // scrape
+    });
+    const plateM=new T.MeshStandardMaterial({map,roughness:.45,metalness:.25,envMapIntensity:1.3});
+    const edge=mat(0x3a3530,.6,.5), plate=new T.Mesh(new T.BoxGeometry(2.3,.575,.012),[edge,edge,edge,edge,plateM,edge]);
+    plate.position.set(0,7.25,.09);plate.rotation.z=.012;plate.rotation.x=-.03;bridge.add(plate);
+    for(const y of [7.08,7.42]){piece(bridge,0,y,.05,2.4,.05,.06,iron);for(const x of [-1.05,1.05]) rod(bridge,[x,y,.03],[x,y,.1],.012,iron,.012,8);}
+    for(const x of [-1.12,1.12])for(const y of [7.0,7.5]){const b=new T.Mesh(new T.CylinderGeometry(.011,.011,.01,8),iron);b.rotation.x=Math.PI/2;b.position.set(x,y,.097);bridge.add(b);}
+    for(const x of [-1.05,1.05]) decal('Leaking006',bridge,{pos:[x+.02,6.55,.025],w:.18,h:1.2,color:0x3a1a08,opacity:.8});
+  }
   // Pipes and a cable tray along the viaduct face, rust bleeding from the brackets.
   rod(bridge,[-17,7.6,.12],[17,7.6,.12],.05,iron,.05,10);
   for(let x=-16;x<=16;x+=2.4){piece(bridge,x,7.6,.06,.08,.16,.14,iron);decal('Leaking006',bridge,{pos:[x+.05,6.9,.014],w:.3,h:1.4,color:0x3a2210,opacity:.55});}
