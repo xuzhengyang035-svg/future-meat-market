@@ -724,7 +724,10 @@ export function addMarketLane(root) {
   // LED advertising screens: a roadside 48-sheet on the loading shed roof, a portrait screen on the viaduct pier,
   // another 48-sheet on the corner mill facing back up the street.
   billboard(root,{pos:[19.9,6.4+1.6+1.53,-1.7],w:6.1,h:3.05,ads:['verdant','subscribe','pods','donor'],hold:7,glow:0x9ad8b8,seed:1});
-  billboard(bridge,{pos:[-13.2,4.9,.24],w:2.2,h:4.2,ads:['tall1','tall2'],hold:9,leds:72,gain:1.5,glow:0xff8090,seed:2,frame:false});
+  // the portrait screen sits on the viaduct wall clear of the hut roof, on two wall brackets with its cable run down the brick
+  { const bx=-6.0, by=5.9; billboard(bridge,{pos:[bx,by,.42],w:2.2,h:4.2,ads:['tall1','tall2'],hold:9,leds:72,gain:1.5,glow:0xff8090,seed:2,frame:false});
+    for(const y of [by-1.4,by+1.4]){ piece(bridge,bx,y,.15,2.0,.12,.4,iron); for(const s of [-1,1]) rod(bridge,[bx+s*.9,y,.02],[bx+s*.9,y-.5,.02],.025,iron); }
+    rod(bridge,[bx+.8,by-2.2,.05],[bx+.8,.4,.05],.03,rubber,.03,6); piece(bridge,bx+.8,1.2,.12,.3,.4,.18,iron); }
   billboard(corner,{pos:[2,10.2+1.6+1.53,-1.6],w:6.1,h:3.05,ads:['donor','pods','verdant','subscribe'],hold:8,glow:0xc8b8ff,seed:3});
   for (const x of [-14.7,-8.6]) {
     const flank=new T.Group();flank.position.set(x,0,-5.95);root.add(flank);

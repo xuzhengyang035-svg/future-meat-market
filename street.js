@@ -59,7 +59,7 @@ function ham(mat) {
 }
 
 export function createStreet(env) {
-  let valve = null, nowT = 0;
+  let valve = null, nowT = 0, awningDrips = null;
   const scene = new THREE.Scene();
   scene.background = canvasTexture(16, 512, (g, W, H) => {                  // 雨夜的天：上面深蓝黑，往下一点点被城市的灯光照成暖灰
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#05080c'); gr.addColorStop(0.55, '#141b22'); gr.addColorStop(0.8, '#2a2a28'); gr.addColorStop(1, '#3a3228'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
@@ -281,24 +281,65 @@ export function createStreet(env) {
     for (let i = 0; i < 4; i++) cyl(0.05, 0.05, 0.16, new THREE.MeshStandardMaterial({ color: [0x8a3a1a, 0xc8a050, 0x5a6a2a, 0xd8c8a0][i], roughness: 0.15, transparent: true, opacity: 0.88 }), WR1 - 0.6 + i * 0.13, 1.11, -0.5, root, 14);
   }
 
-  // ---------------------------------------------------------------- 破旧的帆布遮阳篷
-  { const W = SX1 - SX0 + 0.4, D = 1.5;
-    const tear = canvasTexture(512, 256, (g, Wt, Ht) => { g.fillStyle = '#fff'; g.fillRect(0, 0, Wt, Ht); const r = R(55); g.fillStyle = '#000';
-      for (let i = 0; i < 6; i++) { const x = r() * Wt, y = Ht * (0.55 + r() * 0.45); g.beginPath(); g.moveTo(x, Ht); g.lineTo(x + 6 + r() * 20, y); g.lineTo(x + 18 + r() * 30, Ht); g.fill(); }
-      for (let i = 0; i < 3; i++) { const x = r() * Wt, y = r() * Ht * 0.6; g.beginPath(); g.ellipse(x, y, 4 + r() * 14, 2 + r() * 6, r() * 3, 0, Math.PI * 2); g.fill(); } });
-    const cm = pbr('canvas_fabric', W, D, { size: 0.8, color: 0x8a8070, roughness: 0.95 });
-    cm.alphaMap = tear; cm.alphaTest = 0.5; cm.side = THREE.DoubleSide;
-    const geo = new THREE.PlaneGeometry(W, D, 40, 10); const ps = geo.attributes.position;
-    for (let i = 0; i < ps.count; i++) { const x = ps.getX(i), y = ps.getY(i); ps.setZ(i, Math.sin(x * 1.3) * 0.04 + Math.sin(x * 5 + y) * 0.015 + (Math.abs(Math.sin(x * 1.75)) * 0.08) * (1 - (y + D / 2) / D)); }
+  // ---------------------------------------------------------------- 遮雨篷：一条老式条纹帆布伸缩篷（墨绿 / 奶白），钢管骨架、顶上卷轴箱、两侧折臂、前沿一道波浪边
+  //   帆布被雨浸透：颜色发深、表面一层湿亮；褪色、霉点、锈水、补丁、两个破洞、边缘起毛；骨架之间的布往下兜，最低处积着水往下滴
+  { const W = SX1 - SX0 + 0.5, L = 1.75, y0 = SH + 0.05, z0 = 0.2, drop = 0.85, cx = (SX0 + SX1) / 2;
+    const RIBS = 6, rib = W / RIBS, ang = Math.atan2(drop, Math.sqrt(L * L - drop * drop));
+    const cloth = canvasTexture(1024, 512, (g, Wt, Ht) => {
+      const r = R(311), n = 14;
+      for (let k = 0; k < n; k++) { g.fillStyle = k % 2 ? '#cfc6ad' : '#1f4a36'; g.fillRect(k * Wt / n, 0, Wt / n + 1, Ht); }   // stripes
+      const sun = g.createLinearGradient(0, 0, 0, Ht); sun.addColorStop(0, 'rgba(255,240,210,.0)'); sun.addColorStop(1, 'rgba(230,220,190,.22)'); g.fillStyle = sun; g.fillRect(0, 0, Wt, Ht);   // faded toward the street
+      for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(${40 + r() * 30},${44 + r() * 30},${30},${0.12 + r() * 0.2})`; g.beginPath(); g.ellipse(r() * Wt, r() * Ht, 10 + r() * 60, 6 + r() * 30, r() * 3, 0, 7); g.fill(); }   // damp blotches
+      for (let i = 0; i < 400; i++) { g.fillStyle = `rgba(20,30,18,${0.2 + r() * 0.4})`; g.beginPath(); g.arc(r() * Wt, Ht * (0.6 + r() * 0.4), 0.8 + r() * 2.5, 0, 7); g.fill(); }   // mildew speckle low down
+      for (let i = 0; i < RIBS + 1; i++) { const x = i / RIBS * Wt; const gr = g.createLinearGradient(x - 14, 0, x + 14, 0); gr.addColorStop(0, 'rgba(90,40,10,0)'); gr.addColorStop(.5, 'rgba(90,40,10,.45)'); gr.addColorStop(1, 'rgba(90,40,10,0)'); g.fillStyle = gr; g.fillRect(x - 14, 0, 28, Ht); }   // rust from the ribs
+      for (let i = 0; i < 2; i++) { const x = Wt * (0.2 + r() * 0.6), y = Ht * (0.25 + r() * 0.4); g.fillStyle = '#7a6a52'; g.fillRect(x, y, 60 + r() * 30, 40 + r() * 20); g.strokeStyle = 'rgba(30,24,16,.7)'; g.setLineDash([4, 4]); g.lineWidth = 2; g.strokeRect(x + 3, y + 3, 54, 34); g.setLineDash([]); }   // patches
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, 0, Wt, 10);
+    });
+    const holes = canvasTexture(1024, 512, (g, Wt, Ht) => { g.fillStyle = '#fff'; g.fillRect(0, 0, Wt, Ht); g.fillStyle = '#000'; const r = R(77);
+      for (const [hx, hy, hr] of [[0.18, 0.55, 22], [0.71, 0.72, 15]]) { g.beginPath(); for (let k = 0; k < 14; k++) { const a = k / 14 * 6.28, rr = hr * (0.5 + r() * 0.8); g.lineTo(hx * Wt + Math.cos(a) * rr * 1.6, hy * Ht + Math.sin(a) * rr); } g.fill(); } });
+    const fabN = pbr('canvas_fabric', W, L, { size: 0.5 });
+    const can = new THREE.MeshPhysicalMaterial({ map: cloth, alphaMap: holes, alphaTest: 0.5, side: THREE.DoubleSide, normalMap: fabN.normalMap, roughnessMap: fabN.roughnessMap,
+      roughness: 0.75, clearcoat: 0.55, clearcoatRoughness: 0.22, color: 0xb8b8b0, envMapIntensity: 1.2 });   // soaked canvas: dull fibre under a wet sheen
+    // canopy: one sheet from the roller box to the front bar, sagging between ribs, a pond in the middle bay
+    const geo = new THREE.PlaneGeometry(W, L, 96, 24), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      const x = P.getX(i), v = P.getY(i) / L + 0.5, fx = ((x + W / 2) / rib) % 1;
+      let sag = Math.sin(fx * Math.PI) * 0.06 * Math.sin(v * Math.PI);
+      sag += Math.exp(-((x - 0.3) ** 2) / 0.4 - ((v - 0.62) ** 2) / 0.02) * 0.07;                       // water pooled here
+      P.setZ(i, -sag + Math.sin(x * 9 + v * 4) * 0.004);
+    }
     geo.computeVertexNormals();
-    const aw = new THREE.Mesh(geo, cm); aw.position.set((SX0 + SX1) / 2, SH - 0.05, 0.75); aw.rotation.x = -Math.PI / 2 + 0.55; root.add(aw);
-    const val = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.3, 40, 2), cm.clone()); val.position.set((SX0 + SX1) / 2, SH - 0.82, 1.43); root.add(val);
-    const vp = val.geometry.attributes.position; for (let i = 0; i < vp.count; i++) vp.setZ(i, Math.sin(vp.getX(i) * 4) * 0.02); val.geometry.computeVertexNormals();
-    for (const x of [SX0, SX1]) { const a = cyl(0.012, 0.012, 1.55, M.iron, x, SH - 0.45, 0.72, root, 6); a.rotation.x = 1.0; }
-    const dropM = new THREE.MeshPhysicalMaterial({ color: 0xa0b0b8, roughness: 0, transparent: true, opacity: 0.5 });
-    for (let i = 0; i < 18; i++) { const x = SX0 + rnd() * (SX1 - SX0), l = 0.05 + rnd() * 0.12; cyl(0.003, 0.001, l, dropM, x, SH - 0.97 - l / 2, 1.44, root, 4); }
+    const canopy = new THREE.Mesh(geo, can); canopy.position.set(cx, y0 - drop / 2, z0 + Math.sqrt(L * L - drop * drop) / 2); canopy.rotation.x = -Math.PI / 2 + ang; root.add(canopy);
+    const zf = z0 + Math.sqrt(L * L - drop * drop), yf = y0 - drop;
+    // scalloped valance hanging off the front bar, same canvas, frayed bottom
+    const valT = canvasTexture(1024, 96, (g, Wt, Ht) => { g.fillStyle = '#fff'; g.fillRect(0, 0, Wt, Ht); g.fillStyle = '#000'; const r = R(9);
+      for (let k = 0; k < 28; k++) { const x0 = k / 28 * Wt; g.beginPath(); g.moveTo(x0, Ht); g.quadraticCurveTo(x0 + Wt / 56, Ht * 0.45, x0 + Wt / 28, Ht); g.fill(); }
+      for (let i = 0; i < 300; i++) { g.fillRect(r() * Wt, Ht * (0.55 + r() * 0.45), 1, 2 + r() * 6); } });
+    const vm = can.clone(); vm.alphaMap = valT; vm.map = cloth;
+    const vg = new THREE.PlaneGeometry(W, 0.32, 96, 2), vp = vg.attributes.position; for (let i = 0; i < vp.count; i++) vp.setZ(i, Math.sin(vp.getX(i) * 5) * 0.01); vg.computeVertexNormals();
+    const val = new THREE.Mesh(vg, vm); val.position.set(cx, yf - 0.15, zf + 0.02); root.add(val);
+    { const t = canvasTexture(1024, 96, (g, Wt, Ht) => { g.clearRect(0, 0, Wt, Ht); g.fillStyle = 'rgba(236,228,206,.92)'; g.font = `700 40px ${'Georgia, serif'}`; g.textAlign = 'center'; g.fillText('BUTCHER  ·  DELI  ·  EST. 1952', Wt / 2, 46); g.globalCompositeOperation = 'destination-out'; const r = R(5); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${r()})`; g.fillRect(r() * Wt, r() * Ht, 2 + r() * 10, 1 + r() * 3); } });
+      const lt = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.7, 0.16), new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.8 })); lt.position.set(cx, yf - 0.1, zf + 0.035); root.add(lt); }   // lettering painted on the valance
+    // frame: roller box on the fascia, front bar, ribs, two folding side arms with an elbow joint, wall brackets
+    const steelP = pbr('rusty_painted_metal', 1, 1, { size: 0.6, metalness: 0.6, roughness: 0.7, color: 0x3a3e3a });
+    box(W + 0.1, 0.18, 0.2, steelP, cx, y0 + 0.08, z0 - 0.02, root);
+    const bar = cyl(0.03, 0.03, W + 0.04, steelP, cx, yf, zf, root, 12); bar.rotation.z = Math.PI / 2;
+    for (let k = 0; k <= RIBS; k++) { const x = SX0 - 0.25 + k * rib, r = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, L, 8), steelP); r.position.set(x, y0 - drop / 2 - 0.045, (z0 + zf) / 2); r.rotation.x = Math.PI / 2 + ang; root.add(r); }   // along the slope, under the canvas
+    for (const sx of [SX0 - 0.15, SX1 + 0.15]) {
+      const wy = y0 - 1.25, elbow = new THREE.Vector3(sx, wy + 0.55, (z0 + zf) / 2 + 0.15);
+      for (const [a, b] of [[new THREE.Vector3(sx, wy, 0.12), elbow], [elbow, new THREE.Vector3(sx, yf - 0.02, zf)]]) { const d = b.clone().sub(a), m = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, d.length(), 10), steelP); m.position.copy(a).lerp(b, 0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); root.add(m); }
+      const j = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), steelP); j.position.copy(elbow); root.add(j);
+      box(0.12, 0.2, 0.06, steelP, sx, wy, 0.09, root);
+      decal('Leaking006', root, { pos: [sx + 0.05, wy - 0.7, 0.13], w: 0.25, h: 1.4, color: 0x3a2010, opacity: 0.65 });   // rust run below the bracket
+    }
+    // water: drops falling off the low points of the valance and the pond's edge, a wet stripe on the pavement under the drip line
+    const dropM = new THREE.MeshPhysicalMaterial({ color: 0xc0ccd2, roughness: 0, transmission: 0, transparent: true, opacity: 0.55, clearcoat: 1 });
+    const drips = [];
+    for (let i = 0; i < 26; i++) { const x = SX0 - 0.2 + (i + 0.5) / 26 * W + (rnd() - 0.5) * 0.08; const d = new THREE.Mesh(new THREE.SphereGeometry(0.009, 6, 5), dropM); d.scale.y = 1.8; d.userData = { x, ph: rnd(), sp: 2.5 + rnd() * 1.5 }; root.add(d); drips.push(d); }
+    awningDrips = { drips, y: yf - 0.3, z: zf + 0.03 };
+    { const wet = new THREE.Mesh(new THREE.PlaneGeometry(W, 0.35), new THREE.MeshStandardMaterial({ color: 0x0c0e10, roughness: 0.08, metalness: 0.3, transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
+      wet.rotation.x = -Math.PI / 2; wet.position.set(cx, 0.153, zf + 0.04); root.add(wet); }
   }
-
   // ---------------------------------------------------------------- 门前：花槽（常春藤）、三根铸铁护柱、铁桌椅、绿植
   for (const x of [WL0 + 0.6, WL0 + 1.6, WL0 + 2.6]) model('planter_box_01', { pos: [x, 0.15, 0.45], parent: root });
   bush((WL0 + WL1) / 2 - 0.3, 0.55, 0.45, 2.9, 0.35, 150); vine(WL0 + 0.8, 0.9, 0.62, 0.5, 4); vine(WL0 + 2.4, 0.9, 0.62, 0.4, 3);
@@ -530,8 +571,8 @@ export function createStreet(env) {
 
   // ---------------------------------------------------------------- 雨和雾
   // 细雨：七千根很短的雨丝，粗细一样、亮度各不相同，在显卡里下落（不再每帧用 CPU 挪三千根长线）
-  { const RN = 7000, P = new Float32Array(RN * 6), S = new Float32Array(RN * 2 * 4);
-    for (let i = 0; i < RN; i++) { const x = (rnd() - 0.5) * 30, y = rnd() * 11, z = -1 + rnd() * 15, len = 0.07 + rnd() * 0.1, a = 0.25 + rnd() * 0.75, sp = 6.5 + rnd() * 2.5;
+  { const RN = 11000, P = new Float32Array(RN * 6), S = new Float32Array(RN * 2 * 4);
+    for (let i = 0; i < RN; i++) { const x = (rnd() - 0.5) * 30, y = rnd() * 11, z = -1 + rnd() * 15, len = 0.14 + rnd() * 0.16, a = 0.35 + rnd() * 0.65, sp = 6.5 + rnd() * 2.5;
       for (let e = 0; e < 2; e++) { P.set([x, y, z], (i * 2 + e) * 3); S.set([e, len, a, sp], (i * 2 + e) * 4); } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('drop', new THREE.BufferAttribute(S, 4));
     const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending,
@@ -540,7 +581,7 @@ export function createStreet(env) {
         void main() { vec3 p = position; float y = mod(p.y - uTime * drop.w, 11.0); p.y = y - drop.x * drop.y; p.x += (11.0 - y) * 0.035 + drop.x * drop.y * 0.035;
           vec4 mv = modelViewMatrix * vec4(p, 1.0); float z = -mv.z; vA = drop.z * smoothstep(0.6, 2.5, z) * smoothstep(22.0, 8.0, z) * (1.0 - drop.x * 0.6);
           gl_Position = projectionMatrix * mv; }`,
-      fragmentShader: `uniform vec3 uColor; varying float vA; void main() { gl_FragColor = vec4(uColor * vA * 0.16, 1.0); }` });
+      fragmentShader: `uniform vec3 uColor; varying float vA; void main() { gl_FragColor = vec4(uColor * vA * 0.34, 1.0); }` });
     const rain = new THREE.LineSegments(g, m); rain.frustumCulled = false; rain.userData.keep = true; rain.onBeforeRender = () => { m.uniforms.uTime.value = performance.now() / 1000; }; root.add(rain); }
   // 雾：悬在空气里的细小水汽，靠近路灯、壁灯的那些被照亮；几层前后错开的薄雾；每盏灯外面一圈光晕，灯下一道被雾照出来的光
   const LAMPS = [[BX0 + 0.15, 4.25, 0.5], [SDX, 3.7, 0.25], [-9, 4.4, 19.6], [9, 4.4, 19.6]];
@@ -563,6 +604,7 @@ export function createStreet(env) {
     }
     sideLamp.intensity = 3.5 * (t % 5.1 > 4.85 ? 0.3 : 1);
     nowT = t;
+    if (awningDrips) for (const d of awningDrips.drips) { const p = (t * d.userData.sp * 0.25 + d.userData.ph) % 1; d.position.set(d.userData.x, awningDrips.y - p * p * (awningDrips.y - 0.15), awningDrips.z); d.visible = p > 0.04; }
     if (valve) {                                                           // valve open for ~3.5 s: wheel turns, jet streams out, then shut
       const e = t - valve.t0, open = e > 0 && e < 3.6 ? Math.min(1, e * 2, (3.6 - e) * 2) : 0;
       valve.wheels[0].rotation.y = -Math.min(1, Math.max(0, e) / 0.6) * Math.PI * 1.5 + (e > 3.2 ? Math.min(1, (e - 3.2) / 0.6) * Math.PI * 1.5 : 0);

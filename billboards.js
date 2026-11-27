@@ -3,6 +3,7 @@
 // a glitch slice on every change of advert, and a faint flicker. Real sizes: a 48-sheet roadside screen is 6.1 × 3.05 m.
 import * as THREE from 'three';
 import { canvasTexture } from './textures.js';
+import { decal, pbr } from './assets.js';
 
 const SANS = '"Inter", "Arial Black", sans-serif', SERIF = 'Georgia, "Times New Roman", serif';
 
@@ -70,6 +71,20 @@ const FRAG = `
     float px = max(fwidth(vUv.x * uLeds.x), fwidth(vUv.y * uLeds.y));
     vec3 near = c * mix(vec3(.35), sub * 2.4, .7) * dot;
     c = mix(near, c * .42, smoothstep(.22, .6, px));
+    // years outside: 16×16-LED modules aged unevenly, a few dead or stuck on one colour, dead pixels, a dark row,
+    // grime settled along the top and rain streaks running down the face
+    vec2 mod16 = floor(cell / 16.0); float mid = mod16.x * 31.0 + mod16.y * 7.0;
+    float mh = h(mid);
+    c *= .78 + .3 * h(mid + 3.0);                                                            // modules no longer match
+    if (mh > .965) c *= 0.04;                                                                // dead module
+    else if (mh > .935) c *= vec3(1.3, .25, .3);                                             // module stuck on red
+    else if (mh > .91) c = mix(c, c.ggg * vec3(.6, 1.2, .7), .7);                            // green-shifted module
+    float pid = cell.x * 1.37 + cell.y * 91.1; if (h(pid) > .985) c *= .05;                  // dead LEDs
+    if (abs(cell.y - floor(uLeds.y * (.2 + .6 * h(7.0)))) < .5 && h(cell.x * .1 + 5.0) > .3) c *= .1;   // a dead row
+    float streak = smoothstep(.55, 1.0, h(floor(vUv.x * 70.0) + 11.0)) * (1.0 - vUv.y) * .55; // rain streaks from the top edge
+    float top = smoothstep(.82, 1.0, vUv.y) * .5 + smoothstep(.12, 0.0, vUv.y) * .35;         // grime at the top and bottom
+    float blot = smoothstep(.6, .9, h(floor(vUv.x * 9.0) + floor(vUv.y * 5.0) * 13.0)) * .25; // dirty patches
+    c *= 1.0 - clamp(streak + top + blot, 0.0, .8);
     float roll = .92 + .08 * smoothstep(0.0, .04, abs(fract(vUv.y * .7 - uTime * .23) - .5));       // refresh band rolling down
     float flick = .97 + .03 * sin(uTime * 61.0 + uSeed);
     gl_FragColor = vec4(c * uGain * roll * flick, 1.0);
@@ -94,12 +109,15 @@ export function billboard(parent, { pos, rotY = 0, w = 6.1, h = 3.05, ads, hold 
   scr.userData.keep = true;
   scr.onBeforeRender = () => { u.uTime.value = performance.now() / 1000 + seed * 3.7; };
   g.add(scr);
-  const steel = new THREE.MeshStandardMaterial({ color: 0x1c1e20, metalness: .7, roughness: .5 });
+  const steel = pbr('rusty_painted_metal', w, h, { size: 1.2, metalness: .6, roughness: .9, color: 0x6a6e6e });   // weathered painted steel, rust at the seams
   const box = (bw, bh, bd, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), steel); o.position.set(x, y, z); g.add(o); return o; };
   box(w + .24, h + .24, .32, 0, 0, -.17);                                                         // cabinet
   for (const s of [-1, 1]) box(.12, h + .24, .06, s * (w / 2 + .06), 0, .02);
   for (const s of [-1, 1]) box(w + .24, .12, .06, 0, s * (h / 2 + .06), .02);
   if (frame) { for (const s of [-.3, .3]) box(.2, 1.6, .2, s * w, -h / 2 - .9, -.3); box(w * .8, .6, .06, 0, -h / 2 - .4, -.33); }   // legs and service walkway
+  // rust running out of the frame bolts down the cabinet and whatever is below it
+  for (let k = 0; k < 4; k++) decal(['Leaking006', 'Leaking007', 'Leaking003'][k % 3], g, { pos: [(k / 3 - .5) * w * .9, -h / 2 - .45, .05], w: .5, h: 1.0, color: 0x4a2a14, opacity: .7 });
+  decal('Leaking009', g, { pos: [0, h / 2 + .03, .052], w: w + .2, h: .2, color: 0x2a1a10, opacity: .8 });
   // the screen lights the wet surfaces in front of it
   const l = new THREE.PointLight(glow, 6, Math.max(w, h) * 2.2, 2); l.position.set(0, -h * .2, 1.4); g.add(l);
   return g;
