@@ -10,6 +10,7 @@ import { addMarketLane } from './market-lane.js';
 import { mistField } from './atmosphere.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { addSheets } from './newsprint.js';
+import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { canvasTexture } from './textures.js';
 import { pbr, model, decal, userDecal, userMat, paintedText } from './assets.js';
 import { meatGeometry, meatMaterial, texturedMeat } from './meat.js';
@@ -200,8 +201,10 @@ export function createStreet(env) {
   const tiles = (w, h) => pbr('long_white_tiles', w, h, { size: 2.4, rotate: Math.PI / 2, roughness: 0.6, color: 0xa89c88 });
   // Behind the left window and the door is the real shop (room.js), rendered from this street once and baked:
   // room = street + (1.65, 0, 5); the picture plane sits 1.3 m inside, near-clipped there, framed for an eye at (−1.1, 1.65, 6.5).
-  { const IN = 1.3, tex = new THREE.TextureLoader().load('assets/street/interior.jpg'); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, 3.75), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: false, color: new THREE.Color(0.92, 0.9, 0.88) }));
+  { const IN = 1.3;
+    const bc = new THREE.PerspectiveCamera(); bc.position.set(0.55, 1.65, 11.5); bc.lookAt(0.55, 1.65, 0); bc.updateMatrixWorld();   // the bake camera, in shop coordinates
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, 3.75), depthWindow('assets/street/interior.jpg', 'assets/street/interior_depth.png', {
+      view: bc.matrixWorldInverse.clone().multiply(new THREE.Matrix4().makeTranslation(1.65, 0, 5)), proj: new THREE.Matrix4().makePerspective(-5.2, 3.9, 2.25, -1.5, 7.8, 40), near: 7.8, far: 40, maxT: 12 }));
     back.position.set((SX0 + SX1) / 2, 0.15 + 3.75 / 2, -IN); root.add(back);
     inFloor.scale.y = IN / ID; inFloor.position.z = -IN / 2;
     box(SX1 - SX0, 0.1, IN, new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.9 }), (SX0 + SX1) / 2, 3.9, -IN / 2, root);
@@ -227,12 +230,8 @@ export function createStreet(env) {
     plane(SX1 - SX0, 0.4, new THREE.MeshStandardMaterial({ map: fa, transparent: true, roughness: 0.7 }), (SX0 + SX1) / 2, SH + 0.28, 0.26, 0, root); }
   box(DX1 - DX0 + 0.2, 0.12, 0.2, G, (DX0 + DX1) / 2, 2.85, 0.08, root);
   plane(DX1 - DX0, 0.6, M.glass, (DX0 + DX1) / 2, 3.25, 0.02, 0, root);
-  for (const [hx, s] of [[DX0, 1], [DX1, -1]]) {
-    const d = new THREE.Group(); d.position.set(hx, 0.15, 0.05); d.rotation.y = s * 1.25; root.add(d);
-    const w = (DX1 - DX0) / 2;
-    box(w, 2.6, 0.06, G, s * w / 2, 1.3, 0, d); plane(w - 0.2, 1.3, M.glass, s * w / 2, 1.75, 0.035, 0, d);
-    box(w - 0.18, 0.7, 0.02, M.green(0.8, 0.7), s * w / 2, 0.5, 0.035, d); box(0.04, 0.18, 0.06, M.steel, s * (w - 0.08), 1.1, 0.05, d);
-  }
+  glassDoors(root, { x0: DX0, x1: DX1, y0: 0.15, z: 0.05, h: 2.65 });                  // doors.js: the same glass doors the shop has inside
+  doorLamp(root, [(DX0 + DX1) / 2, 3.02, 0.2]);                                     // caged lamp on the door header
   box(DX1 - DX0 + 0.3, 0.05, 0.5, M.stone(2, 0.5), (DX0 + DX1) / 2, 0.16, 0.25, root);
   // 左橱窗：店里糊在玻璃内侧的旧报纸（newsprint.js，和店里同一批、同一个位置），从街上看到的是每张的头版
   addSheets(root, 'front', { dx: -1.65, glassZ: 0.02 });
@@ -549,8 +548,8 @@ export function createStreet(env) {
   mistField(root, { center: [0, 0.9, 6], size: [30, 1.6, 15], count: 6000, px: 0.007, strength: 0.35, lights: LAMPS, lightColor: 0xffb070, fall: 0.006, swirl: 0.4 });   // 贴着湿地面的那层更密
   // 体积雾（post.js 里按深度一步步累加的那种）：整条街一块连续的雾，贴着地面最浓、往上散，小巷和桥洞里自然更深；路灯附近的雾被照暖
   scene.userData.fog = { min: [-26, 0, -14], max: [32, 9, 26], floor: 2.4, density: 0.38, scale: 0.2, color: 0x7a8892, light: 0xffd2a0, lightK: 0.8,
-    lights: [[BX0 + 0.15, 4.2, 0.6, 0, -1, 0.25, 0.55], [SDX, 3.65, 0.35, 0, -1, 0.2, 0.5], [-9, 4.35, 19.6, 0, -1, 0, 0.6], [9, 4.35, 19.6, 0, -1, 0, 0.6], [-1.1, 2.2, 0.6], [-11.6, 4, -6]],
-    wind: [0.16, 0.01, 0.06], maxDist: 45 };                                     // street lamps and wall lamps are spots: their shafts are carved out of the fog
+    lights: [[BX0 + 0.15, 4.2, 0.6, 0, -1, 0.25, 0.55], [SDX, 3.65, 0.35, 0, -1, 0.2, 0.5], [-9, 4.35, 19.6, 0, -1, 0, 0.6], [9, 4.35, 19.6, 0, -1, 0, 0.6], [-1.1, 2.9, 0.55], [-11.6, 4, -6]],
+    wind: [0.16, 0.01, 0.06], maxDist: 45, hole: [[-8, -1, -16], [8, 4.2, 0]] };                                     // street lamps and wall lamps are spots: their shafts are carved out of the fog
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗
   scene.add(new THREE.HemisphereLight(0xbac9d2, 0x594c3d, 3.05));
   const moon = new THREE.DirectionalLight(0xb6ced8, 1.42); moon.position.set(5, 14, 10); scene.add(moon);

@@ -17,7 +17,7 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 // 场景用 scene.userData.fog 打开：{ min, max, floor, up, density, scale, color, light, lights, wind, maxDist }
 const FOG_MARCH = /* glsl */`
   uniform sampler2D tDepth; uniform mat4 uProjInv, uCamWorld; uniform float uTime, uDensity, uScale, uMaxDist, uFloor, uUp, uLK;
-  uniform vec3 uColor, uLight, uMin, uMax, uWind; uniform vec3 uL[6], uD[6]; uniform float uCos[6]; varying vec2 vUv;
+  uniform vec3 uColor, uLight, uMin, uMax, uWind, uHoleMin, uHoleMax; uniform vec3 uL[6], uD[6]; uniform float uCos[6]; varying vec2 vUv;
   float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
   float n3(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
@@ -26,6 +26,7 @@ const FOG_MARCH = /* glsl */`
   float dens(vec3 p) {
     vec3 lo = smoothstep(uMin, uMin + vec3(2.0, 0.0001, 2.0), p), hi = 1.0 - smoothstep(uMax - vec3(2.0, 1.5, 2.0), uMax, p);
     float box = lo.x * lo.z * hi.x * hi.y * hi.z;
+    if (all(greaterThan(p, uHoleMin)) && all(lessThan(p, uHoleMax))) return 0.0;   // inside buildings seen only through glass: no fog
     float ground = exp(-max(p.y - uMin.y, 0.0) / uFloor), ceil = exp(-max(uMax.y - p.y, 0.0) / uFloor);
     vec3 q = p * uScale + uWind * uTime;
     float n = fbm(q + vec3(n3(q * 0.5 + 3.1), 0.0, n3(q * 0.5 + 7.7)) * 1.4);           // warped: billows and wisps
@@ -59,7 +60,7 @@ class FogPass extends Pass {
     this.march = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: FOG_MARCH,
       uniforms: { tDepth: { value: null }, uProjInv: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() }, uTime: { value: 0 }, uDensity: { value: 0.2 }, uScale: { value: 0.2 },
         uMaxDist: { value: 40 }, uFloor: { value: 2 }, uUp: { value: 0 }, uLK: { value: 1 }, uColor: { value: new THREE.Color() }, uLight: { value: new THREE.Color() },
-        uMin: { value: new THREE.Vector3() }, uMax: { value: new THREE.Vector3() }, uWind: { value: new THREE.Vector3() }, uL: { value: Array.from({ length: 6 }, () => new THREE.Vector3(1e4, 1e4, 1e4)) }, uD: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) }, uCos: { value: new Array(6).fill(0) } } });
+        uMin: { value: new THREE.Vector3() }, uMax: { value: new THREE.Vector3() }, uHoleMin: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uHoleMax: { value: new THREE.Vector3(1e4, 1e4, 1e4) }, uWind: { value: new THREE.Vector3() }, uL: { value: Array.from({ length: 6 }, () => new THREE.Vector3(1e4, 1e4, 1e4)) }, uD: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) }, uCos: { value: new Array(6).fill(0) } } });
     this.mix = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
       fragmentShader: `uniform sampler2D tDiffuse, tFog; uniform vec2 uTexel; varying vec2 vUv;
         void main(){ vec4 c = texture2D(tDiffuse, vUv), f = vec4(0.0); float w = 0.0;
@@ -74,7 +75,7 @@ class FogPass extends Pass {
     u.tDepth.value = this.depth; u.uProjInv.value.copy(cam.projectionMatrixInverse); u.uCamWorld.value.copy(cam.matrixWorld); u.uTime.value = performance.now() / 1000;
     u.uDensity.value = f.density ?? 0.2; u.uScale.value = f.scale ?? 0.2; u.uMaxDist.value = f.maxDist ?? 40; u.uFloor.value = f.floor ?? 2; u.uUp.value = f.up ?? 0; u.uLK.value = f.lightK ?? 1;
     u.uColor.value.set(f.color ?? 0x101418).convertSRGBToLinear(); u.uLight.value.set(f.light ?? 0xffb070).convertSRGBToLinear();
-    u.uMin.value.set(...f.min); u.uMax.value.set(...f.max); u.uWind.value.set(...(f.wind ?? [0.12, 0.01, 0.05]));
+    u.uMin.value.set(...f.min); u.uMax.value.set(...f.max); u.uHoleMin.value.set(...(f.hole?.[0] ?? [1e4, 1e4, 1e4])); u.uHoleMax.value.set(...(f.hole?.[1] ?? [1e4, 1e4, 1e4])); u.uWind.value.set(...(f.wind ?? [0.12, 0.01, 0.05]));
     u.uL.value.forEach((v, i) => { const l = f.lights?.[i]; if (!l) { v.set(1e4, 1e4, 1e4); u.uCos.value[i] = 0; return; }
       v.set(l[0], l[1], l[2]); if (l.length > 3) { u.uD.value[i].set(l[3], l[4], l[5]).normalize(); u.uCos.value[i] = Math.cos(l[6] ?? 0.45); } else u.uCos.value[i] = 0; });
     this.quad.material = this.march; r.setRenderTarget(this.rt); this.quad.render(r);
@@ -141,7 +142,7 @@ function createCore(renderer, scene, camera) {
     const cache = this._visibilityCache;
     this.scene.traverse((o) => {
       cache.set(o, o.visible);
-      if (o.isPoints || o.isLine || (o.material && o.material.transparent)) o.visible = false;
+      if (o.isPoints || o.isLine || (o.material && (o.material.transparent || o.material.userData?.noAO))) o.visible = false;   // baked depth windows: AO on a picture only makes dark patches
     });
   };
   // 遮蔽直接乘在画面上，不必先把整张画面抄一遍
@@ -186,6 +187,7 @@ export function createPost(renderer, scene, camera, grade = {}) {
       const { composer, ao, renderPass, film } = core;
       core.bloom.strength = grade.bloomStrength ?? 0.4;
       core.bloom.threshold = grade.bloomThreshold ?? 1.1;
+      core.ao.blendIntensity = grade.ao ?? 1.0;                                       // per scene; the foggy night street goes without
       renderPass.scene = scene; ao.scene = scene;
       const fc = scene.userData.fog; core.fog.enabled = !!fc; if (fc) { core.fog.cfg = fc; core.fog.camera = renderPass.camera; core.fog.depth = ao.depthTexture; }
       for (const [k, v] of look) {

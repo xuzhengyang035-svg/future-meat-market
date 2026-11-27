@@ -109,7 +109,7 @@ const PLACES = {
   },
   async street() {
     street = createStreet(env);
-    postStreet = grade(street.scene, { bloomStrength: 0.12, bloomThreshold: 1.65, uContrast: 1.025, uLift: 0.022, uSat: 0.88, uShadow: [-0.014, 0.012, 0.018], uHigh: [0.026, 0.014, -0.02], uVignette: 0.39 });   // 夜里：暗部偏蓝，路灯偏橘
+    postStreet = grade(street.scene, { ao: 0, bloomStrength: 0.12, bloomThreshold: 1.65, uContrast: 1.025, uLift: 0.022, uSat: 0.88, uShadow: [-0.014, 0.012, 0.018], uHigh: [0.026, 0.014, -0.02], uVignette: 0.39 });   // 夜里：暗部偏蓝，路灯偏橘
   },
   async warehouse() {
     wh = createWarehouse(env);

@@ -21,6 +21,7 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { pencil } from './notepad.js';
 import { glassOn } from './lab-signs.js';
 import { addSheets } from './newsprint.js';
+import { glassDoors, doorLamp, depthWindow } from './doors.js';
 import { buildOffice, OFFICE } from './office.js';
 import { tablecloth, clothMat, dressTable, ITEM, drapeOver, hookGarment, hookBoard, bin, litter, mopBucket, potPlant, chalkStand, towel, seatCushion } from './dress.js';
 
@@ -280,8 +281,8 @@ export function createRoom(env) {
   box(0.1, HT, 3.0, wallMat(3.0, HT), 5.05, HT / 2, -2.6, room);
   box(0.1, HT, 4.5, wallMat(4.5, HT), 5.05, HT / 2, 2.75, room);
   box(0.1, HT - 2.5, 1.6, wallMat(1.6, HT - 2.5, { dado: 0, ao: 0.2 }), 5.05, (HT + 2.5) / 2, -0.3, room);
-  box(3.8, HT, 0.1, wallMat(3.8, HT), 3.1, HT / 2, 5.05, room);
-  box(6.2, HT - 2.6, 0.1, wallMat(6.2, HT - 2.6, { dado: 0, ao: 0.2 }), -1.9, (HT + 2.6) / 2, 5.05, room);
+  box(3.55, HT, 0.1, wallMat(3.55, HT), 3.225, HT / 2, 5.05, room);
+  box(6.45, HT - 2.6, 0.1, wallMat(6.45, HT - 2.6, { dado: 0, ao: 0.2 }), -1.775, (HT + 2.6) / 2, 5.05, room);
   box(-5 - LX, HT, 0.1, wallMat(-5 - LX, HT), (LX - 5) / 2, HT / 2, 5.05, room);
 
   // 小工具：单据、纸箱、软管
@@ -419,8 +420,8 @@ export function createRoom(env) {
     run(-4, OFFICE.DZ0, 'z', LX, 1); run(OFFICE.DZ1, 5, 'z', LX, 1);                                    // left wall, broken by the office door
     run(LX, -4.95, 'x', -4.0, 1); run(-3.85, 5, 'x', -4.0, 1);                                            // back wall, broken by the staff door
     run(-4.1, -1.1, 'z', 5.0, -1); run(0.5, 5, 'z', 5.0, -1);                                             // right wall, broken by the processing-room curtain
-    run(1.25, 5, 'x', 5.0, -1); run(LX, -5.05, 'x', 5.0, -1);                                            // front wall: the solid stretches either side of the glass
-    for (const [w, x] of [[3.75, 3.125], [-5.05 - LX, (LX - 5.05) / 2]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, 0.02), pbr('long_white_tiles', w, 0.15, { size: 2.6, rotate: Math.PI / 2, color: 0x3e7458, roughness: 0.5 })); b.position.set(x, 1.15, 4.99); room.add(b); }
+    run(1.5, 5, 'x', 5.0, -1); run(LX, -5.05, 'x', 5.0, -1);                                            // front wall: the solid stretches either side of the glass
+    for (const [w, x] of [[3.5, 3.25], [-5.05 - LX, (LX - 5.05) / 2]]) { const b = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, 0.02), pbr('long_white_tiles', w, 0.15, { size: 2.6, rotate: Math.PI / 2, color: 0x3e7458, roughness: 0.5 })); b.position.set(x, 1.15, 4.99); room.add(b); }
   }
   // 传菜窗的不锈钢圆角框
   {
@@ -1112,45 +1113,27 @@ export function createRoom(env) {
   // ================================================================ 入口：玻璃门内糊满报纸，卷帘门拉下一半，只有门开着
   // Outside the glass is the real street (street.js), rendered once from in here with an off-axis camera and baked:
   // street = room − (1.65, 0, 5); picture plane 0.26 m outside the glass, framed for an eye at (−1.5, 1.6, 1.5).
-  { const tex = new THREE.TextureLoader().load('assets/room/street.jpg'); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, fog: false, color: new THREE.Color(0.9, 0.9, 0.9) }));
+  { const bc = new THREE.PerspectiveCamera(); bc.position.set(-3.15, 1.6, -3.5); bc.lookAt(-3.15, 1.6, 100); bc.updateMatrixWorld();   // bake camera, street coordinates
+    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), depthWindow('assets/room/street.jpg', 'assets/room/street_depth.png', {
+      view: bc.matrixWorldInverse.clone().multiply(new THREE.Matrix4().makeTranslation(-1.65, 0, -5)), proj: new THREE.Matrix4().makePerspective(-2.95, 3.76, 1.07, -1.72, 3.76, 60), near: 3.76, far: 60, maxT: 30, tint: 0.9 }));
     street.position.set(-1.905, 1.275, 5.26); street.rotation.y = Math.PI; room.add(street);
     const far = new THREE.Mesh(new THREE.PlaneGeometry(18, 7.8), new THREE.MeshBasicMaterial({ color: 0x05070a }));   // anything outside that frame: night
     far.position.set(-1, 2.2, 9); far.rotation.y = Math.PI; room.add(far); }
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 2.6), M.glass);
-  glass.position.set(-1.9, 1.3, 5.02);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(4.65, 2.6), M.glass);
+  glass.position.set(-2.675, 1.3, 5.02);
   room.add(glass);
-  for (const x of [-5, -3.4, -1.7, -0.1, 1.2]) box(0.06, 2.6, 0.08, M.ink, x, 1.3, 5.02, room);
-  box(6.2, 0.06, 0.08, M.ink, -1.9, 2.6, 5.02, room);
-  box(6.2, 0.06, 0.08, M.ink, -1.9, 0.03, 5.02, room);
+  for (const x of [-5, -3.4, -1.7, -0.35, 1.45]) box(0.06, 2.6, 0.08, M.ink, x, 1.3, 5.02, room);
+  box(6.45, 0.06, 0.08, M.ink, -1.775, 2.6, 5.02, room);
+  box(4.65, 0.06, 0.08, M.ink, -2.675, 0.03, 5.02, room);
   // 玻璃上糊的旧报纸：newsprint.js（店里看到每张的背面那一版，外面街上看到头版）
   for (let i = 0; i < 36; i++) rnd();                                                                    // keep the random sequence the rest of the room was laid out with
   addSheets(room, 'back', { glassZ: 5.02 });                                        // newsprint.js: the same sheets the street sees from outside; in here, their back pages
   // 玻璃：外面雨水流下来的痕迹、里面的手印，玻璃本身反光更强
   M.glass.envMapIntensity = 1.6; M.glass.clearcoat = 1; M.glass.opacity = 0.16;
   for (let i = 0; i < 5; i++) decal(['Leaking010A', 'Leaking011A', 'decal_10'][i % 3], room, { pos: [-4.7 + i * 1.3 + rnd() * 0.3, 1.6, 5.03], rot: [0, Math.PI, 0], w: 0.3, h: 1.8, color: 0xb8c0c0, opacity: 0.16, roughness: 0.1 });
-  decal('Fingerprints008', room, { pos: [0.95, 1.15, 5.005], rot: [0, Math.PI, 0], w: 0.5, h: 0.5, color: 0xd8d8d0, opacity: 0.4, roughness: 0.5 });
-  const doorG = new THREE.Group(); doorG.position.set(-0.07, 0, 5.0); doorG.rotation.y = -0.5; room.add(doorG);   // 开着的门
-  { const alu = new THREE.MeshStandardMaterial({ color: 0x2c2e2e, metalness: 0.7, roughness: 0.42 });   // 深灰色铝合金门框
-    box(0.07, 2.5, 0.06, alu, 0.035, 1.25, 0, doorG); box(0.07, 2.5, 0.06, alu, 1.205, 1.25, 0, doorG);
-    box(1.24, 0.08, 0.06, alu, 0.62, 2.46, 0, doorG);
-    for (const s of [-1, 1]) { box(1.1, 0.012, 0.012, alu, 0.62, 2.41, s * 0.022, doorG); box(0.012, 2.1, 0.012, alu, 0.075, 1.34, s * 0.022, doorG); box(0.012, 2.1, 0.012, alu, 1.165, 1.34, s * 0.022, doorG); }   // 压玻璃的内挡条
-    box(1.1, 0.26, 0.03, steelMat(2), 0.62, 0.15, 0, doorG);                       // 底部踢脚板：你给的旧不锈钢，下沿磕得最花
-    box(1.1, 0.012, 0.012, alu, 0.62, 0.29, 0.022, doorG);
-    plane(1.1, 2.08, M.glass, 0.62, 1.34, 0, 0, doorG);
-    // 拉手：一根竖着的拉丝不锈钢圆管，两头弯回去用支脚穿过玻璃固定，里外各一根
-    const handleM = new THREE.MeshStandardMaterial({ color: 0xc8cac8, metalness: 1, roughness: 0.28 });
-    for (const sz of [1, -1]) {
-      const hp = new THREE.CatmullRomCurve3([[1.02, 0.78, 0], [1.02, 0.8, sz * 0.06], [1.02, 0.86, sz * 0.075], [1.02, 1.4, sz * 0.075], [1.02, 1.46, sz * 0.06], [1.02, 1.48, 0]].map((v) => new THREE.Vector3(...v)), false, 'catmullrom', 0.2);
-      doorG.add(new THREE.Mesh(new THREE.TubeGeometry(hp, 40, 0.014, 12, false), handleM));
-      for (const y of [0.8, 1.46]) cyl(0.022, 0.022, 0.012, handleM, 1.02, y, sz * 0.006, doorG, 16).rotation.x = Math.PI / 2;   // 玻璃两侧的压盖
-    }
-    box(0.32, 0.06, 0.07, alu, 0.32, 2.36, 0.07, doorG); const arm = box(0.3, 0.015, 0.02, alu, 0.4, 2.42, 0.12, doorG); arm.rotation.y = 0.4;   // 闭门器和连杆
-    for (const y of [0.25, 1.25, 2.25]) cyl(0.012, 0.012, 0.09, M.steel, -0.005, y, 0.03, doorG, 10);   // 合页
-    const stk = (lines, w, h, bg, x, y) => plane(w, h, sign(lines, Math.round(w * 900), Math.round(h * 900), { bg }), x, y, -0.004, Math.PI, doorG);   // 贴在玻璃外侧的贴纸
-    stk([['PULL', 60, '#f3eee6', 0.62, 700]], 0.16, 0.07, '#7a2420', 0.86, 1.15);
-    stk([['OPEN', 30, '#222', 0.25, 700], ['Mon-Sat 11-22', 22, '#333', 0.55, 500], ['Sun 12-20', 22, '#333', 0.8, 500]], 0.16, 0.14, '#e8e2d2', 0.3, 1.55);
-    stk([['CARD · CASH · MOBILE', 22, '#e8e2d2', 0.6, 600]], 0.18, 0.04, '#2a3a5a', 0.3, 1.42); }
+  // 门口：和街上同一款双开玻璃门（doors.js），往店里半开；门头上一盏笼罩灯照着进门的地方
+  const { left: doorG } = glassDoors(room, { x0: -0.35, x1: 1.45, y0: 0, z: 5.0, h: 2.55 });
+  doorLamp(room, [0.55, 2.78, 4.94], { face: -1, light: 2.2 });
   // （门口原来挂的透明软门帘去掉了：一扇真玻璃门就够了）
   const winText = plane(1.8, 0.32, new THREE.MeshPhysicalMaterial({ transparent: true, roughness: 0.35, clearcoat: 0.5, map: canvasTexture(900, 160, (g, W, H) => {   // 红色即时贴字（从里面看是镜像的），边缘有剥落
     g.clearRect(0, 0, W, H); g.save(); g.translate(W, 0); g.scale(-1, 1); g.fillStyle = '#9a1e1a'; g.textAlign = 'center';
@@ -1455,8 +1438,8 @@ export function createRoom(env) {
   floorD('Smear006', -1.0, 1.8, 2.0, 1.2, 2.1, { color: 0x2a2a24, opacity: 0.15, roughness: 0.15 });
   floorD('decal_20', -5.0, -0.2, 3.0, 2.2, 0.0, { color: 0x2a2620, opacity: 0.5 });   // 餐桌下面
   // 玻璃门上推门的手印
-  decal('Fingerprints003', doorG, { pos: [1.02, 1.12, 0.004], w: 0.35, h: 0.45, color: 0xd8d8d0, opacity: 0.5, roughness: 0.6 });
-  decal('Fingerprints003', doorG, { pos: [1.02, 1.12, -0.004], rot: [0, Math.PI, 0], w: 0.35, h: 0.45, color: 0xd8d8d0, opacity: 0.4, roughness: 0.6 });
+  decal('Fingerprints003', doorG, { pos: [0.72, 1.12, 0.004], w: 0.35, h: 0.45, color: 0xd8d8d0, opacity: 0.5, roughness: 0.6 });
+  decal('Fingerprints003', doorG, { pos: [0.72, 1.12, -0.004], rot: [0, Math.PI, 0], w: 0.35, h: 0.45, color: 0xd8d8d0, opacity: 0.4, roughness: 0.6 });
 
   // ================================================================ 灯光：暖黄的灯泡为主，几支日光灯（一盏坏、一盏闪），红色霓虹
   scene.add(new THREE.HemisphereLight(0x5fa8a0, 0x16120d, 0.17));

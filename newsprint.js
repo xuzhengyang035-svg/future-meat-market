@@ -44,9 +44,9 @@ export const SHEETS = [
   { x: -2.18, y: 0.72, w: 0.42, h: 0.56, rz: -0.015, form: 'torn', f: 8, b: 2 },
   { x: -2.9, y: 0.5, w: 0.3, h: 0.22, rz: 0.05, form: 'clip', f: 11, b: 3 },
   { x: -1.28, y: 1.62, w: 0.6, h: 0.8, rz: 0.01, form: 'broad', f: 2, b: 5 },
-  { x: -0.52, y: 1.18, w: 0.42, h: 0.56, rz: -0.02, form: 'tabloid', f: 6, b: 7 },
+  { x: -0.64, y: 1.18, w: 0.42, h: 0.56, rz: -0.02, form: 'tabloid', f: 6, b: 7 },
   { x: -1.24, y: 0.56, w: 0.58, h: 0.42, rz: 0.0, form: 'folded', f: 10, b: 4 },
-  { x: -0.46, y: 2.12, w: 0.22, h: 0.3, rz: 0.08, form: 'clip', f: 9, b: 6 },
+  { x: -0.6, y: 2.12, w: 0.22, h: 0.3, rz: 0.08, form: 'clip', f: 9, b: 6 },
 ];
 
 // ------------------------------------------------------------------ halftone photo: grey, contrasty, screened into dots like cheap newsprint
