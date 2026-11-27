@@ -201,3 +201,65 @@ export function lampHalo(parent, at, { radius = 1.4, color = 0xffc890, strength 
   parent.add(m);
   return m;
 }
+
+// ------------------------------------------------------------------ 体积感的雾：一团一团软的云絮
+// 每一团是一张始终面向镜头（只绕竖轴转）的大片，片上用分形噪声画出絮状的雾，再被一个下浓上淡的椭圆收边。
+// 噪声在世界空间里取样、随时间慢慢漂，所以镜头一动，雾团之间会错开，有纵深；靠近灯的那几团被染暖。
+const NOISE = /* glsl */`
+  float h3(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+  float n3(vec3 x) { vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(h3(i), h3(i + vec3(1,0,0)), f.x), mix(h3(i + vec3(0,1,0)), h3(i + vec3(1,1,0)), f.x), f.y),
+               mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
+  float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * n3(p); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return s; }`;
+
+export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lights = [], opacity = 0.28, scale = 0.35, speed = 0.05, nearFade = 2.2 } = {}) {
+  const group = new THREE.Group(); group.userData.keep = true; parent.add(group);
+  const L = lights.map((p) => new THREE.Vector3(...p));
+  const mats = [];
+  for (const { pos, w, h, k = 1 } of puffs) {
+    const c = new THREE.Vector3(...pos); let lit = 0; for (const l of L) lit += 1 / (1 + c.distanceToSquared(l) * 0.12);
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color).lerp(new THREE.Color(warm), Math.min(0.75, lit * 0.8)) }, uA: { value: opacity * k * (1 + Math.min(0.6, lit)) },
+        uScale: { value: scale }, uSpeed: { value: speed }, uNear: { value: nearFade }, uSeed: { value: Math.random() * 100 } },
+      vertexShader: /* glsl */`varying vec2 vUv; varying vec3 vW; varying float vZ;
+        void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mv = viewMatrix * w; vZ = -mv.z; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: NOISE + /* glsl */`
+        uniform vec3 uColor; uniform float uTime, uA, uScale, uSpeed, uNear, uSeed; varying vec2 vUv; varying vec3 vW; varying float vZ;
+        void main() {
+          vec3 p = vW * uScale + vec3(uTime * uSpeed, uTime * uSpeed * 0.15, uSeed);
+          vec3 q = vec3(fbm(p), fbm(p + vec3(5.2, 1.3, 2.8)), 0.0);                       // domain warp: wisps curl into each other
+          float d = fbm(p + q * 1.6 + vec3(0.0, 0.0, uTime * uSpeed * 0.6));
+          vec2 e = (vUv - 0.5) * 2.0; float shape = smoothstep(1.0, 0.25, length(e * vec2(1.0, 1.25)));
+          float low = mix(1.0, 0.45, vUv.y);                                              // heavier at the bottom
+          float a = smoothstep(0.38, 0.85, d) * shape * low * uA * smoothstep(uNear * 0.5, uNear * 1.6, vZ);
+          gl_FragColor = vec4(uColor * (0.75 + d * 0.5), a);
+        }` });
+    mats.push(mat);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.copy(c); m.renderOrder = 6; m.frustumCulled = false;
+    m.onBeforeRender = (r, s, cam) => { m.rotation.y = Math.atan2(cam.position.x - m.position.x - group.position.x, cam.position.z - m.position.z - group.position.z); mat.uniforms.uTime.value = performance.now() / 1000; };
+    group.add(m);
+  }
+  return group;
+}
+
+// 雾里的光柱：一缕一缕的，有亮有暗，里面的雾在翻
+export function rayShaft(parent, from, dir, { length = 6, radius = 2, top = 0.2, color = 0xffd2a0, strength = 0.22 } = {}) {
+  const geo = new THREE.CylinderGeometry(top, radius, length, 48, 1, true).translate(0, -length / 2, 0);
+  const mat = new THREE.ShaderMaterial({ ...base, side: THREE.DoubleSide,
+    uniforms: { uColor: { value: new THREE.Color(color) }, uK: { value: strength }, uTime: { value: 0 } },
+    vertexShader: /* glsl */`varying vec2 vUv; varying vec3 vN, vP, vW; void main() { vUv = uv; vN = normalize(normalMatrix * normal); vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mv = viewMatrix * w; vP = mv.xyz; gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: NOISE + /* glsl */`
+      uniform vec3 uColor; uniform float uK, uTime; varying vec2 vUv; varying vec3 vN, vP, vW;
+      void main() {
+        float edge = pow(abs(dot(normalize(vN), normalize(-vP))), 2.2);
+        float along = smoothstep(0.0, 0.5, vUv.y) * smoothstep(1.0, 0.92, vUv.y);
+        float rays = 0.55 + 0.9 * pow(n3(vec3(vUv.x * 26.0, 0.0, 1.3)), 2.0);            // streaks running down the shaft
+        float cloud = fbm(vW * 0.6 + vec3(uTime * 0.04, -uTime * 0.02, 0.0));               // fog churning inside it
+        float a = edge * along * rays * (0.35 + cloud) * uK * smoothstep(0.6, 3.0, -vP.z);
+        gl_FragColor = vec4(uColor * a, 1.0);
+      }` });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...from); m.quaternion.setFromUnitVectors(UP, new THREE.Vector3(...dir).normalize().negate());
+  m.renderOrder = 3; m.userData.keep = true; m.onBeforeRender = () => { mat.uniforms.uTime.value = performance.now() / 1000; };
+  parent.add(m); return m;
+}
