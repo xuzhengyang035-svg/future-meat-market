@@ -1,3 +1,4 @@
+import { mountFascia } from './fascia.js';
 // 店外：雨夜，一栋五层的旧石灰抹灰楼，底层是一整排墨绿色木头店面（照着效果图做）
 //   店面   左边大橱窗（冷藏肉柜，粉色灯）· 中间一对敞开的木门（棋盘格地砖）· 右边小橱窗（挂着香肠和火腿、一台切片机）
 //          上面一条破旧的帆布遮阳篷；店里暖黄的灯，吊灯、货架、罐子
@@ -238,15 +239,7 @@ export function createStreet(env) {
   }
   box(SX1 - SX0 + 0.5, 0.55, 0.3, G, (SX0 + SX1) / 2, SH + 0.28, 0.1, root);
   box(SX1 - SX0 + 0.7, 0.12, 0.42, G, (SX0 + SX1) / 2, SH + 0.62, 0.14, root);
-  { const x = (SX0 + SX1) / 2, y = SH + 0.42;
-    const fascia = porkBrandTexture('fascia');
-    const trim = new THREE.MeshStandardMaterial({ color: 0x382c23, metalness: 0.55, roughness: 0.63 });
-    box(3.08, 0.41, 0.06, trim, x, y, 0.348, root);
-    plane(3, 0.4, lit(fascia, { emissiveMap: fascia, emissive: 0xffffff, emissiveIntensity: 0.28 }), x, y, 0.38, 0, root);
-    for (const dx of [-1.49, 1.49]) {
-      for (const dy of [-0.17, 0.17]) box(0.025, 0.025, 0.018, trim, x + dx, y + dy, 0.389, root);
-    }
-  }
+  mountFascia(root, (SX0 + SX1) / 2, SH + 0.34);
   box(DX1 - DX0 + 0.2, 0.12, 0.2, G, (DX0 + DX1) / 2, 2.85, 0.08, root);
   plane(DX1 - DX0, 0.6, M.glass, (DX0 + DX1) / 2, 3.25, 0.02, 0, root);
   glassDoors(root, { x0: DX0, x1: DX1, y0: 0.15, z: 0.05, h: 2.65 });                  // doors.js: the same glass doors the shop has inside
@@ -372,11 +365,27 @@ export function createStreet(env) {
     const valT = canvasTexture(1024, 96, (g, Wt, Ht) => { g.fillStyle = '#fff'; g.fillRect(0, 0, Wt, Ht); g.fillStyle = '#000'; const r = R(9);
       for (let k = 0; k < 28; k++) { const x0 = k / 28 * Wt; g.beginPath(); g.moveTo(x0, Ht); g.quadraticCurveTo(x0 + Wt / 56, Ht * 0.45, x0 + Wt / 28, Ht); g.fill(); }
       for (let i = 0; i < 300; i++) { g.fillRect(r() * Wt, Ht * (0.55 + r() * 0.45), 1, 2 + r() * 6); } });
-    const vm = can.clone(); vm.alphaMap = valT; vm.map = cloth;
+    const vm = can.clone(); vm.alphaMap = valT; vm.map = canvasTexture(3072, 104, (g, width, height) => {
+      g.drawImage(cloth.image, 0, 0, width, height);
+      // A screen-printed band on the valance itself follows the folds and scallops.
+      g.fillStyle = 'rgba(32,57,44,0.89)';
+      g.fillRect(0, 5, width, 60);
+      g.fillStyle = '#e8d9b8';
+      g.textAlign = 'center';
+      g.font = 'bold 43px Georgia, serif';
+      const cuts = ['PORK CHOPS', 'BEEF STEAKS', 'CURED SALAMI'];
+      cuts.forEach((cut, i) => g.fillText(cut, width * (i + 0.5) / 3, 51));
+      for (const x of [width / 3, width * 2 / 3]) {
+        g.beginPath(); g.arc(x, 36, 4, 0, Math.PI * 2); g.fill();
+      }
+      const wear = R(115);
+      for (let i = 0; i < 5600; i++) {
+        g.fillStyle = 'rgba(59,54,41,0.28)';
+        g.fillRect(wear() * width, 5 + wear() * 60, 1 + wear() * 3, 1);
+      }
+    });
     const vg = new THREE.PlaneGeometry(W, 0.32, 96, 2), vp = vg.attributes.position; for (let i = 0; i < vp.count; i++) vp.setZ(i, Math.sin(vp.getX(i) * 5) * 0.01); vg.computeVertexNormals();
     const val = new THREE.Mesh(vg, vm); val.position.set(cx, yf - 0.15, zf + 0.02); root.add(val);
-    { const t = canvasTexture(1024, 96, (g, Wt, Ht) => { g.clearRect(0, 0, Wt, Ht); g.fillStyle = 'rgba(236,228,206,.92)'; g.font = '700 48px "Cormorant Garamond", Georgia, serif'; g.textAlign = 'center'; g.fillText('PORK.exe  ·  BUTCHER & DELI', Wt / 2, 53); g.globalCompositeOperation = 'destination-out'; const r = R(5); for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(0,0,0,${r()})`; g.fillRect(r() * Wt, r() * Ht, 2 + r() * 10, 1 + r() * 3); } });
-      const lt = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.7, 0.16), new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.8 })); lt.position.set(cx, yf - 0.1, zf + 0.035); root.add(lt); }   // lettering painted on the valance
     // frame: roller box on the fascia, front bar, ribs, two folding side arms with an elbow joint, wall brackets
     const steelP = pbr('rusty_painted_metal', 1, 1, { size: 0.6, metalness: 0.6, roughness: 0.7, color: 0x3a3e3a });
     box(W + 0.1, 0.18, 0.2, steelP, cx, y0 + 0.08, z0 - 0.02, root);
