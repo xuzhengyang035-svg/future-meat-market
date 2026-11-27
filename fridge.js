@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 智能鲜肉柜（左边玻璃门放商品，右边是触摸屏）和旁边普通的饮料柜。
 // 门店场景和冷柜特写场景共用同一个模型。
 import * as THREE from 'three';
@@ -83,7 +84,7 @@ function priceSticker(key, grams, seed) {
     g.fillStyle = '#fff'; g.font = '700 17px "Inter", Arial, sans-serif'; g.fillText(a, 10, 21);
     g.fillStyle = '#141414'; g.font = '600 20px "Inter", Arial, sans-serif'; g.fillText(b, 10, 56);
     g.font = '500 15px "IBM Plex Mono", monospace'; g.fillText(`NET ${grams} g`, 10, 82); g.fillText(`LOT ${LOTS[key]}·D${18 + (seed % 11)}`, 10, 102);
-    g.textAlign = 'right'; g.font = '700 30px "Inter", Arial, sans-serif'; g.fillText('¥' + (per * grams / 200).toFixed(1), W - 10, 86); g.textAlign = 'left';
+    g.textAlign = 'right'; g.font = '700 30px "Inter", Arial, sans-serif'; g.fillText(gbp(per * grams / 200), W - 10, 86); g.textAlign = 'left';
     let s = seed; for (let x = 10; x < W - 10;) { s = (s * 16807) % 2147483647; const w = 1 + (s % 3); if (s % 3) g.fillRect(x, 116, w, 34); x += w + 1 + (s % 2); }
     g.font = '400 11px "IBM Plex Mono", monospace'; g.fillText('USE BY 28 NOV · KEEP 0–4 °C', 10, H - 4);
   });

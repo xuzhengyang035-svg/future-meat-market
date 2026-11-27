@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 冷柜触摸屏上的商品页（都直接在这块玻璃屏上点，不弹网页）。两种买法：
 //   现货（stock）：柜里那一盒已经长好了——只看这一盒的批次、克重、保质期，拿走就行，不能定制
 //   培养定制（product）：从一份细胞系开始为你长一份，脂肪、纹理、颜色……都能选，14–28 天后取
@@ -17,7 +18,7 @@ const OPT = {
   shade: ['COLOUR', { light: 'Light', deep: 'Deep' }, 'MyoTone™'],
   cycle: ['GROW', { 14: '14 d', 21: '21 d', 28: '28 d' }],
   plan: ['YIELD', { std: 'Std ×1', a: 'A ×3', b: 'B ×4' }, 'Yield+™'],
-  delivery: ['DELIVERY', { std: 'Standard', priority: 'Priority +¥48' }],
+  delivery: ['DELIVERY', { std: 'Standard', priority: 'Priority +£4.80' }],
 };
 
 export function createProductScreen() {
@@ -47,7 +48,7 @@ export function createProductScreen() {
     frame('GROW TO ORDER');
     g.fillStyle = '#f0ece4'; g.font = `600 32px ${SANS}`; g.fillText(NAME[k], P, 118);
     swatch(SW - P - 92, 84, 92, 64, k, opts);
-    g.fillStyle = '#8f949a'; g.font = `400 17px ${MONO}`; g.fillText(`CELL LINE ${LINE[k]} · ¥${v.base} / 200 g`, P, 148);
+    g.fillStyle = '#8f949a'; g.font = `400 17px ${MONO}`; g.fillText(`CELL LINE ${LINE[k]} · ${gbp(v.base)} / 200 g`, P, 148);
     // 三个数：培养天数、细胞量、屠宰动物
     const stats = [[String(opts.cycle), 'DAYS TO GROW'], ['×' + v.x, 'YIELD'], ['0', 'ANIMALS SLAUGHTERED*']];
     stats.forEach(([n, l], i) => { const w = (SW - 2 * P - 20) / 3, x = P + i * (w + 10);
@@ -74,7 +75,7 @@ export function createProductScreen() {
     // 价钱和下单
     g.fillStyle = '#26292c'; g.fillRect(P, SH - 128, SW - 2 * P, 2);
     g.fillStyle = '#7d8288'; g.font = `500 15px ${MONO}`; g.fillText('TOTAL', P, SH - 92);
-    g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText('¥' + price, P, SH - 46);
+    g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText(gbp(price), P, SH - 46);
     btn(SW - P - 250, SH - 104, 250, 72, 'START GROWING', true, { type: 'buy' }, { size: 24, red: true });
     g.fillStyle = '#5f646a'; g.font = `400 13px ${MONO}`; g.fillText('grown for you from a cell line · not from the fridge', P, SH - 136);
     g.fillStyle = '#4c5056'; g.font = `400 12px ${MONO}`; g.fillText('*in the culture process. donor sampling not included.', P, SH - 12);
@@ -87,7 +88,7 @@ export function createProductScreen() {
     g.fillStyle = '#16191c'; g.fillRect(P, 210, SW - 2 * P, 220);
     g.fillStyle = '#f0ece4'; g.font = `200 150px ${SANS}`; g.fillText(String(v.days), P + 24, 380);
     g.fillStyle = '#7d8288'; g.font = `500 18px ${MONO}`; g.fillText('DAYS UNTIL PICK-UP', P + 24, 414);
-    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`Paid ¥${v.price} · cell line ${LINE[v.k]}`, P, 476);
+    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`Paid ${gbp(v.price)} · cell line ${LINE[v.k]}`, P, 476);
     btn(P, 540, SW - 2 * P, 84, 'WATCH IT GROW', false, { type: 'go', hash: '#/lab/batch' }, { size: 26 });
     btn(P, 640, SW - 2 * P, 84, 'CHECKOUT', true, { type: 'go', hash: '#/checkout' }, { size: 26, red: true });
     btn(P, 740, SW - 2 * P, 70, 'BACK TO THE SHOP', false, { type: 'go', hash: '#/' }, { size: 22 });
@@ -119,8 +120,8 @@ export function createProductScreen() {
     g.fillText('Ready-made. Fat, texture and colour are as grown.', P, y + 10); g.fillText('Want it your way? Grow your own below.', P, y + 32);
     g.fillStyle = '#26292c'; g.fillRect(P, SH - 214, SW - 2 * P, 2);
     g.fillStyle = '#7d8288'; g.font = `500 15px ${MONO}`; g.fillText('PRICE', P, SH - 178);
-    if (pack.was) { g.fillStyle = '#6a6e72'; g.font = `400 22px ${SANS}`; const w = g.measureText('¥' + pack.was).width; g.fillText('¥' + pack.was, P + 150, SH - 136); g.fillRect(P + 150, SH - 143, w, 2); }
-    g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText('¥' + pack.price, P, SH - 132);
+    if (pack.was) { g.fillStyle = '#6a6e72'; g.font = `400 22px ${SANS}`; const w = g.measureText(gbp(pack.was)).width; g.fillText(gbp(pack.was), P + 150, SH - 136); g.fillRect(P + 150, SH - 143, w, 2); }
+    g.fillStyle = '#f0ece4'; g.font = `600 46px ${SANS}`; g.fillText(gbp(pack.price), P, SH - 132);
     btn(SW - P - 250, SH - 190, 250, 72, 'TAKE THIS PACK', true, { type: 'take' }, { size: 24, red: true });
     btn(P, SH - 98, SW - 2 * P, 58, 'GROW YOUR OWN ' + NAME[k].split(' ').pop().toUpperCase() + ' INSTEAD ›', false, { type: 'go', hash: '#/fridge/grow/' + k }, { size: 19 });
     g.fillStyle = '#4c5056'; g.font = `400 12px ${MONO}`; g.fillText('grown to someone\'s order · not collected · now in the fridge', P, SH - 14);
@@ -130,11 +131,11 @@ export function createProductScreen() {
     frame('IN YOUR BAG');
     g.fillStyle = '#7d8288'; g.font = `500 17px ${MONO}`; g.fillText('ADDED', P, 130);
     g.fillStyle = '#f0ece4'; g.font = `600 34px ${SANS}`; g.fillText(NAME[v.k], P, 176);
-    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`${v.pack.grams} g · batch ${v.pack.batch} · ¥${v.pack.price}`, P, 214);
+    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`${v.pack.grams} g · batch ${v.pack.batch} · ${gbp(v.pack.price)}`, P, 214);
     g.fillStyle = '#16191c'; g.fillRect(P, 250, SW - 2 * P, 150);
     g.fillStyle = '#f0ece4'; g.font = `200 96px ${SANS}`; g.fillText(String(v.count), P + 24, 360);
     g.fillStyle = '#7d8288'; g.font = `500 18px ${MONO}`; g.fillText(v.count > 1 ? 'PACKS IN YOUR BAG' : 'PACK IN YOUR BAG', P + 24 + g.measureText(String(v.count)).width * 0 + 110, 340);
-    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`Total ¥${v.total}`, P + 134, 372);
+    g.fillStyle = '#b8bcc0'; g.font = `400 20px ${SANS}`; g.fillText(`Total ${gbp(v.total)}`, P + 134, 372);
     btn(P, 450, SW - 2 * P, 84, 'CHECKOUT', true, { type: 'go', hash: '#/checkout' }, { size: 26, red: true });
     btn(P, 550, SW - 2 * P, 70, 'KEEP SHOPPING', false, { type: 'go', hash: '#/fridge' }, { size: 22 });
     btn(P, 636, SW - 2 * P, 70, 'GROW YOUR OWN ›', false, { type: 'go', hash: '#/fridge/grow' }, { size: 22 });
@@ -152,7 +153,7 @@ export function createProductScreen() {
       swatch(x + TW / 2 - 70, y + 30, 140, 84, k, { fat: 'mid', shade: 'light' });
       g.fillStyle = '#f0ece4'; g.font = `600 24px ${SANS}`; g.fillText(NAME[k].replace('Cultivated ', '').replace(/^./, (c) => c.toUpperCase()), x + 16, y + 170);
       g.fillStyle = '#8f949a'; g.font = `400 15px ${MONO}`; g.fillText(`CELL LINE ${LINE[k]}`, x + 16, y + 196);
-      g.fillStyle = '#e0474e'; g.font = `600 26px ${SANS}`; g.fillText(`from ¥${v.prices[k]}`, x + 16, y + 232);
+      g.fillStyle = '#e0474e'; g.font = `600 26px ${SANS}`; g.fillText(`from ${gbp(v.prices[k])}`, x + 16, y + 232);
       regions.push({ x0: x, y0: y, x1: x + TW, y1: y + TH, act });
     });
     btn(P, SH - 110, SW - 2 * P, 64, '‹ BACK TO WHAT\'S IN THE FRIDGE', false, { type: 'go', hash: '#/fridge' }, { size: 20 });

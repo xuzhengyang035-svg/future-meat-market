@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { createRoom } from './room.js';
@@ -613,7 +614,7 @@ const psLayer = $('#products');
 const psEls = ORDER.map((k) => {
   const el = document.createElement('button');
   el.className = 'ps';
-  el.innerHTML = `<span class="dot"></span><span class="tag">${SPECIES[k].title}<b>¥${SPECIES[k].price}</b></span>`;
+  el.innerHTML = `<span class="dot"></span><span class="tag">${SPECIES[k].title}<b>${gbp(SPECIES[k].price)}</b></span>`;
   el.addEventListener('click', () => { location.hash = '#/fridge/' + k; });
   psLayer.appendChild(el);
   return { k, el };
@@ -803,7 +804,7 @@ function renderProduct() { drawProduct(); }
 function renderProductHTML() {
   const k = state.sel, s = SPECIES[k], o = state.opts;
   screenBody.innerHTML = `
-    <div class="ptitle head"><h2>${s.title}</h2><b>¥${s.price}</b></div>
+    <div class="ptitle head"><h2>${s.title}</h2><b>${gbp(s.price)}</b></div>
     <div class="stats">
       <div class="stat"><div class="flip" data-stat="cycle"></div><span>days · growth cycle</span></div>
       <div class="stat"><div class="flip" data-stat="x"></div><span>cell yield</span></div>
@@ -817,8 +818,8 @@ function renderProductHTML() {
     <h4>Order</h4>
     <div class="group row"><label>Quantity</label>
       <div class="stepper"><button data-qty="-1">−</button><span>${o.qty}</span><button data-qty="1">+</button></div></div>
-    <div class="group"><label>Delivery</label>${seg('delivery', [['std', 'Standard'], ['priority', 'Priority +¥48']])}</div>
-    <div class="buybar"><div class="price">¥<span>${price()}</span></div><button class="buy">Start growing</button></div>`;
+    <div class="group"><label>Delivery</label>${seg('delivery', [['std', 'Standard'], ['priority', 'Priority +£4.80']])}</div>
+    <div class="buybar"><div class="price"><span>${gbp(price())}</span></div><button class="buy">Start growing</button></div>`;
   updateStats();
   applyMeat();
 }
@@ -831,7 +832,7 @@ function updateStats() {
     setFlip(el, v);
   });
   const p = screenBody.querySelector('.price span');
-  if (p) p.textContent = price();
+  if (p) p.textContent = gbp(price());
 }
 
 screenBody.addEventListener('click', (e) => {
@@ -1069,32 +1070,32 @@ const SURF = {
       <div class="th"><b>Pan-seared cultivated steak</b></div>
       <div class="q"><label>Rate the texture</label><div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}">★</button>`).join('')}</div></div>
       <div class="q"><label>Compared with a regular steak</label><div class="seg"><button type="button">Can't tell</button><button type="button">Better</button><button type="button">Not as good</button></div></div>
-      <div class="q"><label>What would you pay for 200 g?</label><div class="range"><input type="range" min="40" max="200" step="2" value="120" aria-label="Price"><b>¥120</b></div></div>
-      <button class="submit" type="submit">Submit · get a ¥30 coupon</button>
+      <div class="q"><label>What would you pay for 200 g?</label><div class="range"><input type="range" min="40" max="200" step="2" value="120" aria-label="Price"><b>£12.00</b></div></div>
+      <button class="submit" type="submit">Submit · get a £3.00 coupon</button>
     </form>`;
   },
   checkout(el) {
     const o = state.order, lines = [];
-    for (const b of state.basket) lines.push([`${NAME_EN[b.k]} · ${b.grams} g · ready-made`, '¥' + b.price]);
+    for (const b of state.basket) lines.push([`${NAME_EN[b.k]} · ${b.grams} g · ready-made`, gbp(b.price)]);
     if (o) {
-      lines.push([`${NAME_EN[o.species]} × ${o.opts.qty} · grown to order`, '¥' + Math.round(SPECIES[o.species].price * GROWTH.plan[o.opts.plan].price * o.opts.qty)]);
+      lines.push([`${NAME_EN[o.species]} × ${o.opts.qty} · grown to order`, gbp(Math.round(SPECIES[o.species].price * GROWTH.plan[o.opts.plan].price * o.opts.qty))]);
       lines.push(['Grow plan', `${o.opts.cycle} days · ${PLAN_EN[o.opts.plan]}`]);
-      if (o.opts.delivery === 'priority') lines.push(['Priority delivery', '¥48']);
-      if (o.boost) lines.push(['Growth boost ×1.5', '¥28']);
-      if (o.coupon) lines.push(['New customer coupon', '-¥' + o.coupon]);
+      if (o.opts.delivery === 'priority') lines.push(['Priority delivery', '£4.80']);
+      if (o.boost) lines.push(['Growth boost ×1.5', '£2.80']);
+      if (o.coupon) lines.push(['New customer coupon', '-' + gbp(o.coupon)]);
     }
     const total = (o ? o.price : 0) + state.basket.reduce((a, b) => a + b.price, 0), no = o ? o.no : 'FM-' + (1000 + state.basket.length * 137 % 9000);
     el.innerHTML = `<div class="kiosk">
       <div class="kh"><span>SELF CHECKOUT</span><span>ORDER ${no}</span></div>
       <div class="kl">${lines.map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join('')}</div>
-      <div class="kt"><span>TOTAL</span><b>¥${total}</b></div>
+      <div class="kt"><span>TOTAL</span><b>${gbp(total)}</b></div>
       <button class="pay">PAY NOW</button>
     </div>`;
     const ids = [...new Set([...state.basket.map((b) => b.k), ...(o ? [o.species] : [])])].map((k) => SPECIES[k].id).join(' · ');
     receiptEl.innerHTML = `<div class="paper">
       <div class="rh">FUTURE MEAT MARKET<br>${new Date().toLocaleString('en-GB', { hour12: false })}</div>
       ${lines.map(([a, b]) => `<div class="rl"><span>${a}</span><span>${b}</span></div>`).join('')}
-      <div class="rl t"><span>TOTAL</span><span>¥${total}</span></div>
+      <div class="rl t"><span>TOTAL</span><span>${gbp(total)}</span></div>
       <div class="rf">CELL LINE ${ids}<br>NO SLAUGHTER · THANK YOU<br>Encl.: certificate of biological ownership ×1</div></div>`;
     state.payNo = no;
   },
@@ -1217,13 +1218,13 @@ css.domElement.addEventListener('click', (e) => {
   if (e.target.closest('.pay')) return pay();
 });
 css.domElement.addEventListener('input', (e) => {
-  if (e.target.type === 'range') e.target.nextElementSibling.textContent = '¥' + e.target.value;
+  if (e.target.type === 'range') e.target.nextElementSibling.textContent = gbp(e.target.value);
 });
 css.domElement.addEventListener('submit', (e) => {
   e.preventDefault();
   state.coupon = 30;
   e.target.innerHTML = `<div class="th"><span>THANK YOU</span><b>Thanks for your feedback!</b></div>
-    <p class="ok big">¥30</p>
+    <p class="ok big">£3.00</p>
     <div class="acts"><button type="button" class="submit" data-go="#/fridge">Pick one at the fridge</button><button type="button" data-go="#/">Keep looking</button></div>`;
 });
 // 结算：屏幕上换成证书，小票从出票口吐出来
@@ -1298,7 +1299,7 @@ function updateHud(t, r) {
   let up = '';
   if (r.done) up = state.order ? `<b>Ready to harvest</b><button data-act="checkout">Checkout →</button>` : '';
   else if (b.boost > 1) up = `<b>Boosted ×1.5</b>`;
-  else if (r.drop >= 30) up = `<b>−${r.drop}%</b><button data-act="boost">Boost now · ¥28</button>`;
+  else if (r.drop >= 30) up = `<b>−${r.drop}%</b><button data-act="boost">Boost now · £2.80</button>`;
   setH('upsell', up);
   hud.querySelector('[data-act="boost"]').disabled = b.boost > 1 || r.done;
 }

@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 广告海报：把“快乐的动物”放进阳光、草地和花丛里拍一张“产品照”，再排上广告字。
 // 海报底部的小字说明一切：“图片仅为示意，产品由细胞培养而成，与图中动物无直接关联”。
 // 同一张渲染图也裁成方形，当作告示栏上“供体”的照片。
@@ -122,7 +123,7 @@ function compose(species, img) {
   // 底部商品条
   g.fillStyle = 'rgba(251,248,242,.94)'; g.fillRect(0, 700, 600, 100);
   g.fillStyle = '#2a2b2d'; g.font = `500 26px ${SANS}`; g.fillText({ beef: 'Cultivated beef steak', pork: 'Cultivated pork chop', chicken: 'Cultivated chicken breast', fish: 'Cultivated yellow croaker' }[species], 40, 744);
-  g.fillStyle = '#b3262d'; g.font = `500 26px ${SANS}`; g.textAlign = 'right'; g.fillText('¥' + s.price, 560, 744);
+  g.fillStyle = '#b3262d'; g.font = `500 26px ${SANS}`; g.textAlign = 'right'; g.fillText(gbp(s.price), 560, 744);
   g.textAlign = 'left'; g.fillStyle = '#8a8580'; g.font = `400 12.5px ${SANS}`;
   g.fillText('*Image for illustration. Grown from cells; not directly related to the animal shown.', 40, 776);
   return c;

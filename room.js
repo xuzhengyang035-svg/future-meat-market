@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 门店：表面上是一家普通的肉铺兼小食堂，熟客才知道这里卖的是培养肉。
 // 动线：进门 → 鲜肉柜选肉定制 → 坐在吧台试吃、填问卷 → 吧台右端扫码结算 → 告示栏看供体介绍 → 右墙进加工间参观 / 仓库
 //   后墙      不锈钢熟食吧台（圆凳、吸油烟罩、价目表），吧台后面是细胞系编号抽屉柜、传菜窗、开放架、铁板
@@ -350,7 +351,7 @@ export function createRoom(env) {
   const sticker = (lines, w, h, bg, x, y, rz) => { const s = plane(w, h, sign(lines, Math.round(w * 800), Math.round(h * 800), { bg }), x, y, FZ + 0.013, 0, counter); s.rotation.z = rz; return s; };
   const counterLabel = porkBrandTexture('label', 'Cultivated meat', 'BUTCHER & DELI');
   plane(0.39, 0.195, lit(counterLabel), -0.35, 0.48, FZ + 0.013, 0, counter).rotation.z = 0.05;
-  sticker([['REFER A FRIEND', 30, '#222', 0.4, 700], ['¥30 off first order', 26, '#7a2420', 0.75, 600]], 0.22, 0.13, '#e2dac2', 2.75, 0.5, -0.04);
+  sticker([['REFER A FRIEND', 30, '#222', 0.4, 700], ['£3.00 off first order', 26, '#7a2420', 0.75, 600]], 0.22, 0.13, '#e2dac2', 2.75, 0.5, -0.04);
   sticker([['NO PHOTOS INSIDE', 28, '#222', 0.6, 600]], 0.24, 0.07, '#d8c070', 1.75, 0.82, 0.02);
   // 圆凳：镀铬立柱 + 暗红色人造革坐垫
   // 圆凳：底座 Ø38 cm、坐垫 Ø38 cm、总高 0.771 m（底座和坐垫一样宽，所以倒下以后会像圆柱一样滚）
@@ -694,7 +695,7 @@ export function createRoom(env) {
     chalkBoard((g, W, H, t, ln, { C, Y, P }) => {
       t('READY TODAY', 50, 95, 74, Y); t('cultivated · per 200 g', 54, 140, 40, C);
       ln([[50, 160], [560, 154]], Y, 4);
-      [['Beef steak', '¥168'], ['Pork chop', '¥98'], ['Chicken breast', '¥68'], ['Yellow croaker', '¥128']].forEach(([a, b], i) => { t(a, 60, 240 + i * 82, 58); t(b, 600, 240 + i * 82, 58, C, 'right'); });
+      [['Beef steak', '£16.80'], ['Pork chop', '£9.80'], ['Chicken breast', '£6.80'], ['Yellow croaker', '£12.80']].forEach(([a, b], i) => { t(a, 60, 240 + i * 82, 58); t(b, 600, 240 + i * 82, 58, C, 'right'); });
       t('In the fridge today · grab a pack', 60, 600, 40, P);
       if (chalkImg.complete && chalkImg.naturalWidth) {                         // 老分割图：深色线 → 粉笔白线
         const c = document.createElement('canvas'); c.width = 600; c.height = 450; const cg = c.getContext('2d'); cg.drawImage(chalkImg, 0, 0, 600, 450);
@@ -704,9 +705,9 @@ export function createRoom(env) {
     }, 7),
     chalkBoard((g, W, H, t, ln, { C, Y, P }) => {
       t('KITCHEN', 50, 95, 80, Y); ln([[50, 115], [330, 110]], Y, 4);
-      [['Pan-seared steak', '¥58'], ['Pork chop rice', '¥32'], ['Chicken salad', '¥28'], ['Soup of the day', '¥8'], ['Rice', '¥2']].forEach(([a, b], i) => { t(a, 60, 200 + i * 72, 54); t(b, 640, 200 + i * 72, 54, C, 'right'); });
+      [['Pan-seared steak', '£5.80'], ['Pork chop rice', '£3.20'], ['Chicken salad', '£2.80'], ['Soup of the day', '£0.80'], ['Rice', '£0.20']].forEach(([a, b], i) => { t(a, 60, 200 + i * 72, 54); t(b, 640, 200 + i * 72, 54, C, 'right'); });
       ln([[740, 150], [1220, 145], [1225, 470], [735, 475], [740, 150]], P, 4);   // 右边框出今日套餐
-      t("TODAY'S SET", 980, 225, 60, P, 'center'); t('pork chop rice', 980, 300, 50, C, 'center'); t('+ soup of the day', 980, 360, 46, C, 'center'); t('¥32', 980, 440, 70, Y, 'center');
+      t("TODAY'S SET", 980, 225, 60, P, 'center'); t('pork chop rice', 980, 300, 50, C, 'center'); t('+ soup of the day', 980, 360, 46, C, 'center'); t('£3.20', 980, 440, 70, Y, 'center');
       t('Lunch 11:30 - 14:00', 60, 600, 40, P);
     }, 13),
     chalkBoard((g, W, H, t, ln, { C, Y, P }) => {
@@ -759,7 +760,7 @@ export function createRoom(env) {
   const arm = box(0.02, 0.1, 0.02, M.ink, 0, 0.055, -0.01, tab); arm.rotation.x = -0.35;
   const tabBody = new THREE.Group(); tabBody.position.set(0, 0.16, 0); tabBody.rotation.x = -0.45; tab.add(tabBody);
   box(0.28, 0.2, 0.012, M.ink, 0, 0, -0.007, tabBody);
-  const tabScreen = plane(0.26, 0.18, sign([['RATE OUR STEAK', 40, '#fff', 0.42, 500], ['fill in the survey · ¥30 coupon', 24, '#f0b9b4', 0.66, 500]], 520, 360, { bg: '#6e2422' }), 0, 0, 0.0005, 0, tabBody, true);
+  const tabScreen = plane(0.26, 0.18, sign([['RATE OUR STEAK', 40, '#fff', 0.42, 500], ['fill in the survey · £3.00 coupon', 24, '#f0b9b4', 0.66, 500]], 520, 360, { bg: '#6e2422' }), 0, 0, 0.0005, 0, tabBody, true);
   tabScreen.material.color.setScalar(0.75);
   glassOn(tabScreen, { seed: 22, wear: 1.1 });                                    // 平板：被很多人点过，指纹多
   const kiosk = new THREE.Group(); kiosk.position.set(2.85, CT - 1.045, FZ - 0.2); room.add(kiosk);
@@ -787,8 +788,8 @@ export function createRoom(env) {
     g.fillStyle = '#ffffff'; g.fillRect(392, 48, W - 392, H - 48); g.fillStyle = '#e2e2df'; g.fillRect(392, 48, 1, H - 48);
     g.fillStyle = '#222'; g.font = F(600, 18); g.fillText('Current Sale', 410, 78); g.fillStyle = '#999'; g.font = F(400, 15); g.fillText('No items', 410, 118);
     g.fillStyle = '#e8e8e5'; for (const y of [300, 336]) g.fillRect(410, y, W - 430, 1);
-    g.fillStyle = '#666'; g.font = F(400, 15); g.fillText('Subtotal', 410, 318); g.fillText('¥0.00', W - 70, 318); g.fillText('Tax', 410, 354); g.fillText('¥0.00', W - 70, 354);
-    g.fillStyle = '#1f6fd1'; g.fillRect(410, 396, W - 430, 60); g.fillStyle = '#fff'; g.font = F(600, 22); g.fillText('Charge ¥0.00', 440, 427);
+    g.fillStyle = '#666'; g.font = F(400, 15); g.fillText('Subtotal', 410, 318); g.fillText('£0.00', W - 70, 318); g.fillText('Tax', 410, 354); g.fillText('£0.00', W - 70, 354);
+    g.fillStyle = '#1f6fd1'; g.fillRect(410, 396, W - 430, 60); g.fillStyle = '#fff'; g.font = F(600, 22); g.fillText('Charge £0.00', 440, 427);
     g.fillStyle = '#2f9a5a'; g.beginPath(); g.arc(24, H - 18, 4, 0, 7); g.fill(); g.fillStyle = '#888'; g.font = F(400, 12); g.fillText('Card reader connected', 34, H - 18); });
   const ks = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.195), new THREE.MeshPhysicalMaterial({ color: 0x030303, emissive: 0xffffff, emissiveMap: posScreen, emissiveIntensity: 0.62, roughness: 0.1, clearcoat: 1, clearcoatRoughness: 0.04 }));   // 屏幕本身是亮的，表面是反光的玻璃
   ks.position.set(0, 1.3, -0.04); ks.rotation.x = -0.35; ks.translateZ(0.003); kiosk.add(ks);
@@ -812,7 +813,7 @@ export function createRoom(env) {
     RB(0.084, 0.026, 0.19, 0.009, absM, 0, 0.013, 0, ct, 4);                                                            // 底座机身
     RB(0.084, 0.024, 0.085, 0.009, absM, 0, 0.032, -0.05, ct, 4).rotation.x = 0.12;                                   // 后面的屏幕仓，微微仰起
     const lcd = canvasTexture(160, 120, (g, W, H) => { g.fillStyle = '#c9d9d2'; g.fillRect(0, 0, W, H); g.fillStyle = '#1b2a26'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = '600 15px Arial'; g.fillText('¥ 0.00', W / 2, 22); g.font = '12px Arial'; g.fillText('INSERT, TAP', W / 2, 80); g.fillText('OR SWIPE CARD', W / 2, 96);
+      g.font = '600 15px Arial'; g.fillText('£0.00', W / 2, 22); g.font = '12px Arial'; g.fillText('INSERT, TAP', W / 2, 80); g.fillText('OR SWIPE CARD', W / 2, 96);
       g.lineWidth = 3; g.strokeStyle = '#1b2a26'; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(W / 2 - 16, 50, 6 + k * 6, -0.7, 0.7); g.stroke(); } });
     const scr = plane(0.058, 0.044, new THREE.MeshPhysicalMaterial({ color: 0x0a0a0a, emissive: 0xffffff, emissiveMap: lcd, emissiveIntensity: 0.45, roughness: 0.15, clearcoat: 0.8 }), 0, 0.0448, -0.052, 0, ct);
     scr.rotation.x = -Math.PI / 2 + 0.12; glassOn(scr, { seed: 24, wear: 1.3 });
@@ -875,7 +876,7 @@ export function createRoom(env) {
     g.fillStyle = '#2a2420'; g.font = '700 112px "Bodoni Moda", Didot, Georgia, serif'; g.fillText('Cultivated.', 60, 170, 680); g.font = 'italic 700 130px "Cormorant Garamond", Georgia, serif'; g.fillText('No kill.', 60, 300, 680);
     g.fillStyle = '#8a2a27'; g.font = '600 40px Jost, Arial, sans-serif'; g.fillText('Grown from animal cells', 64, 380, 672);
     g.fillStyle = '#9fb094'; g.fillRect(60, 430, W - 120, 470);
-    g.fillStyle = '#4b4844'; g.font = '600 30px Jost, Arial, sans-serif'; g.fillText('Beef · pork · chicken · croaker   from ¥68 / 200 g', 64, 960, 672);
+    g.fillStyle = '#4b4844'; g.font = '600 30px Jost, Arial, sans-serif'; g.fillText('Beef · pork · chicken · croaker   from £6.80 / 200 g', 64, 960, 672);
     drawPorkWordmark(g, 64, 991, 54);
     ageCanvas(g, W, H, { amount: 1.1, seed: 33 });
   });
@@ -928,11 +929,11 @@ export function createRoom(env) {
   const condiments = (g, x, y, z) => ITEM.condiments(g, x, y, z, { ry: x * 3 });   // 调料架：番茄酱、芥末、酱油、盐、胡椒、纸巾盒
   const tent = (g, x, y, z, lines) => { for (const s of [-1, 1]) { const p = plane(0.12, 0.09, sign(lines, 240, 180, { bg: '#e2dac2' }), x, y + 0.044, z + s * 0.018, s > 0 ? 0 : Math.PI, g); p.rotation.x = s * 0.2; } };
   table(-5.0, -1.4, 0, { cloth: 'red', seed: 3, slip: [0.06, -0.05], twist: 0.03, push: [0.7, 0.15, 1], stiff: 0.25, state: 'used', clear: [[0.55, -0.15, 0.2], [0.2, -0.2, 0.1]],
-    items: (g, y) => { condiments(g, 0.55, y, -0.15); tent(g, 0.2, y, -0.2, [['RATE US', 30, '#222', 0.4, 700], ['get a ¥30 coupon', 24, '#7a2420', 0.72, 600]]); } });
+    items: (g, y) => { condiments(g, 0.55, y, -0.15); tent(g, 0.2, y, -0.2, [['RATE US', 30, '#222', 0.4, 700], ['get a £3.00 coupon', 24, '#7a2420', 0.72, 600]]); } });
   table(-5.0, 1.0, 0, { cloth: 'oilcloth', seed: 8, slip: [-0.09, 0.03], twist: -0.015, stiff: 0.85, drop: 0.17, state: 'set', clear: [[-0.05, 0, 0.2], [0.3, 0.2, 0.2]],
     items: (g, y) => { condiments(g, -0.05, y, 0.0); box(0.34, 0.012, 0.26, M.red, 0.3, y + 0.006, 0.2, g); } });
   table(-2.1, 0.7, Math.PI / 2, { cloth: 'tartan2', cw: 0.62, cd: TD + 0.5, drop: 0.25, seed: 12, slip: [0.45, 0.02], twist: 0.04, stiff: 0.2, state: 'used', clear: [[0.4, -0.05, 0.2], [-0.1, -0.2, 0.1]],
-    items: (g, y) => { condiments(g, 0.4, y, -0.05); tent(g, -0.1, y, -0.2, [['REFER A FRIEND', 26, '#222', 0.4, 700], ['¥30 off first order', 24, '#7a2420', 0.72, 600]]); } });
+    items: (g, y) => { condiments(g, 0.4, y, -0.05); tent(g, -0.1, y, -0.2, [['REFER A FRIEND', 26, '#222', 0.4, 700], ['£3.00 off first order', 24, '#7a2420', 0.72, 600]]); } });
   // 前面靠窗一张小方桌：钢腿、蓝格子布垂得长一点，桌上只有烟灰缸和一杯没喝完的茶；两把塑料椅
   { const g = new THREE.Group(); g.position.set(-4.3, 0, 3.05); g.rotation.y = 0.12; room.add(g);
     const leg = new THREE.MeshStandardMaterial({ color: 0x2a2a28, roughness: 0.5, metalness: 0.6, map: grimeMap(58) });
@@ -1004,7 +1005,7 @@ export function createRoom(env) {
         if (kind !== 'potato' && r() < 0.5) { const c = new THREE.Mesh(new THREE.CircleGeometry(0.006, 6), calyx); c.position.set(0, kind === 'orange' ? 0.0343 : 0, kind === 'lemon' ? 0.0425 : 0); if (kind === 'orange') c.rotation.x = -Math.PI / 2; m.add(c); }
         if (kind !== 'potato' && r() < 0.18) { const st = new THREE.Mesh(new THREE.CircleGeometry(0.0075, 12), fruitTag); st.position.set(0, kind === 'orange' ? 0.0335 : 0.0322, 0); st.rotation.x = -Math.PI / 2; m.add(st); }   // 果标贴纸
       }
-      const price = plane(0.1, 0.07, sign([[{ lemon: 'LEMONS', orange: 'ORANGES', potato: 'POTATOES' }[kind], 30, '#222', 0.38, 700], [{ lemon: '4 for ¥10', orange: '¥3 each', potato: '¥6 / kg' }[kind], 28, '#9a2422', 0.8, 600]], 200, 140, { bg: '#ece6d6' }), 0, 0.2, -D / 2 - 0.008, Math.PI, g);   // 价签朝店里
+      const price = plane(0.1, 0.07, sign([[{ lemon: 'LEMONS', orange: 'ORANGES', potato: 'POTATOES' }[kind], 30, '#222', 0.38, 700], [{ lemon: '4 for £1.00', orange: '£0.30 each', potato: '£0.60 / kg' }[kind], 28, '#9a2422', 0.8, 600]], 200, 140, { bg: '#ece6d6' }), 0, 0.2, -D / 2 - 0.008, Math.PI, g);   // 价签朝店里
       price.rotation.z = (r() - 0.5) * 0.12;
     }); }
   const chest = new THREE.Group(); chest.position.set(3.2, 0, 4.4); room.add(chest);   // 卧式冰柜：冷冻肉品
@@ -1023,11 +1024,11 @@ export function createRoom(env) {
       t('WELCOME BACK', W / 2, 110, 76, Y); line([[100, 135], [560, 130]], Y, 4);
       t('Regulars:', 70, 230, 52, C, 'left');
       t('first custom order', 70, 290, 50, C, 'left');
-      t('¥30 off', 600, 375, 92, P, 'right', -0.05);
+      t('£3.00 off', 600, 375, 92, P, 'right', -0.05);
       line([[60, 430], [600, 425]], 'rgba(240,238,228,.35)', 3);
       t('Tasting at the counter', W / 2, 500, 50); t('2 pieces each, free', W / 2, 550, 38, dim);
       t('Custom cuts', W / 2, 640, 54, Y); t('texture · aroma · color · fat', W / 2, 690, 38); t('ready in 14 - 28 days', W / 2, 735, 38, dim);
-      t("Today's set  ¥32", W / 2, 840, 52, P);
+      t("Today's set  £3.20", W / 2, 840, 52, P);
       line([[150, 915], [250, 915]], C, 5); line([[175, 897], [148, 915], [175, 933]], C, 5); t('counter behind you', 270, 928, 40, C, 'left');   // 看牌子的人背对吧台，吧台在左后方
     },
     back: (g, W, H, t, line, { C, Y, P, dim }) => {
@@ -1083,11 +1084,11 @@ export function createRoom(env) {
       [['Beef steak', 168, 'B-0417'], ['Pork chop', 98, 'P-0932'], ['Chicken breast', 68, 'G-0221'], ['Yellow croaker', 128, 'F-1180']].forEach(([n, p, id], i) => {
         const x = 56 + (i % 2) * 432, y = 260 + Math.floor(i / 2) * 330;
         if (imgs[i]) g.drawImage(imgs[i], imgs[i].width * 0.2, imgs[i].height * 0.2, imgs[i].width * 0.5, imgs[i].height * 0.36, x, y, 416, 220); else { g.fillStyle = '#8a3a30'; g.fillRect(x, y, 416, 220); }
-        g.fillStyle = '#2a2420'; g.font = `600 34px ${SANS}`; g.fillText(n, x, y + 266); g.fillStyle = '#7a2420'; g.textAlign = 'right'; g.fillText('¥' + p, x + 416, y + 266); g.textAlign = 'left';
+        g.fillStyle = '#2a2420'; g.font = `600 34px ${SANS}`; g.fillText(n, x, y + 266); g.fillStyle = '#7a2420'; g.textAlign = 'right'; g.fillText(gbp(p), x + 416, y + 266); g.textAlign = 'left';
         g.fillStyle = '#7a756e'; g.font = `400 20px ${MONO}`; g.fillText('cell line ' + id, x, y + 298); });
       g.fillStyle = '#2a2420'; g.fillRect(56, 935, W - 112, 3);
       g.font = `600 36px ${SANS}`; g.fillText('Kitchen', 56, 990);
-      g.font = `400 28px ${SANS}`; [['Pan-seared steak', '¥58'], ['Pork chop rice + soup', '¥32'], ['Chicken salad', '¥28'], ['Soup of the day', '¥8']].forEach(([a, b], i) => { const x = 56 + (i % 2) * 432, y = 1040 + Math.floor(i / 2) * 48; g.fillText(a, x, y); g.textAlign = 'right'; g.fillText(b, x + 400, y); g.textAlign = 'left'; });
+      g.font = `400 28px ${SANS}`; [['Pan-seared steak', '£5.80'], ['Pork chop rice + soup', '£3.20'], ['Chicken salad', '£2.80'], ['Soup of the day', '£0.80']].forEach(([a, b], i) => { const x = 56 + (i % 2) * 432, y = 1040 + Math.floor(i / 2) * 48; g.fillText(a, x, y); g.textAlign = 'right'; g.fillText(b, x + 400, y); g.textAlign = 'left'; });
       g.fillStyle = '#7a756e'; g.font = `400 20px ${SANS}`; g.fillText('Made to order, ready in 14 - 28 days.  No slaughter involved.  Prices include tax.', 56, 1220);
       ageCanvas(g, W, H, { amount: 0.5, seed: 91, drips: false }); mp.needsUpdate = true; };
     Promise.all([1, 3, 5, 7].map((n) => new Promise((res) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = `assets/user/meat_${n}.webp`; }))).then(paint);
@@ -1098,7 +1099,7 @@ export function createRoom(env) {
   // Outside the glass is the real street (street.js), rendered once from in here with an off-axis camera and baked:
   // street = room − (1.65, 0, 5); picture plane 0.26 m outside the glass, framed for an eye at (−1.5, 1.6, 1.5).
   { const bc = new THREE.PerspectiveCamera(); bc.position.set(-3.15, 1.6, -3.5); bc.lookAt(-3.15, 1.6, 100); bc.updateMatrixWorld();   // bake camera, street coordinates
-    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), depthWindow('assets/room/street.jpg', 'assets/room/street_depth.png', {
+    const street = new THREE.Mesh(new THREE.PlaneGeometry(6.71, 2.79), depthWindow('assets/room/street.jpg?v=gbp', 'assets/room/street_depth.png?v=gbp', {
       view: bc.matrixWorldInverse.clone().multiply(new THREE.Matrix4().makeTranslation(-1.65, 0, -5)), proj: new THREE.Matrix4().makePerspective(-2.95, 3.76, 1.07, -1.72, 3.76, 60), near: 3.76, far: 60, maxT: 30, tint: 0.9 }));
     street.position.set(-1.905, 1.275, 5.26); street.rotation.y = Math.PI; room.add(street);
     const far = new THREE.Mesh(new THREE.PlaneGeometry(18, 7.8), new THREE.MeshBasicMaterial({ color: 0x05070a }));   // anything outside that frame: night
@@ -1196,7 +1197,7 @@ export function createRoom(env) {
         m.rotation.y = (n % 2 ? -0.18 : 0.14) + (k === 3 ? 0.5 : 0); dc.add(m);
       }
       if (k < 3) { const d = box(0.04, 0.035, 0.66, grass, cx + 0.4, 0.85, -0.02, dc); d.scale.y = 1; }   // 塑料隔草
-      const tag = plane(0.17, 0.085, lit(porkBrandTexture('label', name, `¥${price} / 200 g`)), cx, 0.88, 0.31, 0, dc);
+      const tag = plane(0.17, 0.085, lit(porkBrandTexture('label', name, `${gbp(price)} / 200 g`)), cx, 0.88, 0.31, 0, dc);
       tag.rotation.x = -0.5; cyl(0.0015, 0.0015, 0.05, caseSteel, cx, 0.85, 0.3, dc, 4);   // 价签插在托盘前面
     });
     for (const y of [0.76, 0.06]) box(L + 0.02, 0.03, 0.97, caseSteel, 0, y, 0, dc);   // 上下两道不锈钢包边

@@ -350,7 +350,7 @@ function salami() {
     write(c, 'line P-0932 · sow 4471', 30, 210, { size: 38, font: pen, color: INK });
     write(c, 'grown 19 d', 30, 270, { size: 40, font: pen, color: INK });
     write(c, 'cured 21 d', 30, 325, { size: 40, font: pen, color: INK });
-    write(c, '¥74 / 100 g', 30, 410, { size: 52, font: pen, color: RED, tilt: -0.03 });
+    write(c, '£7.40 / 100 g', 30, 410, { size: 52, font: pen, color: RED, tilt: -0.03 });
   }, { tint: '#e9dcc0' });
   const back = sheet(0.05, 0.075, 7000, (c) => {
     write(c, 'She is still alive.', 26, 150, { size: 44, font: pen, color: INK, tilt: -0.02 });
@@ -369,7 +369,7 @@ function menucard() {
     text(c, 'FUTURE MEAT MARKET', w / 2, 70, 30, { weight: 800, align: 'center' });
     text(c, 'Grown, not raised · since 2024', w / 2, 102, 16, { weight: 500, align: 'center' });
     c.fillStyle = BLACK; c.fillRect(40, 124, w - 80, 2);
-    const rows = [['Beef steak, line B-0417', '¥132'], ['Pork chop, line P-0932', '¥98'], ['Chicken breast, line G-0221', '¥68'], ['Salami, cured 21 d', '¥148'], ['Lunch set, chop + rice', '¥32']];
+    const rows = [['Beef steak, line B-0417', '£13.20'], ['Pork chop, line P-0932', '£9.80'], ['Chicken breast, line G-0221', '£6.80'], ['Salami, cured 21 d', '£14.80'], ['Lunch set, chop + rice', '£3.20']];
     rows.forEach(([a, b], i) => { const y = 190 + i * 64; text(c, a, 40, y, 21, { weight: 600 }); text(c, b, w - 40, y, 21, { weight: 700, align: 'right' }); text(c, 'per 200 g · grown 14–28 days', 40, y + 24, 14, { weight: 400, color: '#5a5a5a' }); });
     c.fillStyle = BLACK; c.fillRect(40, 520, w - 80, 1);
     text(c, 'GROW YOUR OWN', 40, 566, 22, { weight: 800, color: RED });

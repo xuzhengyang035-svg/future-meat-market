@@ -19,7 +19,7 @@ export const STORIES = [
   { head: 'WHERE DOES THE SERUM COME FROM?', deck: 'Growth medium in many tanks still relies on calf blood, critics say', photo: 'oldphoto_2.jpg', cap: 'Calves at a dairy farm. Foetal serum is taken at slaughter.', paper: 'Southside Herald', date: 'TUESDAY 9 JUNE 2026' },
   { head: 'DONOR COW B-0417 TURNS TWELVE', deck: 'One biopsy a year feeds half the borough', photo: 'oldphoto_3.jpg', cap: 'B-0417 on her farm. Her cells are in every sirloin on Market St.', paper: 'Old Street Weekly', date: 'SATURDAY 19 SEPTEMBER 2026' },
   { head: 'HALE FARM DOWN TO ONE PIG', deck: 'Sow 4471 is kept for her cells; the rest of the herd is gone', photo: 'oldphoto_2.jpg', cap: 'Hale Farm, spring 2019.', paper: 'The Evening Post', date: 'MONDAY 12 OCTOBER 2026' },
-  { head: 'GROWN STEAK NOW CHEAPER THAN BEEF', deck: 'Price per kilo falls below farmed meat for the first time', photo: 'meat_1.webp', cap: 'A grown sirloin at ¥132 a portion.', paper: 'The Courier', date: 'FRIDAY 6 NOVEMBER 2026' },
+  { head: 'GROWN STEAK NOW CHEAPER THAN BEEF', deck: 'Price per kilo falls below farmed meat for the first time', photo: 'meat_1.webp', cap: 'A grown sirloin at £13.20 a portion.', paper: 'The Courier', date: 'FRIDAY 6 NOVEMBER 2026' },
   { head: 'CABLE ST SLAUGHTERHOUSE TO CLOSE', deck: '140 jobs go as last abattoir in the borough shuts', photo: 'oldphoto_1.jpg', cap: 'The yard on Cable Street, 1960s.', paper: 'Market Gazette', date: 'WEDNESDAY 18 NOVEMBER 2026' },
   { head: 'TASTE TEST: CAN YOU TELL?', deck: 'Nine out of twenty diners picked the grown pork', photo: 'meat_4.webp', cap: 'Grown (left) and farmed pork belly.', paper: 'Old Street Weekly', date: 'SATURDAY 21 NOVEMBER 2026' },
 ];

@@ -215,7 +215,7 @@ export function createStreet(env) {
   // room = street + (1.65, 0, 5); the picture plane sits 1.3 m inside, near-clipped there, framed for an eye at (−1.1, 1.65, 6.5).
   { const IN = 1.3;
     const bc = new THREE.PerspectiveCamera(); bc.position.set(0.55, 1.65, 11.5); bc.lookAt(0.55, 1.65, 0); bc.updateMatrixWorld();   // the bake camera, in shop coordinates
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, 3.75), depthWindow('assets/street/interior.jpg', 'assets/street/interior_depth.png', {
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(SX1 - SX0, 3.75), depthWindow('assets/street/interior.jpg?v=gbp', 'assets/street/interior_depth.png?v=gbp', {
       view: bc.matrixWorldInverse.clone().multiply(new THREE.Matrix4().makeTranslation(1.65, 0, 5)), proj: new THREE.Matrix4().makePerspective(-5.2, 3.9, 2.25, -1.5, 7.8, 40), near: 7.8, far: 40, maxT: 12 }));
     back.position.set((SX0 + SX1) / 2, 0.15 + 3.75 / 2, -IN); root.add(back);
     inFloor.scale.y = IN / ID; inFloor.position.z = -IN / 2;
@@ -329,12 +329,12 @@ export function createStreet(env) {
         if (n === 'gherkins') for (let k = 0; k < 5; k++) { const o = new THREE.Mesh(new THREE.CapsuleGeometry(0.009, 0.07, 4, 8), new THREE.MeshStandardMaterial({ color: fc, roughness: 0.5 })); o.position.set((k - 2) * 0.014, 0.06, (k % 2 - 0.5) * 0.02); o.rotation.z = (k - 2) * 0.12; j.add(o); }
         const lid = cyl(rr + 0.004, rr + 0.004, 0.015, lidM, 0, h + 0.008, 0, j, 24);
         const bail = new THREE.Mesh(new THREE.TorusGeometry(rr * 0.9, 0.0018, 4, 20, Math.PI), wireM); bail.position.y = h + 0.005; bail.rotation.y = 0.4; j.add(bail);
-        const tag = canvasTexture(128, 64, (g, W, H) => { g.fillStyle = '#efe6cc'; g.fillRect(0, 0, W, H); g.fillStyle = '#1b2a5a'; g.font = `400 30px "Nanum Pen Script", Caveat, cursive`; g.textAlign = 'center'; g.fillText(n, W / 2, 28); g.fillStyle = '#8a1a14'; g.fillText(['¥18', '¥22', '¥15', '¥26'][i], W / 2, 56); });
+        const tag = canvasTexture(128, 64, (g, W, H) => { g.fillStyle = '#efe6cc'; g.fillRect(0, 0, W, H); g.fillStyle = '#1b2a5a'; g.font = `400 30px "Nanum Pen Script", Caveat, cursive`; g.textAlign = 'center'; g.fillText(n, W / 2, 28); g.fillStyle = '#8a1a14'; g.fillText(['£1.80', '£2.20', '£1.50', '£2.60'][i], W / 2, 56); });
         const tg = plane(0.05, 0.025, lit(tag), 0, h * 0.5, rr + 0.002, 0, j); tg.rotation.z = (Math.random() - 0.5) * 0.15;
       }); }
     // brass price spike with a ticket for the hanging salami
     { const sp = cyl(0.003, 0.003, 0.2, new THREE.MeshStandardMaterial({ color: 0xb89048, metalness: 1, roughness: 0.3 }), cxw + 0.32, Y + 0.12, Zc + 0.12, root, 6); cyl(0.02, 0.025, 0.012, sp.material, cxw + 0.32, Y + 0.03, Zc + 0.12, root, 12);
-      const t = canvasTexture(192, 128, (g, W, H) => { g.fillStyle = '#f2ecd8'; g.fillRect(0, 0, W, H); g.strokeStyle = '#8a1a14'; g.lineWidth = 4; g.strokeRect(6, 6, W - 12, H - 12); g.fillStyle = '#1b1b1b'; g.textAlign = 'center'; g.font = `400 40px "Nanum Pen Script", Caveat, cursive`; g.fillText('Cured salami', W / 2, 48); g.fillStyle = '#8a1a14'; g.font = `600 46px Caveat, cursive`; g.fillText('¥74 / 100g', W / 2, 100); });
+      const t = canvasTexture(192, 128, (g, W, H) => { g.fillStyle = '#f2ecd8'; g.fillRect(0, 0, W, H); g.strokeStyle = '#8a1a14'; g.lineWidth = 4; g.strokeRect(6, 6, W - 12, H - 12); g.fillStyle = '#1b1b1b'; g.textAlign = 'center'; g.font = `400 40px "Nanum Pen Script", Caveat, cursive`; g.fillText('Cured salami', W / 2, 48); g.fillStyle = '#8a1a14'; g.font = `600 46px Caveat, cursive`; g.fillText('£7.40 / 100g', W / 2, 100); });
       const tk = plane(0.09, 0.06, lit(t), cxw + 0.32, Y + 0.2, Zc + 0.122, 0, root); tk.rotation.z = -0.06; }
   }
 
@@ -600,16 +600,16 @@ export function createStreet(env) {
       line([[110, 135], [330, 128], [550, 138]], Y, 4);
       t('Cultivated meat', W / 2, 205, 52);
       t('made to order · ready in 14 days', W / 2, 252, 34, 'rgba(240,238,228,.8)');
-      t('Beef steak', 70, 345, 54, undefined, 'left'); t('¥168', 590, 345, 50, 'rgba(240,238,228,.6)', 'right');
+      t('Beef steak', 70, 345, 54, undefined, 'left'); t('£16.80', 590, 345, 50, 'rgba(240,238,228,.6)', 'right');
       line([[505, 330], [592, 326]], 'rgba(240,238,228,.8)', 4);                     // 原价划掉
-      t('¥138', 590, 400, 60, Y, 'right'); t('-20%', 470, 402, 40, P, 'right', -0.12);
-      t('Pork chop', 70, 470, 54, undefined, 'left'); t('¥98', 590, 470, 50, undefined, 'right');
-      t('Chicken breast', 70, 535, 54, undefined, 'left'); t('¥68', 590, 535, 50, undefined, 'right');
+      t('£13.80', 590, 400, 60, Y, 'right'); t('-20%', 470, 402, 40, P, 'right', -0.12);
+      t('Pork chop', 70, 470, 54, undefined, 'left'); t('£9.80', 590, 470, 50, undefined, 'right');
+      t('Chicken breast', 70, 535, 54, undefined, 'left'); t('£6.80', 590, 535, 50, undefined, 'right');
       t('per 200 g', 70, 575, 30, 'rgba(240,238,228,.6)', 'left');
       line([[60, 615], [600, 610]], 'rgba(240,238,228,.4)', 3);
-      t('LUNCH SET  ¥32', W / 2, 685, 60, P);
+      t('LUNCH SET  £3.20', W / 2, 685, 60, P);
       t('pork chop rice + soup of the day', W / 2, 730, 32);
-      t('First order? ¥30 off', W / 2, 820, 50, Y);
+      t('First order? £3.00 off', W / 2, 820, 50, Y);
       t('ask inside', W / 2, 865, 34, 'rgba(240,238,228,.8)');
       line([[420, 930], [520, 930]], 'rgba(240,238,228,.9)', 5); line([[495, 912], [522, 930], [495, 948]], 'rgba(240,238,228,.9)', 5);   // 往店里指的箭头
       t('come in', 400, 942, 38, undefined, 'right');

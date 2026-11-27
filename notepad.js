@@ -46,10 +46,10 @@ function arrow(g, x, y, s) { stroke(g, [[x, y], [x + s, y - s]], { color: INK, w
 export const MENU = {
   title: "Today's Menu", date: 'Sun · Nov 16',
   sections: [
-    { head: 'In the fridge · per 200 g', rows: [['Beef steak', '¥168', { go: 'beef' }], ['Pork chop', '¥98', { go: 'pork' }], ['Chicken breast', '¥68', { go: 'chicken' }], ['Yellow croaker', '¥128', { go: 'fish' }]] },
-    { head: 'Kitchen', rows: [['Pan-seared steak', '¥58', { go: 'tasting' }], ['Pork chop rice', '¥32', { go: 'tasting', hi: true, was: '¥36' }], ['Chicken salad', '¥28', { go: 'tasting' }], ['Fish soup', '¥18', { out: 'sold out' }], ['Soup of the day', '¥8', { go: 'tasting' }], ['Rice', '¥2', { go: 'tasting' }]] },
+    { head: 'In the fridge · per 200 g', rows: [['Beef steak', '£16.80', { go: 'beef' }], ['Pork chop', '£9.80', { go: 'pork' }], ['Chicken breast', '£6.80', { go: 'chicken' }], ['Yellow croaker', '£12.80', { go: 'fish' }]] },
+    { head: 'Kitchen', rows: [['Pan-seared steak', '£5.80', { go: 'tasting' }], ['Pork chop rice', '£3.20', { go: 'tasting', hi: true, was: '£3.60' }], ['Chicken salad', '£2.80', { go: 'tasting' }], ['Fish soup', '£1.80', { out: 'sold out' }], ['Soup of the day', '£0.80', { go: 'tasting' }], ['Rice', '£0.20', { go: 'tasting' }]] },
   ],
-  notes: ['Steak & pork: order 14 days ahead', 'Referrals: ¥30 off first order'],
+  notes: ['Steak & pork: order 14 days ahead', 'Referrals: £3.00 off first order'],
   sign: '— Zhou',
 };
 
@@ -82,7 +82,7 @@ function ink(g, M, state, regions) {
   for (const [i, t] of M.notes.entries()) {
     const y = base(k); hand(g, t, LEFT, y, 60, { alpha: 0.88, seed: 'note' + t });
     if (i === 0) arrow(g, LEFT - 70, y - 4, 30);
-    if (i === 1) { g.font = FONT(60); const a = t.indexOf('¥'), x = LEFT + g.measureText(t.slice(0, a)).width, w2 = g.measureText('¥30').width; ring(g, x + w2 / 2, y - 18, w2 / 2 + 16, 30, hash('r30')); }
+    if (i === 1) { g.font = FONT(60); const a = t.indexOf('£'), x = LEFT + g.measureText(t.slice(0, a)).width, w2 = g.measureText('£3.00').width; ring(g, x + w2 / 2, y - 18, w2 / 2 + 16, 30, hash('r30')); }
     k++;
   }
   hand(g, M.sign, RIGHT - 20, base(k) + 6, 60, { align: 'right', alpha: 0.7, seed: 'sign' });
@@ -98,7 +98,7 @@ export function legalPad() {
   const paperCv = document.createElement('canvas'); paperCv.width = CW; paperCv.height = CH; paper(paperCv.getContext('2d'));
   const state = { hover: -1, current: null }, regions = [];
   const draw = () => { const c = cv.getContext('2d'); c.clearRect(0, 0, CW, CH); c.drawImage(paperCv, 0, 0); ink(c, MENU, { hover: -1, current: state.current }, regions); tex.needsUpdate = true; placeHi(); };
-  document.fonts.load(FONT(60), MENU.title + '¥').then(draw).catch(() => {});   // Caveat 到了再写一遍
+  document.fonts.load(FONT(60), MENU.title + '£').then(draw).catch(() => {});   // Caveat 到了再写一遍
 
   const edge = document.createElement('canvas'); edge.width = 8; edge.height = 64;
   { const c = edge.getContext('2d'); for (let y = 0; y < 64; y++) { c.fillStyle = y % 2 ? '#d8bc58' : '#efd77a'; c.fillRect(0, y, 8, 1); } }
@@ -176,7 +176,7 @@ export function menuScreen() {
     tex.needsUpdate = true;
   };
   draw();
-  document.fonts.load(FONT(60), MENU.title + '¥').then(draw).catch(() => {});
+  document.fonts.load(FONT(60), MENU.title + '£').then(draw).catch(() => {});
   const pick = (uv) => { if (!uv) return null; const x = (uv.x * SW - PX) / PWd * CW, y = ((1 - uv.y) * SH - PY) / PHt * CH; return regions.find((r) => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1) || null; };
   const setHover = (i) => { if (state.hover !== i) { state.hover = i; draw(); } };
   const setCurrent = (k) => { if (state.current !== k) { state.current = k; draw(); } };

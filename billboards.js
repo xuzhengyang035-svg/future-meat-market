@@ -21,7 +21,7 @@ const ADS = {
     g.fillStyle = '#ffd400'; g.fillRect(0, 0, W, H); g.fillStyle = '#111'; g.font = `900 ${H * .24}px ${SANS}`; g.fillText('MEAT', W * .05, H * .34); g.fillText('ON TAP', W * .05, H * .62);
     g.font = `700 ${H * .07}px ${SANS}`; g.fillText('Your own cell line. Delivered weekly.', W * .05, H * .82);
     g.fillStyle = '#e6162a'; g.beginPath(); for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, rr = k % 2 ? H * .2 : H * .3; g.lineTo(W * .8 + Math.cos(a) * rr, H * .45 + Math.sin(a) * rr); } g.fill();
-    g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = `900 ${H * .11}px ${SANS}`; g.fillText('¥99', W * .8, H * .47); g.font = `700 ${H * .05}px ${SANS}`; g.fillText('/ WEEK', W * .8, H * .56); g.textAlign = 'left';
+    g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = `900 ${H * .11}px ${SANS}`; g.fillText('£9.90', W * .8, H * .47); g.font = `700 ${H * .05}px ${SANS}`; g.fillText('/ WEEK', W * .8, H * .56); g.textAlign = 'left';
   },
   pods: (g, W, H) => {                                                        // calm night pastel: sleep pods, nothing to do with meat
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#1a1440'); gr.addColorStop(1, '#5a3a8a'); g.fillStyle = gr; g.fillRect(0, 0, W, H);

@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 用 canvas 画出来的占位贴图：地砖、窗外街景、广告屏、直播画面、价签。
 // 之后都可以换成真实照片或录屏。
 import * as THREE from 'three';
@@ -141,7 +142,7 @@ export const shelfLabel = (key) => canvasTexture(512, 96, (g, W, H) => {
   g.font = `400 20px ${FONT}`; g.fillStyle = '#6b6662';
   g.fillText(`CELL LINE ${s.id} · PER 200 g`, 22, 80);
   g.textAlign = 'right'; g.fillStyle = '#b3262d'; g.font = `500 44px ${FONT}`;
-  g.fillText('¥' + s.price, W - 22, 62);
+  g.fillText(gbp(s.price), W - 22, 62);
 });
 
 export const signTexture = (text, sub, opts = {}) => canvasTexture(1024, opts.h || 160, (g, W, H) => {

@@ -1,3 +1,5 @@
+import { gbp } from './money.js';
+import { SPECIES } from './data.js';
 import { ageCanvas } from './materials.js';
 import { canvasTexture } from './textures.js';
 
@@ -137,7 +139,7 @@ export function porkBrandTexture(format, product, price) {
     g.font = '600 25px ' + DETAILS;
     g.fillText('PORK CHOP · 200 g', W / 2, 405);
     g.font = '700 62px ' + DISPLAY;
-    g.fillText('¥98', W / 2, 483);
+    g.fillText(gbp(SPECIES.pork.price), W / 2, 483);
     g.font = '600 20px ' + DETAILS;
     g.fillText('ORDER AT THE COUNTER', W / 2, 554);
     ageCanvas(g, W, H, { amount: 0.5, seed: 62, drips: false });

@@ -1,3 +1,4 @@
+import { gbp } from './money.js';
 // 布置：桌布（真实的垂坠、折痕、被人推皱的地方）和桌上、台面上的日常杂物。
 // 所有东西都按真实尺寸做，放在表面上（不悬空、不穿模），角度、位置都带一点随机。
 import * as THREE from 'three';
@@ -119,9 +120,15 @@ const receiptTex = (seed) => canvasTexture(160, 420, (g, W, H) => {
   g.fillStyle = 'rgba(40,40,48,.75)'; g.font = '600 15px monospace'; g.textAlign = 'center';
   g.fillText('BUTCHER · DINE-IN', W / 2, 30); g.font = '11px monospace'; g.fillText(`No.${(seed * 7331) % 9000 + 1000}`, W / 2, 48);
   g.textAlign = 'left';
-  const items = [['Beef rib 200g', '68.00'], ['Pork belly 300g', '54.00'], ['Rice x2', '4.00'], ['Soup', '6.00'], ['Chicken leg', '32.00']];
-  for (let i = 0; i < 3 + (seed % 3); i++) { g.fillText(items[(i + seed) % 5][0], 12, 80 + i * 18); g.fillText(items[(i + seed) % 5][1], 112, 80 + i * 18); }
-  g.fillRect(12, 160, W - 24, 1); g.font = '600 13px monospace'; g.fillText('TOTAL', 12, 182); g.fillText('¥' + (90 + seed * 7 % 60) + '.00', 100, 182);
+  const items = [['Beef rib 200g', 68], ['Pork belly 300g', 54], ['Rice x2', 4], ['Soup', 6], ['Chicken leg', 32]];
+  let total = 0;
+  for (let i = 0; i < 3 + (seed % 3); i++) {
+    const [label, units] = items[(i + seed) % items.length];
+    g.fillText(label, 12, 80 + i * 18);
+    g.fillText(gbp(units), 106, 80 + i * 18);
+    total += units;
+  }
+  g.fillRect(12, 160, W - 24, 1); g.font = '600 13px monospace'; g.fillText('TOTAL', 12, 182); g.fillText(gbp(total), 100, 182);
   for (let y = 210; y < 300; y += 3) g.fillRect(20 + (y * 13 % 5), y, (y * 17 % 3) + 1.5, 2.4);   // 条形码
   g.globalAlpha = 0.25; g.fillStyle = '#8a7a5a'; g.beginPath(); g.ellipse(W * 0.6, H * 0.7, 30, 22, 0.3, 0, 7); g.fill();   // 油点
 });
