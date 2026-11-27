@@ -226,12 +226,12 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
           float yb = vFW.y + 0.02 * sin(vFW.x * 3.1 + vFW.z * 2.3);
           float ph = fract(yb / 0.27), lay = step(0.5, fract(yb / 0.54));
           float ridge = (smoothstep(0.0, 0.012, ph) - smoothstep(0.02, 0.05, ph)) * uBands;
-          float a = uBase + uEdge * fr + uBands * (0.05 * lay + 0.22 * ridge) + diffuseColor.a * uMapA;
-          outgoingLight += vec3(0.55, 0.6, 0.65) * (0.12 * fr + 0.3 * ridge);
+          float a = uBase + uEdge * fr + uBands * (0.017 * lay + 0.14 * ridge) + diffuseColor.a * uMapA;
+          outgoingLight += vec3(0.64, 0.62, 0.57) * (0.12 * fr + 0.3 * ridge);
           diffuseColor.a = clamp(a, 0.0, 0.95);
           #include <opaque_fragment>`); };
     m.customProgramCacheKey = () => 'wh-film'; return m; };
-  M.wrap = filmMat({ bands: true, base: 0.05, edge: 0.55, ns: 0.22 });                    // 拉伸膜
+  M.wrap = filmMat({ bands: true, base: 0.018, edge: 0.36, ns: 0.12 });                    // 拉伸膜
   const R = (seed) => { let n = seed * 7919 + 13; return () => (n = (n * 16807) % 2147483647) / 2147483647; };
   const kit = createCartonKit({ normalMap: M.carton.normalMap });
   // ---- 仓库道具包（Blender 做的 8 个 GLB，地面为原点、单位米、正面朝 +z）。贴图事先压到 512（带字的到 1024）并按内容哈希命名，
@@ -436,11 +436,24 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   const tapeStrip = (p, len, wdt, mat, x, y, z, rx, ry) => { const g = new THREE.PlaneGeometry(wdt, len); const U = g.attributes.uv; for (let i = 0; i < U.count; i++) U.setY(i, U.getY(i) * len / 0.35); const m = new THREE.Mesh(g, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, 0, 'YXZ'); p.add(m); return m; };
   const wrapStack = (g, x, y, S, { film = true, tape = true } = {}) => { const { h, w, d } = S; if (h < 0.1) return;
     const W2 = w / 2 + 0.014, D2 = d / 2 + 0.014;
-    if (film) { const hf = Math.max(0.2, h - 0.12 + 0.1);                               // 拉伸膜只缠四周（顶上敞着），一般缠到离顶上十几厘米就停了
-      const bg = uvMeters(new THREE.BoxGeometry(w + 0.028, hf, d + 0.028), 0.45), keep = bg.groups.filter((gr, gi) => gi !== 2 && gi !== 3), idx = [];
-      for (const gr of keep) for (let k = gr.start; k < gr.start + gr.count; k++) idx.push(bg.index.getX(k)); bg.setIndex(idx); bg.clearGroups();
-      const fb = new THREE.Mesh(bg, M.wrap); fb.position.set(x, y - 0.1 + hf / 2, 0); g.add(fb);
-      if (rnd() < 0.4) { const f = plane(0.32 + rnd() * 0.2, 0.25, M.wrap, x + (rnd() - 0.5) * w * 0.6, y + h * (0.3 + rnd() * 0.4), D2 + 0.03, 0, g); f.rotation.x = 0.4; f.rotation.z = (rnd() - 0.5) * 0.6; } }   // 膜被划开一道，耷拉下来
+    if (film) {
+      // Open sleeve: the stretched film bridges corners and gathers along its lap seam.
+      const height = Math.max(0.14, h * 0.72);
+      const geometry = new THREE.PlaneGeometry(1, 1, 64, 12);
+      const points = geometry.attributes.position, uv = geometry.attributes.uv;
+      for (let i = 0; i < points.count; i++) {
+        const u = uv.getX(i), v = uv.getY(i), angle = u * Math.PI * 2;
+        const dx = Math.cos(angle), dz = Math.sin(angle);
+        const crease = 0.004 * Math.sin(6 * angle + 11 * v) + 0.003 * Math.cos(17 * angle - 19 * v);
+        // A rounded rectangular cross section with taut sides and softened corners.
+        const radius = Math.pow(Math.abs(dx / W2) ** 12 + Math.abs(dz / D2) ** 12, -1 / 12);
+        points.setXYZ(i, dx * (radius + crease), v * height + 0.008 * Math.sin(3 * angle + v), dz * (radius + crease));
+        uv.setXY(i, u * 2 * (w + d) / 0.45, v * height / 0.45);
+      }
+      geometry.computeVertexNormals();
+      const sleeve = new THREE.Mesh(geometry, M.wrap);
+      sleeve.position.set(x, y + 0.012, 0); g.add(sleeve);
+    }
     if (tape) { const tm = rnd() < 0.7 ? M.tapeBrown : M.tapeClear, n = 1 + Math.floor(rnd() * 2);
       for (let k = 0; k < n; k++) { const tx = x + (n === 1 ? (rnd() - 0.5) * 0.2 : (k - 0.5) * w * 0.5), down = 0.12 + rnd() * 0.2;
         tapeStrip(g, d + 0.03, 0.048, tm, tx, y + h + 0.004, 0, -Math.PI / 2, 0);                                           // 顶上压一道
@@ -463,7 +476,15 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     return mergeGeometries(parts); };
   const SACK = { paper: { L: 0.64, W: 0.40, T: 0.13, mats: M.paperSacks }, woven: { L: 0.62, W: 0.46, T: 0.15, mats: M.wovenSacks } };
   for (const k in SACK) { const S = SACK[k]; S.geos = [11, 23, 37, 41].map((sd) => sackGeo(S.L, S.W, S.T, sd + k.length)); }
-  const oneSack = (p, type, x, y, z, ry, tilt = 0.04) => { const S = SACK[type]; const m = new THREE.Mesh(S.geos[Math.floor(rnd() * 4)], S.mats[Math.floor(rnd() * 3)]); m.position.set(x, y, z); m.rotation.set((rnd() - 0.5) * tilt, ry, (rnd() - 0.5) * tilt); p.add(m); return m; };
+  const oneSack = (p, type, x, y, z, ry, tilt = 0.04) => {
+    const S = SACK[type], variant = Math.floor(rnd() * 4);
+    const m = new THREE.Mesh(S.geos[variant], S.mats[Math.floor(rnd() * 3)]);
+    const fullness = 0.90 + variant * 0.045;
+    m.scale.set(1.09 - variant * 0.035, fullness, 1.035 - variant * 0.018);
+    m.position.set(x, y, z);
+    m.rotation.set((rnd() - 0.5) * tilt, ry, (rnd() - 0.5) * tilt);
+    p.add(m); return m;
+  };
   // 一托袋子：纸袋每层 5 只（3 竖 2 横，一层一反，咬合码法），编织袋每层 4 只；最上面一层缺几只、有一只斜搭着；有的托缠了膜又被划开；偶尔一只破了口、粉撒在下面那层上
   const sackStack = (g, x, y, type, layers) => { const S = SACK[type], lay = S.T * 0.84;
     const A = type === 'paper' ? [[-0.4, -0.18, Math.PI / 2], [0, -0.18, Math.PI / 2], [0.4, -0.18, Math.PI / 2], [-0.32, 0.31, 0], [0.32, 0.31, 0]] : [[-0.3, -0.24, 0], [0.31, -0.24, 0], [-0.31, 0.24, 0], [0.3, 0.24, 0]];
@@ -476,8 +497,8 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     if (rnd() < 0.3) { const h = (layers - 1) * lay; box(1.22, h, 1.04, M.wrap, x, y + h / 2, 0, g); }   // 下面几层缠了膜（上面那层膜已经割开拿走了）
   };
   // 拉伸膜卷（机用）：500 mm 宽、外径 250 mm，76 mm 纸管芯；竖着码，每层 12 卷，中间垫一张纸板
-  const filmM = new THREE.MeshPhysicalMaterial({ color: 0xd0d8dc, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.2, transparent: true, opacity: 0.9, normalMap: paperS.normalMap, envMapIntensity: 1.2 }); filmM.normalScale.set(0.22, 0.22);
-  const filmTail = filmMat({ base: 0.1, edge: 0.6, ns: 0.45 });                         // 膜卷耷拉下来的膜头
+  const filmM = new THREE.MeshPhysicalMaterial({ color: 0xd9d6c9, roughness: 0.31, clearcoat: 1, clearcoatRoughness: 0.2, normalMap: paperS.normalMap, envMapIntensity: 1.2 }); filmM.normalScale.set(0.22, 0.22);
+  const filmTail = filmMat({ base: 0.025, edge: 0.4, ns: 0.22 });                         // 膜卷耷拉下来的膜头
   const coreM = real('Cardboard001', 0.3, { color: 0x9a8264, roughness: 1, side: THREE.DoubleSide });
   const rollGeos = [0.125, 0.118, 0.1, 0.082].map((R0) => { const g = new THREE.LatheGeometry([[0.039, 0], [R0 - 0.006, 0], [R0, 0.006], [R0, 0.494], [R0 - 0.006, 0.5], [0.039, 0.5]].map(([a, b]) => new THREE.Vector2(a, b)), 28);
     const U = g.attributes.uv; for (let i = 0; i < U.count; i++) U.setXY(i, U.getX(i) * 2 * Math.PI * R0 / 0.45, U.getY(i)); return g; });
@@ -487,6 +508,15 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     if (lying) { q.rotation.z = Math.PI / 2; q.position.set(0.25, R0, 0); }                    // 横躺着的一卷
     q.add(new THREE.Mesh(rollGeos[R0i], filmM)); const c = new THREE.Mesh(coreGeo, coreM); c.position.y = 0.25; q.add(c);
     if (rnd() < 0.5) { const a = rnd() * 6, l = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.05), filmLabel); l.position.set(Math.sin(a) * (R0 + 0.002), 0.3, Math.cos(a) * (R0 + 0.002)); l.rotation.y = a; q.add(l); }
+    if (R0i >= 2 && !lying) {
+      const tail = new THREE.PlaneGeometry(0.14, 0.39, 8, 8), v = tail.attributes.position;
+      for (let i = 0; i < v.count; i++) {
+        const u = tail.attributes.uv.getX(i), t = tail.attributes.uv.getY(i);
+        v.setXYZ(i, u * 0.14, 0.065 + t * 0.39 - u * u * 0.045, R0 + u * 0.028 + 0.004 * Math.sin(u * 15 + t * 3));
+      }
+      tail.computeVertexNormals();
+      q.add(new THREE.Mesh(tail, filmTail));
+    }
     p.add(r); return r; };
   const loads = {
     cartons: (g, x, y, kind) => { const S = kit.stackPallet(g, x, y, kind || 'supply', { maxH: 0.5 + rnd() * 0.65, mixed: 0.5 }); if (rnd() < 0.6) wrapStack(g, x, y, S, { film: rnd() < 0.75 }); },
@@ -496,12 +526,15 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     cases: (g, x, y) => { for (let i = 0; i < 2; i++) flightCase(g, x + (rnd() - 0.5) * 0.06, y + i * 0.362, (rnd() - 0.5) * 0.06, (rnd() - 0.5) * 0.08); },
     drums: (g, x, y) => { for (const [dx, dz] of [[-0.3, -0.24], [0.3, -0.24], [-0.3, 0.26], [0.3, 0.26]]) if (rnd() > 0.12) drum(g, x + dx + (rnd() - 0.5) * 0.03, y, dz, rnd() * 6); },
     wrapped: (g, x, y) => { const S = kit.stackPallet(g, x, y, ['pkg', 'supply', 'media', 'clean'][Math.floor(rnd() * 4)], { maxH: 0.55 + rnd() * 0.45, mixed: 0.4 }); wrapStack(g, x, y, S); },   // 整托缠膜、压胶带、马克笔写着托号
-    rolls: (g, x, y) => { const xs = [-0.45, -0.15, 0.15, 0.45], zs = [-0.33, 0, 0.33], layers = rnd() < 0.5 ? 2 : 1;
-      for (let l = 0; l < layers; l++) { const yy = y + l * 0.505; if (l > 0) box(1.18, 0.004, 0.98, M.carton, x, yy - 0.002, 0, g);   // 层间纸板
-        for (const px of xs) for (const pz of zs) { if ((l === layers - 1 && rnd() < 0.3) || rnd() < 0.05) continue; filmRoll(g, x + px + (rnd() - 0.5) * 0.02, yy, pz + (rnd() - 0.5) * 0.02, rnd() < 0.8 ? 0 : 1 + Math.floor(rnd() * 3)); } }
-      if (rnd() < 0.6) filmRoll(g, x + (rnd() - 0.5) * 0.4, y + layers * 0.505, (rnd() - 0.5) * 0.4, 1 + Math.floor(rnd() * 3), true);   // 用了一半的一卷横躺在上面
-      if (rnd() < 0.5) { const t = new THREE.PlaneGeometry(0.5, 0.55, 1, 6); const P = t.attributes.position; for (let i = 0; i < P.count; i++) { const v = (P.getY(i) + 0.275) / 0.55; P.setZ(i, Math.pow(1 - v, 2) * 0.12 + Math.sin(P.getX(i) * 12) * 0.01); } t.computeVertexNormals();
-        const tm = new THREE.Mesh(t, filmTail); tm.position.set(x + xs[3] * 0.5, y + 0.22, 0.52); tm.rotation.y = 0.1; g.add(tm); } },   // 一卷的膜头耷拉在托盘外面
+    rolls: (g, x, y) => {
+      // The back half holds sealed stock. The front row is picked from by hand.
+      const stock = kit.add(g, x - 0.28, y, -0.2, { design: 'casing', size: [0.52, 0.32, 0.56], ry: -0.035 });
+      kit.add(g, x - 0.28, y + stock.h, -0.2, { design: 'coverall', size: [0.48, 0.23, 0.48], ry: 0.075 });
+      kit.add(g, x + 0.31, y, -0.22, { design: 'biobag', size: [0.49, 0.35, 0.52], open: true });
+      for (const [dx, dz, size] of [[-0.43,0.3,0],[-0.15,0.25,2],[0.13,0.34,3]]) {
+        filmRoll(g, x + dx, y, dz, size);
+      }
+    },
     buckets: (g, x, y) => { for (const px of [-0.36, 0, 0.36]) for (const pz of [-0.32, 0, 0.32]) { const n = rnd() < 0.2 ? 0 : 1 + (rnd() < 0.45 ? 1 : 0); for (let i = 0; i < n; i++) pail(g, x + px + (rnd() - 0.5) * 0.03, y + i * 0.374, pz + (rnd() - 0.5) * 0.03, rnd() * 6); } },
     mixed: (g, x, y) => {
       kit.add(g, x - 0.3, y, 0.2, { design: 'banana', ry: 0.08 + (rnd() - 0.5) * 0.1, open: true, size: [0.5, 0.24, 0.4] });
@@ -1297,12 +1330,12 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
       plane(0.21, 0.28, lit(printed('Paper006', 210, 280, (g, W, H2) => { g.fillStyle = '#1a1a1a'; g.font = `700 15px ${SANS}`; g.fillText('FREEZER TEMP LOG', 10, 22); g.strokeStyle = 'rgba(60,80,120,.5)'; for (let y = 36; y < H2; y += 20) { g.beginPath(); g.moveTo(6, y); g.lineTo(W - 6, y); g.stroke(); }
         g.fillStyle = 'rgba(20,30,80,.85)'; g.font = '15px "Segoe Print", "Ink Free", cursive'; ['18.11  1:-25 2:-24 3:-20', '19.11  1:-26 2:-24 3:-19!', '19.11  4:-25 5:-23', '20.11  3:-19 call tech', '20.11  1:-25 2:-25', '21.11  3:-18 !!'].forEach((t, k) => g.fillText(t, 10, 54 + k * 20)); }), { roughness: 0.95 }), 0, -0.01, 0.0045, 0, cb); }
   }
-  scene.add(new THREE.HemisphereLight(0x74a8a2, 0x141d1a, 0.66));                  // 参考图整体更亮：天光补一点（不花显卡）
+  scene.add(new THREE.HemisphereLight(0xb9ab94, 0x221f1b, 0.66));                  // 参考图整体更亮：天光补一点（不花显卡）
   // 主通道上方两盏暖一点的投光灯
   for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffb668, 62, 14, 0.5, 0.65, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target);
     lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 2.9, color: 0xffb668, strength: 0.1 }); }
   // 整个仓库空气里的浮尘：很淡，几乎看不见，只有飘进灯下的那些被照亮
-  mistField(root, { center: [0, HT / 2 - 0.3, (Z0 + Z1) / 2], size: [X1 - X0, HT - 0.6, Z0 - Z1], count: 7000, px: 0.007, color: 0x8a9a98, lightColor: 0xffd8a8, strength: 0.32, fall: 0.012, swirl: 0.35,
+  mistField(root, { center: [0, HT / 2 - 0.3, (Z0 + Z1) / 2], size: [X1 - X0, HT - 0.6, Z0 - Z1], count: 7000, px: 0.007, color: 0xaaa497, lightColor: 0xffd8a8, strength: 0.32, fall: 0.012, swirl: 0.35,
     lights: [[-1.3, HT - 2.2, -4.5], [-1.3, HT - 2.2, -15.5], [5.8, HT - 2.6, -27.6], [X0 + 1.6, 4.5, -8]] });
   // 体积尘雾：整个大厅一块连续的灰，低处稍浓；四盏高灯附近的被照暖
   // 高处两排通风百叶：外面院子的探照灯从这里斜着打进来，雾里两道长长的光柱（像参考视频里那种）
@@ -1313,7 +1346,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
       for (let k = 0; k < 7; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.05, 0.08), slat); b.position.set(0, -0.42 + k * 0.14, 0.04); b.rotation.x = -0.5; g.add(b); }
       const fr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.0, 0.05), slat); fr.position.z = -0.02; fr.scale.set(1, 1, 1); g.add(fr); fr.renderOrder = -1; p.position.z = 0.01; } }
   // 体积尘雾：整个大厅一层均匀的青灰色雾，远处沉进去；顶灯底下各一道光柱，两道从百叶斜射下来的长光
-  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 6, even: 0.85, density: 0.15, scale: 0.16, color: 0x8c8474, light: 0xffe2c0, lightK: 0.9,
+  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 6, even: 0.85, density: 0.15, scale: 0.16, color: 0x998e7a, light: 0xffe2c0, lightK: 0.9,
     lights: [[-1.3, HT - 1.2, -4, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [-1.3, HT - 1.2, -15, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [5.8, HT - 1.6, -27.6, 0, -1, -0.04, 0.2, { gain: 1.3 }],
       [X0 + 0.6, PH + 4.3, -8, 1.9, -4.2, 0, 0.4], [X1 + 6, HT + 2.2, -9.5, -1, -0.62, 0.12, 0.08, { gain: 1.7, falloff: 0.006 }], [X1 + 6, HT + 2.2, -19.5, -1, -0.62, 0.08, 0.08, { gain: 1.7, falloff: 0.006 }]],
     wind: [0.05, 0.015, -0.03], maxDist: 40 };

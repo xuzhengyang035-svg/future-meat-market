@@ -513,6 +513,38 @@ export function createLab(env) {
   const ecgMat = new THREE.MeshBasicMaterial({ map: ecgTex });
   for (const [x, y, z] of [[-7.523, 1.248, -4.981], [-4.963, 1.309, -5.441], [3.559, 1.248, -4.779], [6.394, 1.248, -4.623]]) plane(0.33, 0.056, ecgMat, x, y + 0.037, z + WARD + 0.002, 0, ward);
 
+  // The foreground recorder in the ward kit becomes a moving circular environment chart.
+  const chart = canvasTexture(456, 242, () => {});
+  let chartFrame = -1;
+  function updateChart(t) {
+    const frame = Math.floor(t * 8);
+    if (frame === chartFrame) return;
+    chartFrame = frame;
+    const g = chart.userData.ctx;
+    g.fillStyle = '#dbcfad'; g.fillRect(0, 0, 456, 242);
+    g.save(); g.translate(124, 121); g.rotate(t * 0.08);
+    g.strokeStyle = '#ab9578'; g.lineWidth = 1.5;
+    for (const radius of [24, 44, 64, 84, 103]) {
+      g.beginPath(); g.arc(0, 0, radius, 0, Math.PI * 2); g.stroke();
+    }
+    for (let i = 0; i < 24; i++) {
+      g.rotate(Math.PI / 12); g.beginPath(); g.moveTo(21, 0); g.lineTo(103, 0); g.stroke();
+    }
+    g.strokeStyle = '#864735'; g.lineWidth = 3; g.beginPath();
+    for (let i = 0; i <= 180; i++) {
+      const a = i * Math.PI / 90, r = 70 + 8 * Math.sin(3 * a) + 4 * Math.cos(11 * a);
+      g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.stroke(); g.restore();
+    g.strokeStyle = '#343832'; g.lineWidth = 6; g.beginPath();
+    g.moveTo(216, 197); g.lineTo(124 + 70 + 8 * Math.sin(-t * 0.24) + 4 * Math.cos(t * 0.88), 121); g.stroke();
+    g.fillStyle = '#343832'; g.font = 'bold 23px Georgia'; g.fillText('WARD AIR', 251, 75);
+    g.font = '17px monospace'; g.fillText('CHART RECORDER', 251, 108);
+    g.font = 'bold 39px Georgia'; g.fillText((21.3 + 0.2 * Math.sin(t * 0.16)).toFixed(1) + ' °C', 251, 178);
+    chart.needsUpdate = true;
+  }
+  updateChart(0);
+
   const beds = [['P-0932', 'duroc', -6.8], ['B-0417', 'holstein', -4.1], ['P-0101', null, 0], ['P-1077', 'white', 4.1], ['G-0221', 'hen', 6.8]]
     .map(([id, animal, x]) => ({ id, animal, x, pose: null }));
   const v = (x, y, z) => new THREE.Vector3(x, y, z - LAB_DEEP);
@@ -551,6 +583,31 @@ export function createLab(env) {
           m.depthWrite = false;                                            // 玻璃、培养液、门帘后面的东西不能被它们挡掉
           if (/rinse film|contact marks/i.test(name)) { m.polygonOffset = true; m.polygonOffsetFactor = -4; m.polygonOffsetUnits = -4; }
           else if (/glass|fluid/i.test(name)) o.renderOrder = 2;
+        }
+        if (name === 'ecg') {
+          o.material = m.clone();
+          chart.flipY = m.map?.flipY ?? false;
+          o.material.map = o.material.emissiveMap = chart;
+          o.material.emissiveIntensity = 0.3;
+        }
+        // Chip only the low painted metal pan under the warming lamp.
+        if (/enamel|painted metal/i.test(name)) {
+          const oldCompile = m.onBeforeCompile;
+          if (!m.userData.warmingWear) {
+            m.userData.warmingWear = true;
+            m.onBeforeCompile = function(shader, renderer) {
+              oldCompile.call(this, shader, renderer);
+              shader.vertexShader = 'varying vec3 kitPos;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nkitPos = position;');
+              shader.fragmentShader = 'varying vec3 kitPos;\n' + shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+                vec2 pad = abs(kitPos.xz - vec2(6.81,-3.81));
+                if (pad.x < .46 && pad.y < .32 && kitPos.y > .20 && kitPos.y < .58) {
+                  float chips = sin(kitPos.x*143.)*sin(kitPos.z*127.+kitPos.y*96.) + .4*sin(kitPos.y*221.+kitPos.x*83.);
+                  float rim = smoothstep(.65,1.,max(pad.x/.41,pad.y/.225));
+                  diffuseColor.rgb = mix(diffuseColor.rgb,vec3(.22,.115,.047),rim*smoothstep(.30,.79,chips)*.86);
+                }`);
+            };
+            m.needsUpdate = true;
+          }
         }
         const animal = /^A_([a-z]+)/.exec(o.name) || /^A_([a-z]+)/.exec(o.parent?.name || '');
         (animal ? pivots[animal[1]] : hall).attach(o);
@@ -672,10 +729,17 @@ export function createLab(env) {
     vesC.scan.position.y = 0.1 + (0.5 + 0.5 * Math.sin(t * 1.3)) * 0.42;
     curtain.tick(dt);
     led.material = Math.floor(t * 1.5) % 2 ? M.ledRed : M.frame;
+    updateChart(t);
     ecgTex.offset.x = (t * 0.25) % 1;                                      // 监护仪上的心跳一直在走
     for (const b of beds) if (b.pose) {                                    // 床上的动物在呼吸：只有背往上起伏一点
       const k = Math.sin(t * b.pose.rate + b.x);
-      b.pose.o.scale.set(1, 1 + k * 0.009, 1);
+      if (b.animal === 'hen') {
+        const phase = t % 12;
+        const dip = Math.exp(-((phase - 4.2) ** 2) / 0.13) + 0.65 * Math.exp(-((phase - 4.85) ** 2) / 0.07);
+        b.pose.o.scale.set(1 + 0.03 * k, 1 + 0.058 * k, 1 + 0.018 * k);
+        b.pose.o.rotation.x = 0.018 * k + 0.11 * dip;
+        b.pose.o.rotation.y = 0.12 * Math.exp(-((phase - 8.6) ** 2) / 1.1);
+      } else b.pose.o.scale.set(1, 1 + k * 0.009, 1);
     }
     if (t - lastWall > 0.5) {
       lastWall = t;

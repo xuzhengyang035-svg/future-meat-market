@@ -116,7 +116,7 @@ const PLACES = {
   },
   async warehouse() {
     wh = createWarehouse(env);
-    postWh = grade(wh.scene, { uSat: 0.86, uShadow: [-0.014, 0.012, 0.014], uHigh: [0.035, 0.02, -0.035], uVignette: 0.62 });     // 仓库：冷青的底，几摊暖光
+    postWh = grade(wh.scene, { uSat: 0.89, uShadow: [0.004, 0.002, -0.004], uHigh: [0.035, 0.02, -0.035], uVignette: 0.62 });     // 仓库：冷青的底，几摊暖光
   },
 };
 const building = {}, FOCUS_LIGHT = {};
