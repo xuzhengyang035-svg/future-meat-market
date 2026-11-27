@@ -141,3 +141,63 @@ export function dustMotes(parent, from, dir, { length = 2.5, radius = 0.9, top =
   parent.add(pts);
   return pts;
 }
+
+// 空气里悬着的细小水汽 / 浮尘：一个盒子里几千个很小的点，各自慢慢打着旋飘，离镜头太近或太远都淡掉。
+// lights: 最多 4 盏灯的位置（世界坐标），靠近灯的颗粒被照亮——雾里看见灯光就是这个样子
+export function mistField(parent, { center = [0, 2, 0], size = [20, 6, 12], count = 4000, color = 0xb8c4c8, lightColor = 0xffc890, lights = [], px = 0.012, strength = 0.35, fall = 0.03, swirl = 0.25 } = {}) {
+  const pos = new Float32Array(count * 3), seed = new Float32Array(count);
+  for (let i = 0; i < count; i++) { pos.set([(Math.random() - 0.5) * size[0], (Math.random() - 0.5) * size[1], (Math.random() - 0.5) * size[2]], i * 3); seed[i] = Math.random(); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('seed', new THREE.BufferAttribute(seed, 1));
+  const L = lights.slice(0, 4).map((p) => new THREE.Vector3(...p)); while (L.length < 4) L.push(new THREE.Vector3(1e4, 1e4, 1e4));
+  const mat = new THREE.ShaderMaterial({ ...base,
+    uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color) }, uLight: { value: new THREE.Color(lightColor) }, uK: { value: strength }, uSize: { value: px }, uScale: { value: 800 },
+      uBox: { value: new THREE.Vector3(...size) }, uL: { value: L }, uFall: { value: fall }, uSwirl: { value: swirl } },
+    vertexShader: /* glsl */`
+      attribute float seed; uniform float uTime, uSize, uScale, uFall, uSwirl; uniform vec3 uBox, uL[4]; varying float vA; varying float vLit;
+      void main() {
+        vec3 p = position;
+        float t = uTime * (0.6 + seed * 0.8);
+        p += vec3(sin(t * 0.21 + seed * 31.0) + sin(t * 0.07 + p.y), sin(t * 0.13 + seed * 17.0) * 0.6, cos(t * 0.17 + seed * 23.0) + cos(t * 0.05 + p.x)) * uSwirl;
+        p.y = mod(p.y + uBox.y * 0.5 - uTime * uFall * (0.4 + seed), uBox.y) - uBox.y * 0.5;     // slow settle, wraps round
+        p.x += uTime * 0.04; p.x = mod(p.x + uBox.x * 0.5, uBox.x) - uBox.x * 0.5;                // a breath of wind along the street
+        vec4 w = modelMatrix * vec4(p, 1.0);
+        float lit = 0.0; for (int i = 0; i < 4; i++) { float d = distance(w.xyz, uL[i]); lit += 1.0 / (1.0 + d * d * 0.9); }
+        vLit = clamp(lit, 0.0, 1.5);
+        vec4 mv = viewMatrix * w;
+        float z = -mv.z;
+        vA = smoothstep(1.2, 4.5, z) * smoothstep(26.0, 9.0, z) * (0.55 + 0.45 * sin(uTime * (0.4 + seed) + seed * 60.0));   // 近处的淡掉：贴着脸的水汽看不见颗粒
+        gl_PointSize = clamp(uSize * uScale / z * (0.5 + seed), 1.0, 2.6);                                                     // 再近也只是一粒细点
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor, uLight; uniform float uK; varying float vA; varying float vLit;
+      void main() { float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.05, d) * vA * uK; gl_FragColor = vec4((uColor * 0.35 + uLight * vLit) * a, 1.0); }` });
+  const pts = new THREE.Points(geo, mat);
+  pts.position.set(...center); pts.renderOrder = 4; pts.frustumCulled = false; pts.userData.keep = true;
+  const s2 = new THREE.Vector2();
+  pts.onBeforeRender = (r, s, cam) => { mat.uniforms.uTime.value = performance.now() / 1000; r.getDrawingBufferSize(s2); mat.uniforms.uScale.value = s2.y * 0.5 * cam.projectionMatrix.elements[5]; };
+  parent.add(pts);
+  return pts;
+}
+
+// 一盏灯在潮湿空气里的光晕：一张始终朝着镜头的软圆，中心亮、往外按平方衰减，外圈带一点点冷色
+export function lampHalo(parent, at, { radius = 1.4, color = 0xffc890, strength = 0.35 } = {}) {
+  const mat = new THREE.ShaderMaterial({ ...base,
+    uniforms: { uColor: { value: new THREE.Color(color) }, uK: { value: strength }, uTime: { value: 0 } },
+    vertexShader: /* glsl */`varying vec2 vUv; varying float vZ; void main() { vUv = uv; vec4 mv = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0); vZ = -mv.z; mv.xy += position.xy; gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uColor; uniform float uK, uTime; varying vec2 vUv; varying float vZ;
+      void main() {
+        float d = length(vUv - 0.5) * 2.0;
+        float core = exp(-d * d * 9.0), wide = exp(-d * d * 2.2) * 0.45;
+        float breath = 0.94 + 0.06 * sin(uTime * 0.7 + vUv.x * 3.0);
+        vec3 c = mix(uColor, vec3(0.6, 0.72, 0.8), smoothstep(0.2, 0.9, d) * 0.4);
+        gl_FragColor = vec4(c * (core + wide) * uK * breath * smoothstep(0.8, 2.5, vZ) * smoothstep(1.0, 0.85, d), 1.0);
+      }` });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(radius * 2, radius * 2), mat);
+  m.position.set(...at); m.renderOrder = 5; m.frustumCulled = false; m.userData.keep = true;
+  m.onBeforeRender = () => { mat.uniforms.uTime.value = performance.now() / 1000; };
+  parent.add(m);
+  return m;
+}

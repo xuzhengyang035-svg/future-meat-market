@@ -7,6 +7,7 @@
 // 贴图都是真实照片扫描（Poly Haven / ambientCG，CC0）；楼和远处的街只做到“看起来立体”的程度
 import * as THREE from 'three';
 import { addMarketLane } from './market-lane.js';
+import { mistField, lampHalo, hazeLayer, lightCone } from './atmosphere.js';
 import { ivy, shrub, weeds, planeTree, fallenLeaves } from './foliage.js';
 import { addSheets } from './newsprint.js';
 import { canvasTexture } from './textures.js';
@@ -61,7 +62,7 @@ export function createStreet(env) {
   const scene = new THREE.Scene();
   scene.background = canvasTexture(16, 512, (g, W, H) => {                  // 雨夜的天：上面深蓝黑，往下一点点被城市的灯光照成暖灰
     const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#05080c'); gr.addColorStop(0.55, '#141b22'); gr.addColorStop(0.8, '#2a2a28'); gr.addColorStop(1, '#3a3228'); g.fillStyle = gr; g.fillRect(0, 0, W, H); });
-  scene.fog = new THREE.FogExp2(0x34424b, 0.017);
+  scene.fog = new THREE.FogExp2(0x46545c, 0.036);                         // 潮湿的夜：远处一层层沉进雾里
   scene.environment = env;
   scene.environmentIntensity = 0.25;
   const root = new THREE.Group(); scene.add(root);
@@ -528,12 +529,27 @@ export function createStreet(env) {
     model('plastic_monobloc_chair_01', { pos: [5.45, 0.15, 1.25], rot: -0.7, parent: root }).traverse((o) => { if (o.material && !o.material.userData.aged) { o.material.color.setHex(0xb4ae9e); o.material.userData.aged = true; } });   // years of rain: grey-beige, not white
   }
 
-  // ---------------------------------------------------------------- 雨
-  const RN = 3200, rainPos = new Float32Array(RN * 6), rainSeed = new Float32Array(RN * 3);
-  for (let i = 0; i < RN; i++) { rainSeed[i * 3] = (rnd() - 0.5) * 26; rainSeed[i * 3 + 1] = rnd() * 11; rainSeed[i * 3 + 2] = -1 + rnd() * 12; }
-  const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xa8b2ba, transparent: true, opacity: 0.12, depthWrite: false })); rain.frustumCulled = false; root.add(rain);
-
+  // ---------------------------------------------------------------- 雨和雾
+  // 细雨：七千根很短的雨丝，粗细一样、亮度各不相同，在显卡里下落（不再每帧用 CPU 挪三千根长线）
+  { const RN = 7000, P = new Float32Array(RN * 6), S = new Float32Array(RN * 2 * 4);
+    for (let i = 0; i < RN; i++) { const x = (rnd() - 0.5) * 30, y = rnd() * 11, z = -1 + rnd() * 15, len = 0.07 + rnd() * 0.1, a = 0.25 + rnd() * 0.75, sp = 6.5 + rnd() * 2.5;
+      for (let e = 0; e < 2; e++) { P.set([x, y, z], (i * 2 + e) * 3); S.set([e, len, a, sp], (i * 2 + e) * 4); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('drop', new THREE.BufferAttribute(S, 4));
+    const m = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending,
+      uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(0x9fb0bc) } },
+      vertexShader: `attribute vec4 drop; uniform float uTime; varying float vA;
+        void main() { vec3 p = position; float y = mod(p.y - uTime * drop.w, 11.0); p.y = y - drop.x * drop.y; p.x += (11.0 - y) * 0.035 + drop.x * drop.y * 0.035;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0); float z = -mv.z; vA = drop.z * smoothstep(0.6, 2.5, z) * smoothstep(22.0, 8.0, z) * (1.0 - drop.x * 0.6);
+          gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; varying float vA; void main() { gl_FragColor = vec4(uColor * vA * 0.16, 1.0); }` });
+    const rain = new THREE.LineSegments(g, m); rain.frustumCulled = false; rain.userData.keep = true; rain.onBeforeRender = () => { m.uniforms.uTime.value = performance.now() / 1000; }; root.add(rain); }
+  // 雾：悬在空气里的细小水汽，靠近路灯、壁灯的那些被照亮；几层前后错开的薄雾；每盏灯外面一圈光晕，灯下一道被雾照出来的光
+  const LAMPS = [[BX0 + 0.15, 4.25, 0.5], [SDX, 3.7, 0.25], [-9, 4.4, 19.6], [9, 4.4, 19.6]];
+  mistField(root, { center: [0, 2.4, 6], size: [30, 5, 15], count: 22000, px: 0.006, strength: 0.7, lights: LAMPS, lightColor: 0xffc080, fall: 0.025, swirl: 0.3 });
+  mistField(root, { center: [0, 0.9, 6], size: [30, 1.6, 15], count: 10000, px: 0.007, strength: 0.6, lights: LAMPS, lightColor: 0xffb070, fall: 0.006, swirl: 0.4 });   // 贴着湿地面的那层更密
+  for (const [z, w, h, k] of [[3.2, 26, 3.2, 0.1], [9.5, 34, 4.2, 0.14], [16, 40, 5.5, 0.16], [24, 60, 8, 0.2]]) hazeLayer(root, [0, h / 2 - 0.2, z], { width: w, height: h, color: 0x6a8088, strength: k });
+  for (const [x, y, z] of LAMPS) { lampHalo(root, [x, y, z + (z > 10 ? -0.3 : 0.3)], { radius: 1.7, color: 0xffc080, strength: 0.55 }); lightCone(root, [x, y - 0.1, z + 0.2], [0, -1, 0.15], { length: y - 0.2, radius: 1.6, top: 0.12, color: 0xffc080, strength: 0.06 }); }
+  lampHalo(root, [-1.1, 2.6, 0.8], { radius: 2.2, color: 0xffd0a0, strength: 0.16 });                          // 门口透出来的暖光，在雨雾里散开
   // ---------------------------------------------------------------- 灯光：主要的光来自店里、壁灯、楼上的窗
   scene.add(new THREE.HemisphereLight(0xbac9d2, 0x594c3d, 3.05));
   const moon = new THREE.DirectionalLight(0xb6ced8, 1.42); moon.position.set(5, 14, 10); scene.add(moon);
@@ -545,13 +561,6 @@ export function createStreet(env) {
       s.scale.setScalar(0.4 + p * 1.6);
       s.material.opacity = 0.4 * (1 - p) * Math.min(1, p * 6);
     }
-    for (let i = 0; i < RN; i++) {
-      const x = rainSeed[i * 3], z = rainSeed[i * 3 + 2];
-      const y = 11 - ((rainSeed[i * 3 + 1] + t * 8) % 11);
-      rainPos[i * 6] = x + (11 - y) * 0.03; rainPos[i * 6 + 1] = y; rainPos[i * 6 + 2] = z;
-      rainPos[i * 6 + 3] = x + (11 - y) * 0.03 + 0.05; rainPos[i * 6 + 4] = y - 0.34; rainPos[i * 6 + 5] = z;
-    }
-    rainGeo.attributes.position.needsUpdate = true;
     sideLamp.intensity = 3.5 * (t % 5.1 > 4.85 ? 0.3 : 1);
     nowT = t;
     if (valve) {                                                           // valve open for ~3.5 s: wheel turns, jet streams out, then shut
