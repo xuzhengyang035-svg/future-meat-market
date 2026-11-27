@@ -684,3 +684,11 @@ body.inspecting #callouts, body.inspecting .ways, body.inspecting #hotspots, bod
 .film.promoing .promo { opacity: 1; }
 .film.promoing .slide, .film.promoing .logo, .film.promoing .bar, .film.promoing .skip { opacity: 0 !important; }
 .film .big small { font-size: 34px; }
+
+/* free walking hint: shown until the first step */
+.walkhint { position: fixed; left: 50%; bottom: 64px; transform: translate(-50%, 8px); z-index: 7; display: flex; gap: 18px; align-items: center;
+  padding: 9px 16px; border-radius: 999px; background: rgba(14, 13, 12, .62); backdrop-filter: blur(6px); color: #efe9dc;
+  font: 500 12.5px/1 Inter, sans-serif; letter-spacing: .04em; pointer-events: none; opacity: 0; transition: opacity .4s ease, transform .4s ease; }
+.walkhint.on { opacity: 1; transform: translate(-50%, 0); }
+.walkhint span { display: flex; align-items: center; gap: 4px; }
+.walkhint kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid rgba(239, 233, 220, .45); border-radius: 4px; font: 600 11px/1 "IBM Plex Mono", monospace; }

@@ -435,11 +435,11 @@ let lastDragMoved = 0;
 let roomMove, labChosen = false, labChoice = null;
 const onStep = () => { hideTutorial(); hideInfo(); canvas.style.cursor = ''; };
 const NAV = {
-  warehouse: createNav({ scene: { add: (o) => wh.scene.add(o), remove: (o) => wh?.scene.remove(o) }, graph: WH_NAV, camera, eye: WH_EYE, look: whLook, home: SCENE_HOME.warehouse, onStep,
+  warehouse: createNav({ scene: { add: (o) => wh.scene.add(o), remove: (o) => wh?.scene.remove(o) }, graph: WH_NAV, camera, eye: WH_EYE, look: whLook, home: SCENE_HOME.warehouse, onStep, world: () => wh?.scene,
     visible: () => state.view === 'warehouse' && !state.sfocus && !FC.on }),
-  room: createNav({ scene: { add: (o) => room.scene.add(o), remove: (o) => room?.scene.remove(o) }, graph: ROOM_NAV, camera, eye: ROOM_EYE, look, home: { eye: new THREE.Vector3() }, onStep,
+  room: createNav({ scene: { add: (o) => room.scene.add(o), remove: (o) => room?.scene.remove(o) }, graph: ROOM_NAV, camera, eye: ROOM_EYE, look, home: { eye: new THREE.Vector3() }, onStep, world: () => room?.scene,
     visible: () => state.view === 'room' && !state.rfocus && !state.busy && !roomMove?.isActive() }),
-  lab: createNav({ scene: { add: (o) => lab.scene.add(o), remove: (o) => lab?.scene.remove(o) }, graph: LAB_NAV, camera, eye: LAB_EYE, look: labLook, home: { eye: new THREE.Vector3() }, onStep,
+  lab: createNav({ scene: { add: (o) => lab.scene.add(o), remove: (o) => lab?.scene.remove(o) }, graph: LAB_NAV, camera, eye: LAB_EYE, look: labLook, home: { eye: new THREE.Vector3() }, onStep, world: () => lab?.scene,
     visible: () => state.view === 'lab' && labChosen && !state.focus && !FC.on && !labWalk?.isActive() }),
 };
 window.__nav = NAV;   // 调试

@@ -104,7 +104,7 @@ const DISC = '<svg viewBox="0 0 100 100" aria-hidden="true"><circle class="fill"
   + '<path class="point" d="M50 28 L70 64 Q71.5 68 67.5 67 L50 59 L32.5 67 Q28.5 68 30 64 Z"/></svg>';
 const TURN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5M4.5 10H15a5 5 0 0 1 0 10h-3"/></svg>';
 
-export function createNav({ scene, graph, camera, eye, look, home, visible, onStep }) {
+export function createNav({ scene, graph, camera, eye, look, home, visible, onStep, world }) {
   const opt = { mark: 3.0, width: 0.34, radius: 1.3, ...graph.path };
   const pace = { speed: 2.4, stairs: 1.1, accel: 1.3, turn: 62, ...graph.pace };
   const node = (id) => graph.nodes[id];
@@ -280,7 +280,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
 
   // 每一帧走一点
   function tick(dt) {
-    if (!walk) return;
+    if (!walk) { if (visible()) freeTick(dt); else { held.clear(); vel.set(0, 0); } return; }
     const { path } = walk, left = path.total - walk.d;
     let want, lean = 0;
     if (left > 0.001) {
@@ -291,26 +291,22 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
       const onStairs = Math.abs(d.y) > 0.25 * d.length() || Math.abs(q.y - p.y) > 0.2;
       let max = pace.speed / (1 + bend / 115);                                 // 拐弯慢一点
       if (onStairs) max = Math.min(max, pace.stairs);
-      if (left > 1.8) max *= Math.max(0.2, Math.cos(rad(Math.min(90, Math.abs(wrap(want - look.yaw)) * 0.9))));   // 还没转过来时先别大步走
-      max = Math.min(max, Math.sqrt(2 * pace.accel * left) + 0.04);          // 到之前慢下来
+        max = Math.min(max, Math.sqrt(2 * pace.accel * left) + 0.04);          // 到之前慢下来
       walk.speed = walk.speed < max ? Math.min(max, walk.speed + pace.accel * dt) : Math.max(max, walk.speed - pace.accel * 2 * dt);
       walk.d = Math.min(path.total, walk.d + walk.speed * dt);
       const at = path.at(walk.d);
       eye.set(at.x, at.y + graph.eye, at.z);
       if (onStairs) lean = clamp((q.y - p.y) * 11, -14, 12);
     } else want = walk.end;
-    look.yaw = look.tYaw = damp(look.yaw, look.yaw + wrap(want - look.yaw), walk.yawV, 0.5, pace.turn, dt);
-    look.pitch = look.tPitch = damp(look.pitch, walk.pitch + lean, walk.pitchV, 0.7, 25, dt);
-    if (walk.d >= path.total - 0.001 && Math.abs(wrap(walk.end - look.yaw)) < 2.5) {
-      look.tYaw = look.yaw + wrap(walk.end - look.yaw); look.tPitch = walk.pitch;   // 最后这一两度交给平时的缓动
-      walk = null;
-    }
+    if (walk.d >= path.total - 0.001) { home.yaw = look.tYaw; walk = null; }   // the camera keeps looking wherever you look
   }
 
   function update(t) {
     const dt = clamp(t - last, 0, 0.1), open = visible();
     last = t;
-    shown = !walk && open;
+    shown = false;
+    if (!hint) makeHint();
+    hint.classList.toggle('on', open && !walk && !moved);
     layer.classList.toggle('walking', !!walk && open);
     if (shown && builtFor !== station) build(t);
     layer.classList.toggle('on', shown && t - builtAt > 0.12);
@@ -376,9 +372,99 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
     return true;
   }
 
+  // ---- free walking: W A S D / arrow keys move you, the mouse looks, nothing ever turns the camera for you.
+  // Walls and furniture stop you (rays at knee and chest height against the meshes near you); the floor is found with
+  // a ray straight down, so low steps and stairs (up to 0.3 m) are climbed and benches or tables are not.
+  const held = new Set(), vel = new THREE.Vector2(), MOVE = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
+  const R = 0.35, STEP = 0.3, near = [], hray = new THREE.Raycaster(), dray = new THREE.Raycaster(), o = new THREE.Vector3(), dv = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
+  let solids = null, nearAt = new THREE.Vector3(1e9, 0, 0), floorY = null, hint = null, moved = false;
+  hray.firstHitOnly = dray.firstHitOnly = true;
+  function collectSolids() {
+    const root = world?.(); if (!root) return null;
+    const list = [], box = new THREE.Box3();
+    root.updateMatrixWorld(true);
+    root.traverse((m) => {
+      if (!m.isMesh || m.userData.nav || m.userData.noCollide) return;
+      for (let p = m; p; p = p.parent) if (!p.visible) return;
+      const mt = Array.isArray(m.material) ? m.material[0] : m.material;
+      if (mt && mt.transparent && !mt.depthWrite && !mt.isMeshPhysicalMaterial) return;        // haze, light shafts, decals
+      if (mt && (mt.blending === THREE.AdditiveBlending || mt.isPointsMaterial)) return;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      box.copy(m.geometry.boundingBox).applyMatrix4(m.matrixWorld);
+      const size = box.getSize(dv);
+      if (Math.max(size.x, size.y, size.z) < 0.06) return;                                   // cutlery, labels, crumbs
+      list.push({ m, box: box.clone() });
+    });
+    return list;
+  }
+  function gather() {
+    solids ??= collectSolids();
+    near.length = 0;
+    if (!solids) return;
+    nearAt.copy(eye);
+    for (const s of solids) if (s.box.distanceToPoint(eye) < 3) near.push(s.m);
+  }
+  const blocked = (x, z, dx, dz, len, base) => {
+    for (const h of [0.35, 1.2]) {
+      o.set(x, base + h, z); dv.set(dx, 0, dz).normalize();
+      hray.set(o, dv); hray.far = len + R;
+      if (hray.intersectObjects(near, false).length) return true;
+    }
+    return false;
+  };
+  function groundAt(x, z, base) {
+    dray.set(o.set(x, base + STEP, z), down); dray.far = STEP + 1.5;
+    for (const h of dray.intersectObjects(near, false)) if (!h.face || h.face.normal.clone().transformDirection(h.object.matrixWorld).y > 0.5) return h.point.y;
+    return null;
+  }
+  function freeTick(dt) {
+    let ix = 0, iz = 0;
+    for (const k of held) if (MOVE[k]) { ix += MOVE[k][0]; iz += MOVE[k][1]; }
+    const fast = held.has('ShiftLeft') || held.has('ShiftRight') ? 1.7 : 1, len = Math.hypot(ix, iz) || 1;
+    const k = 1 - Math.exp(-dt * (ix || iz ? 7 : 10)), top = 1.7 * fast;
+    vel.x += ((ix / len) * top - vel.x) * k; vel.y += ((iz / len) * top - vel.y) * k;
+    if (Math.abs(vel.x) + Math.abs(vel.y) < 0.01) { vel.set(0, 0); return; }
+    if (!moved) { moved = true; hint?.classList.remove('on'); }
+    if (eye.distanceTo(nearAt) > 1) gather();
+    const y = rad(look.yaw), fx = Math.sin(y), fz = -Math.cos(y);
+    let dx = (fx * vel.y + Math.cos(y) * vel.x) * dt, dz = (fz * vel.y + Math.sin(y) * vel.x) * dt;
+    const base = floorY ?? eye.y - graph.eye;
+    if (near.length) {
+      const d = Math.hypot(dx, dz);
+      if (blocked(eye.x, eye.z, dx, dz, d, base)) {                              // slide along whatever is in the way
+        const sx = Math.abs(dx) > 1e-5 && !blocked(eye.x, eye.z, dx, 0, Math.abs(dx), base);
+        const sz = Math.abs(dz) > 1e-5 && !blocked(eye.x, eye.z, 0, dz, Math.abs(dz), base);
+        if (!sx) { dx = 0; vel.x *= 0.5; } if (!sz) { dz = 0; vel.y *= 0.5; }
+        if (sx && sz) dz = 0;
+      }
+      const g = groundAt(eye.x + dx, eye.z + dz, base);
+      if (g === null || g - base > STEP || base - g > 1.2) { dx = dz = 0; vel.set(0, 0); }  // a ledge or a hole: stop
+      else floorY = g;
+    }
+    eye.x += dx; eye.z += dz;
+    const fy = (floorY ?? base) + graph.eye;
+    eye.y += (fy - eye.y) * (1 - Math.exp(-dt * 12));
+    home.eye.copy(eye); home.yaw = look.tYaw; home.pitch = look.tPitch; home.fov = look.fov;
+    let best = station, bd = Infinity;                                            // the nearest named spot, for whatever asks "where are you"
+    for (const [id, n] of Object.entries(graph.nodes)) { const d = Math.hypot(n.at[0] - eye.x, n.at[1] - eye.z) + Math.abs((n.at[2] || 0) - (floorY ?? 0)) * 3; if (d < bd) { bd = d; best = id; } }
+    station = best;
+  }
+  function makeHint() {
+    hint = document.createElement('div');
+    hint.className = 'walkhint';
+    hint.innerHTML = '<span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk</span><span>drag to look</span><span><kbd>Shift</kbd> faster</span>';
+    document.body.appendChild(hint);
+  }
+  const typing = (e) => e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, select, [contenteditable]');
+  addEventListener('keydown', (e) => { if (!visible() || typing(e)) return; if (MOVE[e.code] || e.code.startsWith('Shift')) { held.add(e.code); if (MOVE[e.code]) e.preventDefault(); } });
+  addEventListener('keyup', (e) => held.delete(e.code));
+  addEventListener('blur', () => held.clear());
+
   place();
   return {
     reset: () => place(), place, clear, update, tick, pick, step, key, turnBack, home,
+    free: true,
+    rescan() { solids = null; nearAt.set(1e9, 0, 0); },
     stop() { walk = null; layer.classList.remove('walking'); },
     setHover(e) { pointed = e; if (e) chosen = null; },
     get walking() { return !!walk; },
