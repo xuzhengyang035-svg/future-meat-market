@@ -161,7 +161,7 @@ const hazardTex = (rep = 4) => { const t = canvasTexture(256, 64, (g, W, H) => {
 export function createWarehouse(env) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x14120f);
-  scene.fog = new THREE.FogExp2(0x14302e, 0.026);                         // 冷青的尘雾：远处沉下去，暖灯才跳出来
+  scene.fog = new THREE.FogExp2(0x2a261f, 0.026);                         // warm grey dust: the far end sinks back, the lamps stand out
   scene.environment = env;
   scene.environmentIntensity = 0.3;
   const root = new THREE.Group(); scene.add(root);
@@ -1313,7 +1313,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
       for (let k = 0; k < 7; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.05, 0.08), slat); b.position.set(0, -0.42 + k * 0.14, 0.04); b.rotation.x = -0.5; g.add(b); }
       const fr = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.0, 0.05), slat); fr.position.z = -0.02; fr.scale.set(1, 1, 1); g.add(fr); fr.renderOrder = -1; p.position.z = 0.01; } }
   // 体积尘雾：整个大厅一层均匀的青灰色雾，远处沉进去；顶灯底下各一道光柱，两道从百叶斜射下来的长光
-  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 6, even: 0.85, density: 0.15, scale: 0.16, color: 0x5a8c88, light: 0xffe2c0, lightK: 0.9,
+  scene.userData.fog = { min: [X0, 0, Z1], max: [X1, HT, Z0], floor: 6, even: 0.85, density: 0.15, scale: 0.16, color: 0x8c8474, light: 0xffe2c0, lightK: 0.9,
     lights: [[-1.3, HT - 1.2, -4, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [-1.3, HT - 1.2, -15, 0, -(HT - 1.2), -1, 0.36, { gain: 1.4 }], [5.8, HT - 1.6, -27.6, 0, -1, -0.04, 0.2, { gain: 1.3 }],
       [X0 + 0.6, PH + 4.3, -8, 1.9, -4.2, 0, 0.4], [X1 + 6, HT + 2.2, -9.5, -1, -0.62, 0.12, 0.08, { gain: 1.7, falloff: 0.006 }], [X1 + 6, HT + 2.2, -19.5, -1, -0.62, 0.08, 0.08, { gain: 1.7, falloff: 0.006 }]],
     wind: [0.05, 0.015, -0.03], maxDist: 40 };
