@@ -249,7 +249,7 @@ addEventListener('click', (e) => { if (e.target === canvas && locked()) e.stopIm
 document.addEventListener('mousemove', (e) => {
   if (!locked() || !LOOKS[state.view]) return;
   const L = LOOKS[state.view].l, [lo, hi] = LOOKS[state.view].pitch || [-28, 28];
-  L.tYaw -= e.movementX * 0.11; L.yaw = L.tYaw;
+  L.tYaw += e.movementX * 0.11; L.yaw = L.tYaw;
   L.tPitch = THREE.MathUtils.clamp(L.tPitch - e.movementY * 0.09, lo, hi); L.pitch = L.tPitch;
 });
 document.addEventListener('pointerlockchange', () => { if (!locked()) setAim(null); });
@@ -1798,7 +1798,7 @@ function stepLook(L, eye, dt) {
   camera.lookAt(eye.x + Math.sin(y) * Math.cos(p), eye.y + Math.sin(p), eye.z - Math.cos(y) * Math.cos(p));
   camera.updateMatrixWorld();
 }
-function placeHotspots(list, near = 0) {
+function placeHotspots(list, near = 0, close = 3) {
   const act = state.view === 'lab' ? (labChosen && !(FC.on && FC.blend < 0.75) && !labWalk?.isActive() ? labStage() : '') : null;
   const walking = NAV[state.view]?.walking;
   for (const { h, el, v } of list) {
@@ -1807,7 +1807,8 @@ function placeHotspots(list, near = 0) {
     const size = THREE.MathUtils.clamp((innerHeight * 0.36) / Math.max(0.5, camera.position.distanceTo(v)), 52, 120).toFixed(0);
     if (el.dataset.size !== size) { el.dataset.size = size; el.style.setProperty('--hit', size + 'px'); }
     el.classList.toggle('flip', s.x > innerWidth - 170);
-    const lim = h.near || near, far = lim && Math.hypot(v.x - camera.position.x, v.z - camera.position.z) > lim;
+    const lim = h.near || near, flat = Math.hypot(v.x - camera.position.x, v.z - camera.position.z), far = lim && flat > lim;
+    el.classList.toggle('close', flat < (h.close || close));                 // far: a faint small ring; walk up and it opens out
     const wall = state.view === 'room' && (v.x < -7.05) !== (camera.position.x < -7.05);   // 办公室和大厅隔着墙：互相看不见对方的标签
     el.classList.toggle('hidden', !!(s.behind || far || wall || walking || (act !== null && h.show && !h.show.includes(act))));
     el.classList.toggle('locked', !!h.locked || (!!h.needsOrder && !hasCart()));
@@ -1837,7 +1838,7 @@ function loop() {
     NAV.room.tick(dt);
     stepLook(look, ROOM_EYE, dt);
     room.tick(t, state.order);
-    placeHotspots(hsEls, 3.3);                                                   // 走近了（3.3 m 以内）才出现这件东西的交互按钮
+    placeHotspots(hsEls, 9, 3.1);                                                   // 走近了（3.3 m 以内）才出现这件东西的交互按钮
     NAV.room.update(t);
     room.ledger.tick();
     if (postRoom) postRoom.render(t); else renderer.render(room.scene, camera);
@@ -1849,7 +1850,7 @@ function loop() {
     if (state.view === 'warehouse') NAV.warehouse.tick(dt);
     if (state.view === 'warehouse' && FC.on) fcStep(); else stepLook(LOOKS[state.view].l, LOOKS[state.view].eye, dt);
     S.tick(t);
-    if (state.view === 'street') placeHotspots(streetEls); else { NAV.warehouse.update(t); placeHotspots(whEls, 7.6); }   // 仓库：走近了（7.6 m 内）才出现标签；地上的箭头
+    if (state.view === 'street') placeHotspots(streetEls, 0, 4); else { NAV.warehouse.update(t); placeHotspots(whEls, 14, 4); }   // 仓库：走近了（7.6 m 内）才出现标签；地上的箭头
     const P = state.view === 'street' ? postStreet : postWh;
     if (P) P.render(t); else renderer.render(S.scene, camera);
     if (callouts.length) updateCallouts();
