@@ -212,7 +212,10 @@ const NOISE = /* glsl */`
                mix(mix(h3(i + vec3(0,0,1)), h3(i + vec3(1,0,1)), f.x), mix(h3(i + vec3(0,1,1)), h3(i + vec3(1,1,1)), f.x), f.y), f.z); }
   float fbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * n3(p); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return s; }`;
 
-export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lights = [], opacity = 0.28, scale = 0.35, speed = 0.05, nearFade = 2.2 } = {}) {
+// bounds: { min:[x,y,z], max:[x,y,z] } — the room the fog lives in. Fog thins out within `margin` of every wall, the floor and the ceiling,
+//   so a card never shows the straight line where it would cut through a surface.
+export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lights = [], opacity = 0.28, scale = 0.35, speed = 0.05, nearFade = 2.2, bounds = null, margin = 1.2 } = {}) {
+  const bMin = new THREE.Vector3(...(bounds?.min || [-1e4, -1e4, -1e4])), bMax = new THREE.Vector3(...(bounds?.max || [1e4, 1e4, 1e4]));
   const group = new THREE.Group(); group.userData.keep = true; parent.add(group);
   const L = lights.map((p) => new THREE.Vector3(...p));
   const mats = [];
@@ -220,11 +223,11 @@ export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lig
     const c = new THREE.Vector3(...pos); let lit = 0; for (const l of L) lit += 1 / (1 + c.distanceToSquared(l) * 0.12);
     const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
       uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(color).lerp(new THREE.Color(warm), Math.min(0.75, lit * 0.8)) }, uA: { value: opacity * k * (1 + Math.min(0.6, lit)) },
-        uScale: { value: scale }, uSpeed: { value: speed }, uNear: { value: nearFade }, uSeed: { value: Math.random() * 100 } },
+        uScale: { value: scale }, uSpeed: { value: speed }, uNear: { value: nearFade }, uSeed: { value: Math.random() * 100 }, uMin: { value: bMin }, uMax: { value: bMax }, uM: { value: margin } },
       vertexShader: /* glsl */`varying vec2 vUv; varying vec3 vW; varying float vZ;
         void main() { vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vec4 mv = viewMatrix * w; vZ = -mv.z; gl_Position = projectionMatrix * mv; }`,
       fragmentShader: NOISE + /* glsl */`
-        uniform vec3 uColor; uniform float uTime, uA, uScale, uSpeed, uNear, uSeed; varying vec2 vUv; varying vec3 vW; varying float vZ;
+        uniform vec3 uColor, uMin, uMax; uniform float uTime, uA, uScale, uSpeed, uNear, uSeed, uM; varying vec2 vUv; varying vec3 vW; varying float vZ;
         void main() {
           vec3 p = vW * uScale + vec3(uTime * uSpeed, uTime * uSpeed * 0.15, uSeed);
           vec3 q = vec3(fbm(p), fbm(p + vec3(5.2, 1.3, 2.8)), 0.0);                       // domain warp: wisps curl into each other
@@ -232,7 +235,9 @@ export function fogPuffs(parent, puffs, { color = 0x8a9aa2, warm = 0xffc890, lig
           vec2 e = (vUv - 0.5) * 2.0; float shape = smoothstep(1.0, 0.2, length(e * vec2(1.0, 1.2)));
           shape *= smoothstep(0.0, 0.22, vUv.x) * smoothstep(1.0, 0.78, vUv.x) * smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.7, vUv.y);   // every edge of the card fades out, no hard rim
           float low = mix(1.0, 0.45, vUv.y);                                              // heavier at the bottom
-          float a = smoothstep(0.38, 0.85, d) * shape * low * uA * smoothstep(uNear * 0.5, uNear * 1.6, vZ);
+          vec3 lo = smoothstep(uMin, uMin + vec3(uM, uM * 0.5, uM), vW), hi = 1.0 - smoothstep(uMax - vec3(uM, uM * 1.4, uM), uMax, vW);   // thin out toward walls, floor, ceiling
+          float room = lo.x * lo.y * lo.z * hi.x * hi.y * hi.z;
+          float a = smoothstep(0.38, 0.85, d) * shape * low * uA * room * smoothstep(uNear * 0.5, uNear * 1.6, vZ);
           gl_FragColor = vec4(uColor * (0.75 + d * 0.5), a);
         }` });
     mats.push(mat);

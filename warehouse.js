@@ -1303,7 +1303,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
   // 大厅里几团慢慢漂的尘雾：高处的灯底下最亮，墙角、货架后面沉着
   { let n = 911; const r = () => (n = (n * 16807) % 2147483647) / 2147483647, puffs = [];
     for (let i = 0; i < 26; i++) puffs.push({ pos: [X0 + 1.5 + r() * (X1 - X0 - 3), 1.2 + r() * 5, Z0 - 2 - r() * (Z0 - Z1 - 4)], w: 6 + r() * 5, h: 3 + r() * 3, k: 0.6 + r() * 0.6 });
-    fogPuffs(root, puffs, { color: 0x6a7c7a, warm: 0xffcf98, lights: [[-1.3, HT - 3, -4], [-1.3, HT - 3, -15], [5.8, HT - 3, -27.6], [X0 + 1.6, 4, -8]], opacity: 0.46, scale: 0.25, speed: 0.03, nearFade: 2.4 }); }
+    fogPuffs(root, puffs, { color: 0x6a7c7a, warm: 0xffcf98, lights: [[-1.3, HT - 3, -4], [-1.3, HT - 3, -15], [5.8, HT - 3, -27.6], [X0 + 1.6, 4, -8]], opacity: 0.46, scale: 0.25, speed: 0.03, nearFade: 2.4, bounds: { min: [X0, 0, Z1], max: [X1, HT - 1.6, Z0] }, margin: 1.6 }); }
 
   // ---- 血和脏（第二遍）：运输笼拖到卸货门、月台边上甩的、叉车压过血再带走的胎印、红柱上一只血手印；出库线末端滴的血水、冷藏架底下的化冻血水、退货桶边的一圈
   const bloodMat = (seed, o = {}) => { const { map, roughnessMap } = puddleDecal(seed, { kind: 'blood', size: 256 }); return new THREE.MeshStandardMaterial({ map, roughnessMap, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, roughness: 1, ...o }); };

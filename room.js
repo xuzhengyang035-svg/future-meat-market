@@ -1465,7 +1465,7 @@ export function createRoom(env) {
   fogPuffs(room, [
     { pos: [0.6, 2.75, -3.05], w: 2.4, h: 1.4, k: 1.0 }, { pos: [1.9, 2.9, -3.1], w: 2.6, h: 1.5, k: 0.9 }, { pos: [2.9, 2.7, -2.95], w: 2.0, h: 1.3, k: 0.8 },
     { pos: [-5.0, 3.4, -1.2], w: 4.2, h: 1.6, k: 0.6 }, { pos: [-3.2, 3.5, 0.8], w: 4.5, h: 1.6, k: 0.55 }, { pos: [-5.4, 3.3, 2.6], w: 4, h: 1.5, k: 0.5 }, { pos: [-1.4, 3.6, -1.6], w: 3.6, h: 1.5, k: 0.5 },
-  ], { color: 0x8a8a7e, warm: 0xffc890, lights: [[-5.0, 2.4, -1.4], [-3.0, 2.4, 0.9], [1.3, 2.9, -2.9]], opacity: 0.22, scale: 0.6, speed: 0.04, nearFade: 1.6 });
+  ], { color: 0x8a8a7e, warm: 0xffc890, lights: [[-5.0, 2.4, -1.4], [-3.0, 2.4, 0.9], [1.3, 2.9, -2.9]], opacity: 0.22, scale: 0.6, speed: 0.04, nearFade: 1.6, bounds: { min: [LX, 0, -4], max: [5, HT - 0.25, 5] }, margin: 0.7 });
   const tubeLights = [];
   for (const [x, z] of [[0.6, 1.4], [2.6, 3.6]]) {
     const l = new THREE.PointLight(0x9fd8cc, 4.2, 10, 1.6);
