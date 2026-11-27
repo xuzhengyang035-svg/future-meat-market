@@ -73,6 +73,7 @@ export const ROOM_NAV = {
   // 门店的八个点位；路线都走在桌子、吧台和肉柜之间的空地上
   eye: 1.62, fov: 62, pitch: -8, start: 'door',
   path: { mark: 1.7, width: 0.2, radius: 0.6 },
+  keepOut: [[-6, 3.35, 2.2, 7]],   // the street through the front glass is a baked view: stay far enough back for it to hold up
   pace: { speed: 1.85, accel: 1.35, turn: 70 },
   nodes: {
     door:    { name: 'Entrance', at: [0.4, 3.3], face: -6 },

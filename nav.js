@@ -376,7 +376,7 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   // Walls and furniture stop you (rays at knee and chest height against the meshes near you); the floor is found with
   // a ray straight down, so low steps and stairs (up to 0.3 m) are climbed and benches or tables are not.
   const held = new Set(), vel = new THREE.Vector2(), MOVE = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0] };
-  const R = 0.35, STEP = 0.3, near = [], hray = new THREE.Raycaster(), dray = new THREE.Raycaster(), o = new THREE.Vector3(), dv = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
+  const R = 0.35, STEP = 0.22, near = [], floors = [], hray = new THREE.Raycaster(), dray = new THREE.Raycaster(), o = new THREE.Vector3(), dv = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
   let solids = null, nearAt = new THREE.Vector3(1e9, 0, 0), floorY = null, hint = null, moved = false;
   hray.firstHitOnly = dray.firstHitOnly = true;
   function collectSolids() {
@@ -399,54 +399,83 @@ export function createNav({ scene, graph, camera, eye, look, home, visible, onSt
   }
   function gather() {
     solids ??= collectSolids();
-    near.length = 0;
+    near.length = floors.length = 0;
     if (!solids) return;
     nearAt.copy(eye);
-    for (const s of solids) if (s.box.distanceToPoint(eye) < 3) near.push(s.m);
-  }
-  const blocked = (x, z, dx, dz, len, base) => {
-    for (const h of [0.35, 1.2]) {
-      o.set(x, base + h, z); dv.set(dx, 0, dz).normalize();
-      hray.set(o, dv); hray.far = len + R;
-      if (hray.intersectObjects(near, false).length) return true;
+    for (const s of solids) if (s.box.distanceToPoint(eye) < 3) {
+      near.push(s.m);
+      if (Math.min(s.box.max.x - s.box.min.x, s.box.max.z - s.box.min.z) > 0.7) floors.push(s.m);   // only wide things are walked on: floors, steps, platforms (not stool feet)
     }
-    return false;
-  };
+  }
   function groundAt(x, z, base) {
     dray.set(o.set(x, base + STEP, z), down); dray.far = STEP + 1.5;
-    for (const h of dray.intersectObjects(near, false)) if (!h.face || h.face.normal.clone().transformDirection(h.object.matrixWorld).y > 0.5) return h.point.y;
+    for (const h of dray.intersectObjects(floors, false)) if (!h.face || h.face.normal.clone().transformDirection(h.object.matrixWorld).y > 0.5) return h.point.y;
     return null;
   }
+  const P = new THREE.Vector3(), lastEye = new THREE.Vector3(1e9, 0, 0), hitN = new THREE.Vector3();
+  let phase = 0, bob = 0;
+  // the nearest wall along a move: its horizontal normal (facing you) and how far it is
+  function wall(x, z, dx, dz, len, base) {
+    let best = null;
+    dv.set(dx, 0, dz).normalize();
+    for (const h of [0.35, 0.9, 1.45]) {
+      hray.set(o.set(x, base + h, z), dv); hray.far = len + R;
+      const hit = hray.intersectObjects(near, false).find((x) => x.distance > 0.03);   // a hit right at the start = we're already overlapping it: let us walk out
+      if (hit && (!best || hit.distance < best.distance)) best = hit;
+    }
+    if (!best) return null;
+    if (best.face) hitN.copy(best.face.normal).transformDirection(best.object.matrixWorld); else hitN.copy(dv).negate();
+    hitN.y = 0;
+    if (hitN.lengthSq() < 1e-4) hitN.copy(dv).negate();
+    hitN.normalize();
+    if (hitN.x * dv.x + hitN.z * dv.z > 0) hitN.negate();                             // a face seen from behind
+    return { nx: hitN.x, nz: hitN.z, d: best.distance };
+  }
+  const outOfBounds = (ox, oz, x, z) => (graph.keepOut || []).some(([x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1 && !(ox > x0 && ox < x1 && oz > z0 && oz < z1));
   function freeTick(dt) {
+    if (eye.distanceTo(lastEye) > 1e-4) { P.copy(eye); bob = 0; }                     // someone else moved us (arrived, came back from a close look)
     let ix = 0, iz = 0;
     for (const k of held) if (MOVE[k]) { ix += MOVE[k][0]; iz += MOVE[k][1]; }
-    const fast = held.has('ShiftLeft') || held.has('ShiftRight') ? 1.7 : 1, len = Math.hypot(ix, iz) || 1;
-    const k = 1 - Math.exp(-dt * (ix || iz ? 7 : 10)), top = 1.7 * fast;
+    const fast = held.has('ShiftLeft') || held.has('ShiftRight') ? 1.65 : 1, len = Math.hypot(ix, iz) || 1;
+    const k = 1 - Math.exp(-dt * (ix || iz ? 6 : 9)), top = 2.05 * fast;
     vel.x += ((ix / len) * top - vel.x) * k; vel.y += ((iz / len) * top - vel.y) * k;
-    if (Math.abs(vel.x) + Math.abs(vel.y) < 0.01) { vel.set(0, 0); return; }
-    if (!moved) { moved = true; hint?.classList.remove('on'); }
-    if (eye.distanceTo(nearAt) > 1) gather();
-    const y = rad(look.yaw), fx = Math.sin(y), fz = -Math.cos(y);
-    let dx = (fx * vel.y + Math.cos(y) * vel.x) * dt, dz = (fz * vel.y + Math.sin(y) * vel.x) * dt;
-    const base = floorY ?? eye.y - graph.eye;
-    if (near.length) {
-      const d = Math.hypot(dx, dz);
-      if (blocked(eye.x, eye.z, dx, dz, d, base)) {                              // slide along whatever is in the way
-        const sx = Math.abs(dx) > 1e-5 && !blocked(eye.x, eye.z, dx, 0, Math.abs(dx), base);
-        const sz = Math.abs(dz) > 1e-5 && !blocked(eye.x, eye.z, 0, dz, Math.abs(dz), base);
-        if (!sx) { dx = 0; vel.x *= 0.5; } if (!sz) { dz = 0; vel.y *= 0.5; }
-        if (sx && sz) dz = 0;
-      }
-      const g = groundAt(eye.x + dx, eye.z + dz, base);
-      if (g === null || g - base > STEP || base - g > 1.2) { dx = dz = 0; vel.set(0, 0); }  // a ledge or a hole: stop
-      else floorY = g;
+    let speed = Math.hypot(vel.x, vel.y);
+    if (speed < 0.02) { vel.set(0, 0); speed = 0; }
+    if (speed && !moved) { moved = true; hint?.classList.remove('on'); }
+    const base = floorY ?? P.y - graph.eye;
+    if (speed) {
+      if (P.distanceTo(nearAt) > 1) { eye.copy(P); gather(); }
+      const y = rad(look.yaw), fx = Math.sin(y), fz = -Math.cos(y);
+      let mx = (fx * vel.y + Math.cos(y) * vel.x) * dt, mz = (fz * vel.y + Math.sin(y) * vel.x) * dt;
+      let qx = P.x, qz = P.z;
+      if (near.length) for (let i = 0; i < 3; i++) {                                  // walk up to a wall, then slide along it
+        const L = Math.hypot(mx, mz); if (L < 1e-6) break;
+        const w = wall(qx, qz, mx, mz, L, base); if (!w) { qx += mx; qz += mz; mx = mz = 0; break; }
+        const go = Math.min(L, Math.max(0, w.d - R)), ux = mx / L, uz = mz / L;
+        qx += ux * go; qz += uz * go;
+        let rx = ux * (L - go), rz = uz * (L - go); const into = rx * w.nx + rz * w.nz;
+        if (into < 0) { rx -= w.nx * into; rz -= w.nz * into; }
+        mx = rx; mz = rz;
+      } else { qx += mx; qz += mz; }
+      if (outOfBounds(P.x, P.z, qx, P.z)) qx = P.x;
+      if (outOfBounds(P.x, P.z, qx, qz)) qz = P.z;
+      const g = near.length ? groundAt(qx, qz, base) : null;
+      if (g !== null && (g - base > STEP || base - g > 1.2)) { qx = P.x; qz = P.z; }  // a ledge or a hole: don't go
+      else if (g !== null) floorY = g;                                              // no floor found: keep the one we had
+      const went = Math.hypot(qx - P.x, qz - P.z);
+      phase += went / 0.74;                                                        // one step every 74 cm
+      P.x = qx; P.z = qz;
+      speed = Math.min(speed, went / Math.max(dt, 1e-4));
     }
-    eye.x += dx; eye.z += dz;
-    const fy = (floorY ?? base) + graph.eye;
-    eye.y += (fy - eye.y) * (1 - Math.exp(-dt * 12));
-    home.eye.copy(eye); home.yaw = look.tYaw; home.pitch = look.tPitch; home.fov = look.fov;
+    P.y += ((floorY ?? base) + graph.eye - P.y) * (1 - Math.exp(-dt * 12));
+    bob += (Math.min(1, speed / 2.05) - bob) * (1 - Math.exp(-dt * (speed ? 6 : 4)));   // ease into and out of the stride
+    const ry = rad(look.yaw), dip = Math.sin(phase * Math.PI * 2), sway = Math.sin(phase * Math.PI);
+    eye.set(P.x + Math.cos(ry) * sway * 0.016 * bob, P.y + (dip * 0.028 - 0.012) * bob, P.z + Math.sin(ry) * sway * 0.016 * bob);
+    lastEye.copy(eye);
+    if (!speed) return;
+    home.eye.copy(P); home.yaw = look.tYaw; home.pitch = look.tPitch; home.fov = look.fov;
     let best = station, bd = Infinity;                                            // the nearest named spot, for whatever asks "where are you"
-    for (const [id, n] of Object.entries(graph.nodes)) { const d = Math.hypot(n.at[0] - eye.x, n.at[1] - eye.z) + Math.abs((n.at[2] || 0) - (floorY ?? 0)) * 3; if (d < bd) { bd = d; best = id; } }
+    for (const [id, n] of Object.entries(graph.nodes)) { const d = Math.hypot(n.at[0] - P.x, n.at[1] - P.z) + Math.abs((n.at[2] || 0) - (floorY ?? 0)) * 3; if (d < bd) { bd = d; best = id; } }
     station = best;
   }
   function makeHint() {
