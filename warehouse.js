@@ -345,7 +345,7 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
     box(1.4, 0.03, 0.06, dead ? M.deadTube : M.tube, x, HT - 1.06, z, root);
     for (const dx of [-0.6, 0.6]) cyl(0.004, 0.004, 0.12, M.rackDark, x + dx, HT - 0.94, z, root, 4);
   }
-  for (const [x, z, i] of [[-10, -6, 14], [-10, -18, 14], [-6, -2, 26], [3, -2, 26], [-6, -11, 22], [3, -11, 26], [9, -11, 18], [-3, -20, 24], [6, -20, 20]]) { const l = new THREE.PointLight(0x9fd0c6, i * 0.72, 16, 1.5); l.position.set(x, HT - 1.3, z); root.add(l); }
+  for (const [x, z, i] of [[-10, -6, 14], [-10, -18, 14], [-6, -2, 26], [3, -2, 26], [-6, -11, 22], [3, -11, 26], [9, -11, 18], [-3, -20, 24], [6, -20, 20]]) { const l = new THREE.PointLight(0xffebcf, i * 1.17, 16, 1.5); l.position.set(x, HT - 1.3, z); root.add(l); }
 
   // ---------------------------------------------------------------- 地面标线：主通道两条黄线、中间绿色虚线、出入库字样、斑马线
   line(-4.2, -9.5, 0.12, 26); line(1.6, -9.5, 0.12, 26);                    // 主通道 x −4.2 … 1.6
@@ -1330,10 +1330,10 @@ varying vec3 vFW; uniform float uBase; uniform float uEdge; uniform float uBands
       plane(0.21, 0.28, lit(printed('Paper006', 210, 280, (g, W, H2) => { g.fillStyle = '#1a1a1a'; g.font = `700 15px ${SANS}`; g.fillText('FREEZER TEMP LOG', 10, 22); g.strokeStyle = 'rgba(60,80,120,.5)'; for (let y = 36; y < H2; y += 20) { g.beginPath(); g.moveTo(6, y); g.lineTo(W - 6, y); g.stroke(); }
         g.fillStyle = 'rgba(20,30,80,.85)'; g.font = '15px "Segoe Print", "Ink Free", cursive'; ['18.11  1:-25 2:-24 3:-20', '19.11  1:-26 2:-24 3:-19!', '19.11  4:-25 5:-23', '20.11  3:-19 call tech', '20.11  1:-25 2:-25', '21.11  3:-18 !!'].forEach((t, k) => g.fillText(t, 10, 54 + k * 20)); }), { roughness: 0.95 }), 0, -0.01, 0.0045, 0, cb); }
   }
-  scene.add(new THREE.HemisphereLight(0xb9ab94, 0x221f1b, 0.66));                  // 参考图整体更亮：天光补一点（不花显卡）
+  scene.add(new THREE.HemisphereLight(0xb9ab94, 0x221f1b, 0.78));                  // 参考图整体更亮：天光补一点（不花显卡）
   // 主通道上方两盏暖一点的投光灯
-  for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffb668, 62, 14, 0.5, 0.65, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target);
-    lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 2.9, color: 0xffb668, strength: 0.1 }); }
+  for (const z of [-4, -15]) { const s = new THREE.SpotLight(0xffcc91, 92, 16, 0.57, 0.58, 1.4); s.position.set(-1.3, HT - 1.2, z); s.target.position.set(-1.3, 0, z - 1); root.add(s, s.target);
+    lightCone(root, [-1.3, HT - 1.2, z], [0, -(HT - 1.2), -1], { length: 7.2, radius: 3.2, color: 0xffcc91, strength: 0.135 }); }
   // 整个仓库空气里的浮尘：很淡，几乎看不见，只有飘进灯下的那些被照亮
   mistField(root, { center: [0, HT / 2 - 0.3, (Z0 + Z1) / 2], size: [X1 - X0, HT - 0.6, Z0 - Z1], count: 7000, px: 0.007, color: 0xaaa497, lightColor: 0xffd8a8, strength: 0.32, fall: 0.012, swirl: 0.35,
     lights: [[-1.3, HT - 2.2, -4.5], [-1.3, HT - 2.2, -15.5], [5.8, HT - 2.6, -27.6], [X0 + 1.6, 4.5, -8]] });
