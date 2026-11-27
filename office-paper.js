@@ -180,7 +180,7 @@ export function makeLedger({ pbr, RB }) {
       group.add(b);
     }
   }
-  const pages = PAGES.map(() => surface(PW, PH, 12)), blank = surface(PW, PH, 4);
+  const pages = PAGES.map(() => surface(PW, PH, 12));
   Promise.all([scan('assets/ph/tex/Paper005/diff.jpg'), fontsReady()]).then(([paper]) => {
     pages.forEach(({ t, g }, i) => {
       g.fillStyle = '#e9e2cf'; g.fillRect(0, 0, PW, PH);
@@ -197,10 +197,6 @@ export function makeLedger({ pbr, RB }) {
       PAGES[i](g);
       t.needsUpdate = true;
     });
-    blank.g.drawImage(pages[1].g.canvas, 0, 0); blank.g.fillStyle = '#e9e2cf'; blank.g.globalAlpha = 1;
-    blank.g.fillRect(0, 0, PW, PH);
-    if (paper) { blank.g.save(); blank.g.filter = 'grayscale(.78) brightness(1.2) contrast(1.35)'; blank.g.globalAlpha = 0.85; blank.g.drawImage(paper, -40, -20, PW * 1.55, PH * 1.3); blank.g.restore(); }
-    blank.t.needsUpdate = true;
   });
 
   // 一页纸：amount 0 = 摊在右边，1 = 翻到左边；中间是弯着立起来的
@@ -247,11 +243,11 @@ export function makeLedger({ pbr, RB }) {
   function turn(dir) {
     if (flip || spread + dir < 0 || spread + dir > LAST) return;
     const low = dir > 0 ? spread : spread - 1;                               // 翻动的是 low 这一摊的右页 / 下一摊的左页
-    // 只看得见现在这一摊上的字：翻起来的那页背面、露出来的下一页先是空白，翻到底才换成内容
-    front.material.map = dir > 0 ? pages[low * 2 + 1].t : blank.t;
-    back.material.map = dir > 0 ? blank.t : pages[low * 2 + 2].t;
-    left.material.map = dir > 0 ? pages[low * 2].t : blank.t;
-    right.material.map = dir > 0 ? blank.t : pages[low * 2 + 3].t;
+    // like a real book: the turning leaf carries its own two pages, and the pages it uncovers are already printed
+    front.material.map = pages[low * 2 + 1].t;
+    back.material.map = pages[low * 2 + 2].t;
+    left.material.map = pages[low * 2].t;
+    right.material.map = pages[low * 2 + 3].t;
     front.visible = back.visible = true;
     corner = wanted = 0;
     state.v = dir > 0 ? 0 : 1;

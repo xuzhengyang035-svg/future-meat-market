@@ -533,7 +533,7 @@ export function createRoom(env) {
     const x = DX - DW / 2 + (c + 0.5) * cw, y = DY + DH / 2 - (r + 0.5) * ch, open = (c === 1 && r === 3) ? 0.16 : (c === 3 && r === 1) ? 0.1 : 0;
     const d = box(cw - 0.012, ch - 0.012, 0.03, cabSteel, x, y, -3.6 + open, room);
     const lbl = canvasTexture(96, 32, (g) => { g.fillStyle = '#e4dcc4'; g.fillRect(0, 0, 96, 32); g.fillStyle = '#2a2420'; g.font = '600 18px monospace'; g.textAlign = 'center'; g.fillText(ids[(r * DC + c) % ids.length], 48, 23); });
-    plane(cw * 0.46, ch * 0.22, lit(lbl), x, y + ch * 0.18, -3.582 + open, 0, room);
+    plane(cw * 0.46, ch * 0.22, lit(lbl), x, y + ch * 0.18, -3.579 + open, 0, room);   // 3 mm proud of the holder's face, not on it
     m4.makeTranslation(x, y + ch * 0.18, -3.585 + open); holder.setMatrixAt(ii, m4);
     m4.compose(new THREE.Vector3(x, y - ch * 0.18, -3.575 + open), q, one); pull.setMatrixAt(ii, m4); ii++;
     if (open) box(cw - 0.03, ch - 0.03, open + 0.2, cabSteel, x, y, -3.72 + open / 2, room);

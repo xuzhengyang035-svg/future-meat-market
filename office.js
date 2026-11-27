@@ -66,8 +66,9 @@ export function buildOffice(ctx) {
 
   // ---------------------------------------------------------------- 大厅这一侧：门框、门牌；门开着，往办公室里推开约 100°
   const frameM = new THREE.MeshStandardMaterial({ color: 0x3a3226, roughness: 0.55 });
-  for (const z of [DZ0 - 0.035, DZ1 + 0.035]) box(0.14, DH + 0.07, 0.07, frameM, X1 + 0.05, (DH + 0.07) / 2, z, g);
-  box(0.14, 0.07, DZ1 - DZ0 + 0.14, frameM, X1 + 0.05, DH + 0.035, (DZ0 + DZ1) / 2, g);
+  // the frame wraps 4 mm past the wall's cut edges so no two faces share a plane (they flickered)
+  for (const z of [DZ0 - 0.033, DZ1 + 0.033]) box(0.16, DH + 0.07, 0.074, frameM, X1 + 0.05, (DH + 0.07) / 2, z, g);
+  box(0.16, 0.074, DZ1 - DZ0 + 0.148, frameM, X1 + 0.05, DH + 0.033, (DZ0 + DZ1) / 2, g);
   const plate = canvasTexture(360, 110, (c, W, Hh) => { c.fillStyle = '#e8e4d8'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#1e1e1c'; c.font = `700 44px ${SANS}`; c.textBaseline = 'middle'; c.fillText('OFFICE', 22, 40); c.font = `500 22px ${SANS}`; c.fillStyle = '#9a2422'; c.fillText('STAFF ONLY', 24, 84); });
   plane(0.3, 0.092, new THREE.MeshPhysicalMaterial({ map: plate, roughness: 0.3, clearcoat: 0.6 }), X1 + 0.125, 2.35, (DZ0 + DZ1) / 2, Math.PI / 2, g);   // 门上方的门牌（大厅这一面）
   { const hinge = new THREE.Group(); hinge.position.set(X1 + 0.02, 0, DZ1); hinge.rotation.y = Math.PI * 100 / 180; g.add(hinge);   // 门轴在靠门面那一侧
@@ -287,6 +288,84 @@ export function buildOffice(ctx) {
     RB(0.44, 0.55, 0.44, 0.015, sm, 0, 0.275, 0, sf);
     cyl(0.04, 0.04, 0.02, M.steel, -0.08, 0.34, -0.225, sf, 24).rotation.x = Math.PI / 2;
     box(0.02, 0.12, 0.03, M.steel, 0.1, 0.3, -0.23, sf); }
+  // ---------------------------------------------------------------- duty rotas: this week's staff rota on a clipboard by the door,
+  // and the November on-call list + cleaning rota taped up on the front wall. Printed grids, filled in and corrected by hand.
+  { const PAPER = (c, W, Hh, seed) => {                                          // off-white copier paper: fibre speckle, a little grime at the edges
+      c.fillStyle = '#f1ede2'; c.fillRect(0, 0, W, Hh);
+      let n = seed * 9301; const r = () => (n = (n * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < W * Hh / 60; i++) { c.fillStyle = `rgba(${90 + r() * 40},${80 + r() * 30},60,${0.03 + r() * 0.05})`; c.fillRect(r() * W, r() * Hh, 1 + r() * 1.5, 1); }
+      const e = c.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.35, W / 2, Hh / 2, Math.max(W, Hh) * 0.75);
+      e.addColorStop(0, 'rgba(120,100,60,0)'); e.addColorStop(1, 'rgba(120,100,60,.16)'); c.fillStyle = e; c.fillRect(0, 0, W, Hh);
+      return r; };
+    const grid = (c, x0, y0, cols, rows, cw, rh) => { c.strokeStyle = '#3a3a36'; c.lineWidth = 1.4; for (let i = 0; i <= rows; i++) { c.beginPath(); c.moveTo(x0, y0 + i * rh); c.lineTo(x0 + cols.reduce((a, b) => a + b, 0), y0 + i * rh); c.stroke(); } let x = x0; for (let j = 0; j <= cols.length; j++) { c.beginPath(); c.moveTo(x, y0); c.lineTo(x, y0 + rows * rh); c.stroke(); x += cols[j] || 0; } };
+    const scrawl = (c, t, x, y, px, col = '#1d2a4a', rot = 0) => { c.save(); c.translate(x, y); c.rotate(rot); c.fillStyle = col; c.font = HAND(px); c.fillText(t, 0, 0); c.restore(); };
+    const sheet = (w, h, tex, parent, x, y, z, ry, curl = 0.012) => {             // a sheet that isn't perfectly flat: the bottom edge lifts off the wall a little
+      const geo = new THREE.PlaneGeometry(w, h, 6, 8), P = geo.attributes.position;
+      for (let i = 0; i < P.count; i++) { const v = 0.5 - P.getY(i) / h, u = P.getX(i) / w; P.setZ(i, curl * v * v * (1 + 0.6 * u)); }
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.rotation.y = ry; parent.add(m); return m; };
+    const tapeM = new THREE.MeshStandardMaterial({ color: 0xd8c896, roughness: 0.75, transparent: true, opacity: 0.82 });
+
+    // 1) this week's rota on a hardboard clipboard, hung from a nail beside the door
+    const week = canvasTexture(1024, 724, (c, W, Hh) => {
+      const r = PAPER(c, W, Hh, 7);
+      c.fillStyle = '#1a1a18'; c.font = `700 34px ${SANS}`; c.fillText('STAFF ROTA', 44, 62);
+      c.font = `500 20px ${SANS}`; c.fillStyle = '#555'; c.fillText('Week 48  ·  Mon 23 – Sun 29 Nov 2026  ·  PORK.exe Cultivated Meats', 44, 94);
+      const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], cols = [176, 116, 116, 116, 116, 116, 116, 116];
+      c.fillStyle = 'rgba(250,226,60,.45)'; c.fillRect(44 + 176 + 116 * 4, 118, 116, 52 + 5 * 92);          // highlighter down today's column
+      grid(c, 44, 118, cols, 6, 0, 0); grid(c, 44, 118, cols, 1, 0, 52); grid(c, 44, 170, cols, 5, 0, 92);
+      c.font = `600 20px ${SANS}`; c.fillStyle = '#222'; days.forEach((d, j) => { if (d) c.fillText(d, 44 + 176 + 116 * (j - 1) + 34, 152); });
+      const staff = [['Rosa M.', 'counter'], ['Jon K.', 'lab / biopsy'], ['Priya S.', 'counter'], ['Tom B.', 'warehouse'], ['Lena W.', 'kitchen']];
+      const shifts = [['8–4', '8–4', 'OFF', '8–4', '8–4', '10–6', 'OFF'], ['BX', '12–8', '12–8', 'OFF', 'BX', 'OFF', 'on call'], ['12–8', 'OFF', '8–4', '12–8', '12–8', '8–4', '10–4'], ['6–2', '6–2', '6–2', 'OFF', '6–2', 'OFF', 'OFF'], ['OFF', '10–6', '10–6', '10–6', '10–6', '12–8', 'OFF']];
+      staff.forEach(([n, role], i) => { const y = 170 + i * 92; c.font = `600 22px ${SANS}`; c.fillStyle = '#1a1a18'; c.fillText(n, 58, y + 40); c.font = `400 16px ${SANS}`; c.fillStyle = '#666'; c.fillText(role, 58, y + 66);
+        shifts[i].forEach((t, j) => { const x = 44 + 176 + 116 * j; c.font = t === 'OFF' ? `500 18px ${SANS}` : `600 22px ${SANS}`; c.fillStyle = t === 'OFF' ? '#999' : t === 'BX' ? '#8a1c1c' : '#222'; c.fillText(t, x + 22 + (r() - 0.5) * 4, y + 54); }); });
+      // corrections in pen
+      const x3 = 44 + 176 + 116 * 3, y1 = 170 + 92; c.strokeStyle = '#1d2a4a'; c.lineWidth = 3; c.beginPath(); c.moveTo(x3 + 10, y1 + 40); c.lineTo(x3 + 100, y1 + 58); c.stroke();
+      scrawl(c, 'swap w/ P.', x3 + 8, y1 + 84, 24, '#1d2a4a', -0.05);
+      const x6 = 44 + 176 + 116 * 6, y3 = 170 + 92 * 3; c.beginPath(); c.moveTo(x6 + 12, y3 + 46); c.lineTo(x6 + 96, y3 + 42); c.stroke(); scrawl(c, '8–2 !', x6 + 18, y3 + 80, 28, '#8a1c1c', 0.04);
+      scrawl(c, 'BX = biopsy day. No food in the lab fridge!!', 50, 690, 30, '#8a1c1c', -0.012);
+      scrawl(c, 'R.M.', 900, 60, 32, '#1d2a4a', -0.08);
+      c.strokeStyle = 'rgba(110,70,30,.22)'; c.lineWidth = 7; c.beginPath(); c.arc(860, 640, 52, 0.3, 5.6); c.stroke();          // a mug ring
+    });
+    const cb = new THREE.Group(); cb.position.set(X1 - 0.012, 1.48, 3.02); cb.rotation.y = -Math.PI / 2; cb.rotation.z = 0.012; g.add(cb);
+    box(0.33, 0.25, 0.004, pbr('Cardboard003', 0.33, 0.25, { size: 0.4, color: 0x6a4a2c, roughness: 0.7 }), 0, 0, 0.002, cb);   // hardboard back
+    sheet(0.297, 0.21, week, cb, 0, -0.012, 0.0055, 0, 0.006);
+    const clip = new THREE.MeshStandardMaterial({ color: 0xb8b8b2, metalness: 0.9, roughness: 0.3 });
+    box(0.1, 0.028, 0.012, clip, 0, 0.11, 0.01, cb); cyl(0.006, 0.006, 0.1, clip, 0, 0.122, 0.017, cb, 10).rotation.z = Math.PI / 2;
+    cyl(0.003, 0.003, 0.03, M.steel, 0, 0.14, 0.006, cb, 6).rotation.x = Math.PI / 2;                        // the nail it hangs on
+
+    // 2) November on-call list and the cleaning rota, taped up on the window wall left of the window
+    const oncall = canvasTexture(724, 1024, (c, W, Hh) => {
+      PAPER(c, W, Hh, 13);
+      c.fillStyle = '#1a1a18'; c.font = `700 32px ${SANS}`; c.fillText('BIOPSY ON-CALL', 40, 70);
+      c.font = `500 19px ${SANS}`; c.fillStyle = '#555'; c.fillText('November 2026  ·  donor herd visits & sample runs', 40, 102);
+      grid(c, 40, 130, [110, 210, 160, 160], 1, 0, 46); grid(c, 40, 176, [110, 210, 160, 160], 16, 0, 50);
+      c.font = `600 18px ${SANS}`; c.fillStyle = '#222'; ['Date', 'Donor', 'On call', 'Done'].forEach((t, j) => c.fillText(t, 52 + [0, 110, 320, 480][j], 160));
+      const rows = [['02', 'B-0417', 'R.M.'], ['05', 'P-0932', 'R.M.'], ['09', 'B-0417', 'J.K.'], ['11', 'P-1077', 'J.K.'], ['14', 'B-0417', 'R.M.'], ['14', 'P-0932', 'R.M.'], ['16', 'F-1180', 'temp'], ['18', 'B-0417', 'R.M.'], ['20', 'P-1077', 'J.K.'], ['21', 'P-0932', 'R.M.'], ['22', 'B-0417', 'R.M.'], ['25', 'G-0221', 'J.K.'], ['27', 'B-0417', 'J.K.'], ['28', 'P-0932', ''], ['30', 'B-0417', '']];
+      rows.forEach(([d, id, who], i) => { const y = 176 + i * 50 + 33; c.font = `500 19px ${SANS}`; c.fillStyle = '#222'; c.fillText(d + ' Nov', 52, y); c.fillText(id, 162, y);
+        if (who) scrawl(c, who, 372, y + 2, 28); if (i < 11) scrawl(c, '✓', 530, y + 4, 34, '#1d5a2a'); });
+      scrawl(c, 'B-0417 again?? she needs a rest', 60, 176 + 15 * 50 + 44, 28, '#8a1c1c', -0.02);
+      scrawl(c, 'who is on the 28th?', 120, 176 + 15 * 50 + 88, 30, '#1d2a4a', 0.01);
+    });
+    const clean = canvasTexture(724, 512, (c, W, Hh) => {
+      PAPER(c, W, Hh, 21);
+      c.fillStyle = '#1a1a18'; c.font = `700 28px ${SANS}`; c.fillText('CLEANING ROTA', 34, 54);
+      c.font = `400 17px ${SANS}`; c.fillStyle = '#555'; c.fillText('Initial when done. Slicer and lab bench EVERY close.', 34, 82);
+      const tasks = ['Slicer & boards', 'Lab bench (70% IPA)', 'Floors & drains', 'Fridges / temps log'], days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+      grid(c, 34, 102, [230, 64, 64, 64, 64, 64, 64, 64], 5, 0, 70);
+      c.font = `600 18px ${SANS}`; c.fillStyle = '#222'; days.forEach((d, j) => c.fillText(d, 34 + 230 + 64 * j + 26, 144));
+      const ini = ['RM', 'JK', 'PS', 'TB', 'LW'];
+      tasks.forEach((t, i) => { const y = 172 + i * 70; c.font = `500 18px ${SANS}`; c.fillStyle = '#222'; c.fillText(t, 46, y + 42);
+        for (let j = 0; j < 5; j++) if (!(i === 2 && j === 3)) scrawl(c, ini[(i + j * 2) % 5], 34 + 230 + 64 * j + 10, y + 46, 26, '#1d2a4a', (j % 2 - 0.5) * 0.12); });
+      scrawl(c, '?!', 34 + 230 + 64 * 3 + 16, 172 + 2 * 70 + 46, 30, '#8a1c1c');
+    });
+    const fw = new THREE.Group(); fw.position.set(X0 + 0.006, 0, 1.86); fw.rotation.y = Math.PI / 2; g.add(fw);   // the bare stretch of the window wall
+    const a = sheet(0.21, 0.297, oncall, fw, 0.06, 1.62, 0, 0); a.rotation.z = -0.018;
+    const b = sheet(0.21, 0.148, clean, fw, -0.17, 1.38, 0.001, 0, 0.004); b.rotation.z = 0.03;
+    for (const [x, y, rz] of [[0.0, 1.765, 0.5], [0.12, 1.765, -0.45], [0.12, 1.48, 0.4], [-0.25, 1.45, -0.5], [-0.09, 1.45, 0.45]]) { const t = plane(0.045, 0.016, tapeM, x, y, 0.003, 0, fw); t.rotation.z = rz; }
+  }
+
   // 地上：废纸篓、几团纸、一个装文件的纸箱
   bin(g, -10.2, 3.95, { r: 0.13, h: 0.36, color: 0x3a3e3a, seed: 41, fill: 0.95 });
   for (const [x, z, s] of [[-9.95, 4.1, 901], [-8.9, 2.3, 902], [-9.2, 4.2, 903]]) litter(g, x, z, s);
