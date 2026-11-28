@@ -1,6 +1,6 @@
-// 程序化材质贴图：不用下载任何图片，在浏览器里用噪声画出来。
-// 真实感主要来自三件事：粗糙度不均匀（有的地方亮、有的地方哑）、细小的凹凸（法线）、
-// 以及角落里的暗部（环境光遮蔽）。这里的每张图都对应其中一件。
+// 程序化材质贴图：不用下载任何图片，在浏览器里用噪声画出来.
+// 真实感主要来自三件事：粗糙度不均匀 (有的地方亮、有的地方哑）、细小的凹凸 (法线）、
+// 以及角落里的暗部 (环境光遮蔽）.这里的每张图都对应其中一件.
 import * as THREE from 'three';
 
 // ------------------------------------------------------------------ 噪声
@@ -122,7 +122,7 @@ export const epoxyMaps = () => once('epoxy', () => {
   return { map: tex(c, { srgb: true }), roughnessMap: tex(rc) };
 });
 
-// 墙板：按墙的实际尺寸画缝、底部变暗（假的环境光遮蔽）
+// 墙板：按墙的实际尺寸画缝、底部变暗 (假的环境光遮蔽）
 export function wallMaps(w, h, { color = [168, 166, 161], panel = 1.2, ppm = 96, ao = 0.35 } = {}) {
   const W = Math.round(w * ppm), H = Math.round(h * ppm);
   const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -152,7 +152,7 @@ export function wallMaps(w, h, { color = [168, 166, 161], panel = 1.2, ppm = 96,
   return { map, bumpMap, bumpScale: 1.5 };
 }
 
-// 木格栅（展厅常见的暖色背景墙）
+// 木格栅 (展厅常见的暖色背景墙）
 export function slatMaps(w, h, ppm = 128) {
   const W = Math.round(w * ppm), H = Math.round(h * ppm);
   const c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -201,7 +201,7 @@ export function smudgeMap(w, h, handY = 0.25) {
   return tex(c, { srgb: true });
 }
 
-// 格栅（检修平台）、穿孔板（桥架）：用透明度贴图挖洞
+// 格栅 (检修平台）、穿孔板 (桥架）：用透明度贴图挖洞
 export const gratingAlpha = () => once('grating', () => {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d');
@@ -212,7 +212,7 @@ export const gratingAlpha = () => once('grating', () => {
   return tex(c);
 });
 
-// 圆形软阴影（贴在物体底下，模拟接触阴影）
+// 圆形软阴影 (贴在物体底下，模拟接触阴影）
 export const blobShadow = () => once('blob', () => {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -223,7 +223,7 @@ export const blobShadow = () => once('blob', () => {
   return t;
 });
 
-// 培养罐玻璃上的刻度
+// Bioreactors玻璃上的刻度
 export const graduationMap = () => once('grad', () => {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
   const g = c.getContext('2d');
@@ -273,8 +273,8 @@ export const gaugeMap = () => once('gauge', () => {
   return t;
 });
 
-// ================================================================== 脏旧质感（参考：灰暗、冷绿、用旧了的停尸房 / 地下食堂）
-// 发黄的白瓷砖、刷绿漆的墙裙、水渍、往下流的锈痕、墙根的污垢、磨损的地砖、有水渍的天花板。
+// ================================================================== 脏旧质感 (参考：灰暗、冷绿、用旧了的停尸房 / 地下食堂）
+// 发黄的白瓷砖、刷绿漆的墙裙、水渍、往下流的锈痕、墙根的污垢、磨损的地砖、有水渍的days花板.
 
 // 在任意画布上做旧：泛黄、水渍圈、往下流的污痕、划痕、边缘发暗
 export function ageCanvas(g, W, H, { amount = 1, seed = 7, drips = true } = {}) {
@@ -307,20 +307,20 @@ export function ageCanvas(g, W, H, { amount = 1, seed = 7, drips = true } = {}) 
   g.restore();
 }
 
-// 低频斑驳噪声（一张 256 的小图，平铺叠加）
+// 低频斑驳噪声 (一张 256 的小图，平铺叠加）
 const mottle = (seed, alpha = 50, spread = 70) => once('mottle' + seed + alpha + spread, () => {
   const n = fbm(256, { cx: 4, cy: 4, octaves: 5, seed });
   return fromField(256, (x, y, i) => { const v = 128 + (n[i] - 0.5) * spread * 2; return [v, v * 0.98, v * 0.9, alpha]; });
 });
 
-// 墙：上半是发黄的方瓷砖（tile），下半是刷绿漆的墙裙（dado，单位米）；tile=false 时上半是脏的白漆
+// 墙：上半是发黄的方瓷砖 (tile），下半是刷绿漆的墙裙 (dado，单位米）;tile=false 时上半是脏的白漆
 export function grimeWallMaps(w, h, o = {}) {
   const { tile = true, dado = 1.2, ppm = 100, size = 0.15, paint = [70, 84, 76], tileCol = [196, 192, 172], upper = [150, 150, 140], ao = 0.55, seed = 3 } = o;
   const W = Math.max(8, Math.round(w * ppm)), H = Math.max(8, Math.round(h * ppm));
   const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return [c, c.getContext('2d')]; };
   const [c, g] = mk(), [rc, rg] = mk(), [bc, bg] = mk();
   const r = rng(seed + Math.round(w * 31 + h * 7));
-  const dy = H - dado * ppm;                       // 墙裙顶边（画布坐标，原点在上）
+  const dy = H - dado * ppm;                       // 墙裙顶边 (画布坐标，原点在上）
   bg.fillStyle = '#808080'; bg.fillRect(0, 0, W, H);
   // 上半
   if (tile) {
@@ -358,7 +358,7 @@ export function grimeWallMaps(w, h, o = {}) {
   const m = mottle(seed, 90, 80);
   for (let x = 0; x < W; x += 256) for (let y = 0; y < H; y += 256) g.drawImage(m, x, y);
   g.globalCompositeOperation = 'source-over';
-  // 往下流的锈水痕（从天花板、从管道）
+  // 往下流的锈水痕 (从days花板、从管道）
   for (let i = 0; i < w * 2.2; i++) {
     const x = r() * W, y0 = r() < 0.6 ? 0 : r() * dy, len = (0.4 + r() * 1.6) * ppm, ww = 2 + r() * 0.05 * ppm;
     const col = r() < 0.4 ? '96,62,30' : '70,64,46';
@@ -386,7 +386,7 @@ export function grimeWallMaps(w, h, o = {}) {
   return { map, roughnessMap, bumpMap, bumpScale: 1.2, roughness: 1 };
 }
 
-// 地面：磨旧的方地砖（灰绿），污渍、鞋印擦痕、积水反光、缝里的黑垢。1024 像素 = 4×4 块砖
+// 地面：磨旧的方地砖 (灰绿），污渍、鞋印擦痕、积水反光、缝里的黑垢.1024 像素 = 4×4 块砖
 export const grimeFloorMaps = (key = 'gfloor', o = {}) => once('grimefloor-' + key, () => {
   const { base = [88, 94, 86], seed = 41, gloss = 1 } = o;
   const S = 1024, s = S / 4;
@@ -440,7 +440,7 @@ export const grimeFloorMaps = (key = 'gfloor', o = {}) => once('grimefloor-' + k
   return { map: tex(c, { srgb: true }), roughnessMap: tex(rc), normalMap: tex(normalFrom(h, S, 1.4)) };
 });
 
-// 天花板：60 cm 的矿棉板，有黄褐色的漏水痕。512 像素 = 2×2 块
+// days花板：60 cm 的矿棉板，有黄褐色的漏水痕.512 像素 = 2×2 块
 export const stainedCeilingMaps = () => once('ceiling-grime', () => {
   const S = 1024, s = S / 4;
   const c = document.createElement('canvas'); c.width = c.height = S;
@@ -459,7 +459,7 @@ export const stainedCeilingMaps = () => once('ceiling-grime', () => {
   return { map: tex(c, { srgb: true }) };
 });
 
-// 通用的“用旧”贴图：给家具、柜子、金属件叠一层污垢（灰度为主，材质颜色会乘上它）
+// 通用的“用旧”贴图：给家具、柜子、金属件叠一层污垢 (灰度为主，材质颜色会乘上它）
 export const grimeMap = (seed = 5) => once('grimemap' + seed, () => {
   const S = 512;
   const c = document.createElement('canvas'); c.width = c.height = S;
@@ -483,4 +483,143 @@ export const grimeMap = (seed = 5) => once('grimemap' + seed, () => {
     g.lineWidth = 0.7; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
   }
   return tex(c, { srgb: true });
+});
+
+// ================================================================== 街景、仓库用的贴图
+// 红砖墙：按墙的实际尺寸画砖缝，再做旧 (雨水痕、霉斑、底部返潮）
+export function brickMaps(w, h, { ppm = 64, base = [124, 62, 46], seed = 2 } = {}) {
+  const W = Math.round(w * ppm), H = Math.round(h * ppm);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const b = document.createElement('canvas'); b.width = W; b.height = H;
+  const bg = b.getContext('2d');
+  const r = rng(seed + W);
+  const bw = 0.24 * ppm, bh = 0.07 * ppm, m = Math.max(1.5, 0.012 * ppm);
+  g.fillStyle = 'rgb(110,104,94)'; g.fillRect(0, 0, W, H);
+  bg.fillStyle = '#303030'; bg.fillRect(0, 0, W, H);
+  for (let y = 0, row = 0; y < H; y += bh, row++) {
+    for (let x = row % 2 ? -bw / 2 : 0; x < W; x += bw) {
+      const k = 0.78 + r() * 0.38, burnt = r() < 0.08 ? 0.7 : 1;
+      g.fillStyle = `rgb(${base.map((v) => Math.round(v * k * burnt))})`;
+      g.fillRect(x + m / 2, y + m / 2, bw - m, bh - m);
+      bg.fillStyle = `rgb(${150 + r() * 40},${150 + r() * 40},${150 + r() * 40})`; bg.fillRect(x + m / 2, y + m / 2, bw - m, bh - m);
+    }
+  }
+  g.globalCompositeOperation = 'multiply';
+  const mt = mottle(seed + 3, 120, 90);
+  for (let x = 0; x < W; x += 256) for (let y = 0; y < H; y += 256) g.drawImage(mt, x, y);
+  g.globalCompositeOperation = 'source-over';
+  ageCanvas(g, W, H, { amount: 1.2, seed });
+  const gb = g.createLinearGradient(0, H, 0, H - 0.8 * ppm);
+  gb.addColorStop(0, 'rgba(20,18,14,.6)'); gb.addColorStop(1, 'rgba(20,18,14,0)');
+  g.fillStyle = gb; g.fillRect(0, H - 0.8 * ppm, W, 0.8 * ppm);
+  const map = tex(c, { srgb: true }), bumpMap = tex(b);
+  for (const t of [map, bumpMap]) t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return { map, bumpMap, bumpScale: 2, roughness: 0.92 };
+}
+
+// 湿沥青路面：深灰、颗粒、补丁、积水 (积水处非常光滑，会反射路灯和招牌）
+export const asphaltMaps = () => once('asphalt', () => {
+  const S = 1024;
+  const fine = fbm(S, { cx: 128, cy: 128, octaves: 2, seed: 61 });
+  const low = fbm(S, { cx: 4, cy: 4, octaves: 5, seed: 62 });
+  const wet = fbm(S, { cx: 3, cy: 3, octaves: 4, seed: 63 });
+  const color = fromField(S, (x, y, i) => { const v = 34 + fine[i] * 26 + (low[i] - 0.5) * 24 - (wet[i] > 0.58 ? 10 : 0); return [v, v, v + 2]; });
+  const rough = fromField(S, (x, y, i) => { const w = THREE.MathUtils.smoothstep(wet[i], 0.52, 0.62); const v = (0.75 - w * 0.68 + (fine[i] - 0.5) * 0.15) * 255; return [v, v, v]; });
+  return { map: tex(color, { srgb: true }), roughnessMap: tex(rough), normalMap: tex(normalFrom(fine, S, 0.9)) };
+});
+
+// 瓦楞铁皮 (仓库墙、卷帘门）：竖向的波纹 + 锈
+export const corrugatedMaps = (base = [96, 100, 98], key = 'corr') => once('corr' + key, () => {
+  const S = 512;
+  const rust = fbm(S, { cx: 6, cy: 6, octaves: 5, seed: 71 });
+  const drip = fbm(S, { cx: 30, cy: 2, octaves: 3, seed: 72 });
+  const h = new Float32Array(S * S);
+  const color = fromField(S, (x, y, i) => {
+    const wave = Math.sin((x / S) * Math.PI * 2 * 16);
+    h[i] = wave;
+    const ru = Math.max(0, rust[i] - 0.6) * 3, dr = Math.max(0, drip[i] - 0.55) * 1.5 * (y / S);
+    const k = 0.85 + wave * 0.08 - dr * 0.4;
+    return [base[0] * k + ru * 60, base[1] * k + ru * 20, base[2] * k - ru * 20];
+  });
+  return { map: tex(color, { srgb: true }), normalMap: tex(normalFrom(h, S, 2.2)) };
+});
+
+// ================================================================== 欧洲老街：灰色抹灰墙、石块墙基、弹石路
+// 灰色抹灰外墙：斑驳、裂缝、雨水痕，局部抹灰脱落露出里面的砖;rustic=true 时画出一层横向的石块分缝 (底层墙基）
+export function stuccoMaps(w, h, { ppm = 64, base = [138, 138, 132], seed = 3, rustic = false } = {}) {
+  const W = Math.round(w * ppm), H = Math.round(h * ppm);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const b = document.createElement('canvas'); b.width = W; b.height = H;
+  const bg = b.getContext('2d');
+  const r = rng(seed + W * 3 + H);
+  g.fillStyle = `rgb(${base})`; g.fillRect(0, 0, W, H);
+  bg.fillStyle = '#909090'; bg.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'multiply';
+  const mt = mottle(seed + 5, 150, 110);
+  for (let x = 0; x < W; x += 256) for (let y = 0; y < H; y += 256) g.drawImage(mt, x, y);
+  g.globalCompositeOperation = 'source-over';
+  if (rustic) {                                                          // 石块分缝
+    const bh = 0.32 * ppm;
+    for (let y = H; y > 0; y -= bh) {
+      g.fillStyle = 'rgba(40,40,38,.55)'; g.fillRect(0, y - 2, W, 3);
+      bg.fillStyle = '#202020'; bg.fillRect(0, y - 3, W, 5);
+      for (let x = ((H - y) / bh) % 2 ? 0.6 * ppm : 0; x < W; x += 1.2 * ppm) { g.fillRect(x, y - bh, 2, bh); bg.fillRect(x - 1, y - bh, 4, bh); }
+    }
+  }
+  for (let i = 0; i < w * h * 0.08; i++) {                               // 抹灰脱落，露出砖
+    const x = r() * W, y = r() * H, rw = (0.2 + r() * 0.6) * ppm, rh = (0.15 + r() * 0.4) * ppm;
+    g.save(); g.beginPath();
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; g.lineTo(x + Math.cos(a) * rw * (0.6 + r() * 0.5), y + Math.sin(a) * rh * (0.6 + r() * 0.5)); }
+    g.closePath(); g.clip();
+    g.fillStyle = 'rgb(96,70,58)'; g.fillRect(x - rw, y - rh, rw * 2, rh * 2);
+    g.fillStyle = 'rgba(60,56,50,.8)';
+    for (let yy = y - rh; yy < y + rh; yy += 0.075 * ppm) { g.fillRect(x - rw, yy, rw * 2, 1.5); for (let xx = x - rw + ((yy / (0.075 * ppm)) % 2) * 0.12 * ppm; xx < x + rw; xx += 0.24 * ppm) g.fillRect(xx, yy, 1.5, 0.075 * ppm); }
+    g.restore();
+    bg.fillStyle = '#505050'; bg.beginPath(); bg.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2); bg.fill();
+  }
+  g.strokeStyle = 'rgba(40,38,34,.55)'; g.lineWidth = 1;                // 细裂缝
+  for (let i = 0; i < w * 1.5; i++) {
+    let x = r() * W, y = r() * H; g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 0.25 * ppm; y += (r() * 0.8 + 0.1) * 0.15 * ppm; g.lineTo(x, y); }
+    g.stroke();
+  }
+  ageCanvas(g, W, H, { amount: 1.5, seed });
+  const gb = g.createLinearGradient(0, H, 0, H - 1.0 * ppm);
+  gb.addColorStop(0, 'rgba(30,30,26,.65)'); gb.addColorStop(1, 'rgba(30,30,26,0)');
+  g.fillStyle = gb; g.fillRect(0, H - ppm, W, ppm);
+  const map = tex(c, { srgb: true }), bumpMap = tex(b);
+  for (const t of [map, bumpMap]) t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return { map, bumpMap, bumpScale: 1.6, roughness: 0.95 };
+}
+
+// 弹石路 (小方石块），湿的：石缝积水、石头表面被磨得发亮
+export const settMaps = () => once('setts', () => {
+  const S = 1024, n = 10, s = S / n;
+  const r = rng(77);
+  const c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  const rc = document.createElement('canvas'); rc.width = rc.height = S;
+  const rg = rc.getContext('2d');
+  const h = new Float32Array(S * S);
+  g.fillStyle = 'rgb(22,22,22)'; g.fillRect(0, 0, S, S);
+  rg.fillStyle = 'rgb(20,20,20)'; rg.fillRect(0, 0, S, S);                 // 石缝：积水，很光滑
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const ox = (y % 2) * s / 2, k = 0.65 + r() * 0.5;
+    const v = Math.round(78 * k);
+    g.fillStyle = `rgb(${v},${v},${v + 3})`;
+    rg.fillStyle = `rgb(${120 + r() * 70},${120 + r() * 70},${120 + r() * 70})`;
+    for (const dx of [0, -S]) {
+      g.beginPath(); g.roundRect(x * s + ox + 4 + dx, y * s + 4, s - 8, s - 8, 10); g.fill();
+      rg.beginPath(); rg.roundRect(x * s + ox + 4 + dx, y * s + 4, s - 8, s - 8, 10); rg.fill();
+    }
+  }
+  const img = g.getImageData(0, 0, S, S).data;
+  for (let i = 0; i < S * S; i++) h[i] = img[i * 4] / 255;
+  g.globalCompositeOperation = 'multiply';
+  const mt = mottle(78, 120, 90);
+  for (let x = 0; x < S; x += 256) for (let y = 0; y < S; y += 256) g.drawImage(mt, x, y);
+  g.globalCompositeOperation = 'source-over';
+  return { map: tex(c, { srgb: true }), roughnessMap: tex(rc), normalMap: tex(normalFrom(h, S, 3)) };
 });

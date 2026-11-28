@@ -1,6 +1,6 @@
-// 生长模型：一份订单 = 一个培养批次。
-// 细胞密度按 logistic 曲线增长：前期指数增长，后期逼近上限、增长放缓。
-// 演示中 3 秒 = 1 天。数值是示意，不是真实工艺参数。
+// 生长模型：一份Order = 一个培养批次.
+// Cell density按 logistic 曲线增长：前期指数增长，后期逼近上限、增长放缓.
+// 演示中 3 秒 = 1 days.数值是示意，不是真实工艺参数.
 import { GROWTH, SPECIES } from './data.js';
 
 export const SEC_PER_DAY = 3;
@@ -18,8 +18,8 @@ export function makeBatch(order) {
     cycle: order ? order.opts.cycle : 21,
     x: order ? GROWTH.plan[order.opts.plan].x : 1,
     qty: order ? order.opts.qty : 1,
-    day: demo ? 5 : 0,              // 日历天数
-    tau: demo ? 5 : 0,              // 生物进度（加速包会让它跑得比日历快）
+    day: demo ? 5 : 0,              // 日历days数
+    tau: demo ? 5 : 0,              // 生物进度 (加速包会让它跑得比日历快）
     boost: 1,
     name: '',
     passage: PASSAGE[species],
@@ -38,7 +38,7 @@ export function stepBatch(b, dt) {
 }
 
 const K = (b) => 1.2e7 * b.x;
-const R = (b) => Math.log((K(b) / N0 - 1) / (1 / 0.97 - 1)) / b.cycle; // 第 cycle 天达到上限的 97%
+const R = (b) => Math.log((K(b) / N0 - 1) / (1 / 0.97 - 1)) / b.cycle; // 第 cycle days达到上限的 97%
 export const fracAt = (b, tau) => 1 / (1 + (K(b) / N0 - 1) * Math.exp(-R(b) * tau));
 
 export function readout(b, t) {
@@ -47,14 +47,14 @@ export function readout(b, t) {
   const muDay = R(b) * b.boost * (1 - f);
   const muH = muDay / 24;
   const peak = R(b) * b.boost / 24;
-  const feed = (b.day / 2) % 1;     // 每 2 天补一次培养基
+  const feed = (b.day / 2) % 1;     // 每 2 days补一次培养基
   const acid = feed * Math.min(1, f * 1.6);
   const p = b.tau / b.cycle;
   const done = p >= 1;
-  const status = done ? '已达出品标准 · 待收获'
-    : p < 0.12 ? '接种 · 适应期'
-    : (1 - f) > 0.45 ? '指数生长期'
-    : '生长放缓 · 接近平台期';
+  const status = done ? 'Ready for sale · awaiting harvest'
+    : p < 0.12 ? 'Seeding · lag phase'
+    : (1 - f) > 0.45 ? 'Exponential growth'
+    : 'Growth slowing · near plateau';
   return {
     f, N, p, done, status,
     day: Math.floor(b.day),
@@ -73,7 +73,7 @@ export function readout(b, t) {
   };
 }
 
-// 生长曲线（0..cycle 的 N/K）
+// 生长曲线 (0..cycle 的 N/K）
 export function curve(b, n = 64) {
   return Array.from({ length: n + 1 }, (_, i) => fracAt(b, (i / n) * b.cycle));
 }

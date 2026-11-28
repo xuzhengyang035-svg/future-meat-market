@@ -1,46 +1,89 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Future Meat Market</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Inter:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500&family=Noto+Serif+SC:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
-        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
-      }
-    }
+    { "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+    } }
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 </head>
 <body>
   <canvas id="c"></canvas>
 
-  <header class="top">
-    <div class="brand">
-      <span class="mark"></span>
-      <div>
-        <div class="brand-name">FUTURE MEAT MARKET</div>
-        <div class="brand-tag">Design Your Perfect Protein.</div>
+  <div id="hotspots"></div>
+  <div id="products"></div>
+  <div id="labspots"></div>
+  <div id="tankspots"></div>
+
+  <!-- 观察室：Your batch的数据化标注层 -->
+  <section id="hud">
+    <svg class="lines" aria-hidden="true"></svg>
+    <div class="hcol l">
+      <div class="htitle">
+        <div class="tag"><i></i>LIVE · BR-02</div>
+        <h3 data-h="title"></h3>
+        <div class="sub" data-h="sub"></div>
+      </div>
+      <div class="hbox" data-anchor="lid"><label>DAY</label><div class="val" data-h="day"></div><div class="bar"><i data-h="pbar"></i></div><div class="sub" data-h="status"></div></div>
+      <div class="hbox" data-anchor="medium"><label>CELL DENSITY</label><div class="val" data-h="density"></div><div class="sub">cells / mL · max <span data-h="k"></span></div></div>
+      <div class="hbox" data-anchor="tissue"><label>VIABILITY</label><div class="val" data-h="via"></div><div class="sub" data-h="grams"></div></div>
+      <div class="hactions">
+        <button class="hbtn" data-act="boost">Speed up ×1.5 · £2.80</button>
       </div>
     </div>
-    <nav id="steps"></nav>
+    <div class="hcol r">
+      <div class="hbox" data-anchor="probe"><label>ENVIRONMENT</label><div class="env" data-h="env"></div></div>
+      <div class="hbox" data-anchor="bubbles"><label>GROWTH RATE · μ</label><div class="val" data-h="mu"></div><div class="sub" data-h="dbl"></div><svg class="curve" viewBox="0 0 220 60" data-h="curve"></svg></div>
+      <div class="hbox" data-anchor="base"><label>ORIGIN</label><div class="src" data-h="src"></div></div>
+      <div class="upsell" data-h="upsell"></div>
+    </div>
+  </section>
+
+  <aside id="labpanel">
+    <button class="close" aria-label="Close">×</button>
+    <div class="body"></div>
+  </aside>
+
+  <header class="top">
+    <button id="back" aria-label="Back"><span class="circle">←</span><span>Shop</span></button>
+    <div class="brand"><span class="mark"></span>FUTURE MEAT MARKET</div>
+    <div id="cart"></div>
   </header>
 
-  <aside id="panel"></aside>
+  <section id="screen">
+    <button class="close" aria-label="Close">×</button>
+    <div class="body"></div>
+  </section>
 
-  <section id="cert" class="hidden"></section>
+  <!-- Shop：走近之后的引线标注 -->
+  <section id="callouts"><svg aria-hidden="true"></svg><div class="boxes"></div></section>
 
-  <div id="loading">正在布置门店…</div>
+  <!-- 技术报告 -->
+  <section id="paper">
+    <div class="sheet">
+      <button class="close" aria-label="Close">×</button>
+      <div class="body"></div>
+    </div>
+  </section>
+
+  <div id="tutorial"><div class="icon"></div><div class="big"></div><div class="small"></div></div>
+  <div id="toast"></div>
+  <div id="marquee"><div class="track"></div></div>
+  <div id="fade"></div>
+  <div id="loading">Opening up…</div>
 
   <script type="module" src="main.js"></script>
 
 <!-- version badge (versions/) -->
 <a href="../" style="position:fixed;left:16px;bottom:16px;z-index:2147483647;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 10px;border-radius:999px;background:rgba(20,19,18,.82);border:1px solid rgba(255,255,255,.14);color:#efe9dc;font:500 12px/1.2 Inter,'Noto Sans SC',sans-serif;text-decoration:none;backdrop-filter:blur(6px)">
-  <span style="font:700 15px 'IBM Plex Mono',monospace;color:#c0392f">01</span><span>版本 01 / 03 · 2026-11-03 本地原型</span><span style="opacity:.6">· 全部版本</span></a>
+  <span style="font:700 15px 'IBM Plex Mono',monospace;color:#c0392f">01</span><span>Version 01 / 03 · 14 Nov 2026 · the first shop</span><span style="opacity:.6">· All versions</span></a>
 </body>
 </html>

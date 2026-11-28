@@ -1,8 +1,8 @@
-// 后期处理（门店、观察室、冷柜都用）：
-// 1. 环境光遮蔽 GTAO：墙角、物体底部、管道交接处自然变暗——这是“看起来像照片”的关键；
-// 2. 辉光：只让亮度超过 1 的灯管、视镜、指示灯泛光；
-// 3. 调色：参考 Fincher 式的停尸房画面——降低饱和度、暗部偏冷绿、亮部略偏黄、黑色压重；
-// 4. 暗角 + 胶片颗粒：让画面更像摄影机拍到的，而不是电脑渲染。
+// 后期处理 (Shop、观察室、冷柜都用）：
+// 1. 环境光遮蔽 GTAO：墙角、物体底部、管道交接处自然变暗——这是“看from来像照片”的关键;
+// 2. 辉光：只让亮度超过 1 的灯管、视镜、指示灯泛光;
+// 3. 调色：参考 Fincher 式的停尸房画面——降低饱和度、暗部偏冷绿、亮部略偏黄、黑色压重;
+// 4. 暗角 + 胶片颗粒：让画面更像摄影机拍到的，而不是电脑渲染.
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';

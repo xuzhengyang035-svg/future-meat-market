@@ -14,7 +14,7 @@
   --lab-dim: #8a9a8d;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; overflow: hidden; background: #dfe2e3; color: var(--ink); font-family: var(--font); font-weight: 300; }
+html, body { height: 100%; overflow: hidden; background: #121412; color: var(--ink); font-family: var(--font); font-weight: 300; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
 body.grabbing canvas#c { cursor: grabbing; }
@@ -31,7 +31,7 @@ body[data-view="fridge"] #back, body[data-view="lab"] #back { opacity: 1; transf
 #cart { position: absolute; right: 20px; font-size: 12px; padding: 9px 14px; border-radius: 40px; background: var(--red); color: #fff; letter-spacing: .06em; opacity: 0; transition: .4s; }
 body.has-order #cart { opacity: 1; }
 
-/* 门店热点：旋转的圆形文字 */
+/* Shop热点：旋转的圆形文字 */
 #hotspots, #products, #labspots { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
 body:not([data-view="room"]) #hotspots, body.modal-open #hotspots { display: none; }
 body:not([data-view="lab"]) #labspots, body.lab-focus #labspots { display: none; }
@@ -179,7 +179,7 @@ canvas.live { width: 100%; border-radius: 4px; margin-top: 10px; display: block;
 .archive details p { font-size: 12px; color: var(--ink-2); padding-bottom: 12px; line-height: 1.7; }
 .follow { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--ink-2); margin-top: 14px; }
 
-/* 观察室：数据化标注层（参考“生命数据化”的标本图：细线、方形节点、等宽字） */
+/* 观察室：数据化标注层 (参考“生命数据化”的标本图：细线、方形节点、等宽字） */
 #hud { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .6s, visibility 0s .6s; font-family: var(--mono); color: var(--lab-text); }
 #hud.on { opacity: 1; visibility: visible; transition: opacity .6s; }
 #hud svg.lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
@@ -308,9 +308,9 @@ body.tanks-on #tankspots { display: block; }
 #marquee .track { display: flex; white-space: nowrap; animation: marquee 40s linear infinite; font-size: 12px; letter-spacing: .08em; }
 #marquee .track span { padding-right: 0; }
 @keyframes marquee { to { transform: translateX(-50%); } }
-#fade { position: fixed; inset: 0; background: #f2f1ed; z-index: 25; opacity: 0; pointer-events: none; transition: opacity .45s; }
+#fade { position: fixed; inset: 0; background: #0f110f; z-index: 25; opacity: 0; pointer-events: none; transition: opacity .45s; }
 #fade.on { opacity: 1; }
-#loading { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: #f2f1ed; font-size: 13px; letter-spacing: .12em; color: var(--ink-2); transition: opacity .8s; }
+#loading { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: #0f110f; font-size: 13px; letter-spacing: .12em; color: #8a948c; transition: opacity .8s; }
 #loading.gone { opacity: 0; pointer-events: none; }
 
 @media (max-width: 760px) {
@@ -329,7 +329,7 @@ body.tanks-on #tankspots { display: block; }
   .brand { font-size: 10px; letter-spacing: .16em; }
 }
 
-/* ================================================================== 门店：走近之后 */
+/* ================================================================== Shop：走近之后 */
 body.room-focus #hotspots { display: none; }
 body.room-focus #back { opacity: 1; transform: none; }
 body.room-focus canvas#c { cursor: default; }
@@ -463,7 +463,7 @@ body.room-focus canvas#c { cursor: default; }
 .pitch { font-size: 11px; color: var(--ink-2); line-height: 1.6; margin: 4px 0 8px; }
 .paper-link { display: block; margin-top: 8px; font-size: 10.5px; color: var(--red); text-decoration: underline; text-underline-offset: 3px; }
 
-/* 技术报告（论文） */
+/* 技术报告 (论文） */
 #paper { position: fixed; inset: 0; z-index: 30; background: rgba(20,20,20,.45); display: flex; justify-content: center; align-items: flex-start; padding: 70px 16px 30px; opacity: 0; pointer-events: none; transition: opacity .35s; }
 #paper.on { opacity: 1; pointer-events: auto; }
 #paper .sheet { position: relative; width: min(820px, 100%); max-height: 100%; overflow-y: auto; overflow-x: hidden; background: #fff; box-shadow: 0 30px 80px rgba(0,0,0,.35); padding: 56px 64px 48px; font-family: "Noto Serif SC", "Songti SC", serif; color: #1a1a1a; transform: translateY(24px); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
@@ -498,3 +498,9 @@ body.room-focus canvas#c { cursor: default; }
 .prefs a { color: #2f5d8a; }
 .pnote { margin-top: 22px; padding-top: 10px; border-top: 1px solid #ddd; font-family: var(--font); font-size: 11px; color: #888; }
 @media (max-width: 760px) { #paper .sheet { padding: 40px 22px; } .pcols { columns: 1; } #paper .close { margin: -26px -10px 0 0; } }
+
+/* 店外、仓库的热点层 */
+.spots { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+body:not([data-view="street"]) #streetspots, body:not([data-view="warehouse"]) #whspots { display: none; }
+#streetspots .hs text, #whspots .hs text { fill: #fff; stroke: rgba(10,12,12,.75); }
+body[data-view="warehouse"] #back, body[data-view="room"] #back { opacity: 1; transform: none; }

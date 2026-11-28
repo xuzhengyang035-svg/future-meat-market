@@ -1,5 +1,5 @@
-// 用 canvas 画出来的占位贴图：地砖、窗外街景、广告屏、直播画面、价签。
-// 之后都可以换成真实照片或录屏。
+// 用 canvas 画出来的占位贴图：地砖、窗外街景、广告屏、直播画面、价签.
+// 之后都可以换成真实照片或录屏.
 import * as THREE from 'three';
 import { SPECIES } from './data.js';
 
@@ -52,9 +52,9 @@ export const streetTexture = () => canvasTexture(2048, 900, (g, W, H) => {
 
 // 品牌广告屏：几张轮播
 const ADS = [
-  ['CULTIVATED MEAT', '由动物细胞培养 · 无需屠宰'],
-  ['0', '头动物因你的晚餐被屠宰*'],
-  ['加工间开放参观', '熟客可预约 · 请勿拍照'],
+  ['CULTIVATED MEAT', 'Grown from animal cells · no slaughter'],
+  ['0', 'animals slaughtered for your dinner*'],
+  ['Workshop open to visitors', 'Regulars by appointment · no photos'],
 ];
 export function drawAd(g, W, H, i) {
   const [big, small] = ADS[i % ADS.length];
@@ -67,7 +67,7 @@ export function drawAd(g, W, H, i) {
   g.fillText(small, 74, H * 0.55 + 60);
   g.font = `400 18px ${FONT}`; g.fillStyle = '#9a9591';
   g.fillText('FUTURE MEAT MARKET', 74, 60);
-  if (small.includes('*')) g.fillText('*详见门店告示', W - 190, H - 30);
+  if (small.includes('*')) g.fillText('*See notice in store', W - 190, H - 30);
 }
 
 // 直播画面：像监控摄像头拍到的生产车间
@@ -102,7 +102,7 @@ export function drawLive(g, W, H, t, order) {
   const d = new Date();
   g.font = `500 ${Math.round(H * 0.045)}px ${FONT}`;
   g.fillStyle = '#fff';
-  g.fillText('CAM-02  透明工坊  BR-01 ~ BR-03', W * 0.03, H * 0.08);
+  g.fillText('CAM-02  OPEN WORKSHOP  BR-01 ~ BR-03', W * 0.03, H * 0.08);
   g.fillText(d.toLocaleString('zh-CN', { hour12: false }), W * 0.03, H * 0.95);
   g.fillStyle = Math.floor(t * 2) % 2 ? '#e0353b' : 'rgba(224,53,59,.3)';
   g.beginPath(); g.arc(W * 0.9, H * 0.065, H * 0.018, 0, Math.PI * 2); g.fill();
@@ -111,7 +111,7 @@ export function drawLive(g, W, H, t, order) {
     g.fillStyle = 'rgba(179,38,45,.9)';
     g.fillRect(W * 0.03, H * 0.82, W * 0.42, H * 0.07);
     g.fillStyle = '#fff';
-    g.fillText(`你的订单 · ${SPECIES[order.species].id} · BR-02`, W * 0.045, H * 0.87);
+    g.fillText(`Your order · ${SPECIES[order.species].id} · BR-02`, W * 0.045, H * 0.87);
   }
 }
 
@@ -122,8 +122,8 @@ export function drawAttract(g, W, H) {
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   g.fillStyle = '#fff'; g.textAlign = 'center';
   g.font = `300 46px ${FONT}`;
-  g.fillText('选一份', W / 2, H * 0.42);
-  g.fillText('开始定制', W / 2, H * 0.42 + 60);
+  g.fillText('Pick one', W / 2, H * 0.42);
+  g.fillText('Start customising', W / 2, H * 0.42 + 60);
   g.font = `400 20px ${FONT}`; g.fillStyle = '#9aa0a6';
   g.fillText('TAP A PRODUCT TO BEGIN', W / 2, H * 0.42 + 112);
   g.strokeStyle = '#b3262d'; g.lineWidth = 3;
@@ -139,7 +139,7 @@ export const shelfLabel = (key) => canvasTexture(512, 96, (g, W, H) => {
   g.fillStyle = '#141414'; g.font = `500 34px ${FONT}`;
   g.fillText(s.title, 22, 50);
   g.font = `400 20px ${FONT}`; g.fillStyle = '#6b6662';
-  g.fillText(`细胞系 ${s.id} · 零屠宰`, 22, 80);
+  g.fillText(`Cell line ${s.id} · zero slaughter`, 22, 80);
   g.textAlign = 'right'; g.fillStyle = '#b3262d'; g.font = `500 44px ${FONT}`;
   g.fillText('¥' + s.price, W - 22, 62);
 });

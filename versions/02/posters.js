@@ -1,6 +1,6 @@
-// 广告海报：把“快乐的动物”放进阳光、草地和花丛里拍一张“产品照”，再排上广告字。
-// 海报底部的小字说明一切：“图片仅为示意，产品由细胞培养而成，与图中动物无直接关联”。
-// 同一张渲染图也裁成方形，当作告示栏上“供体”的照片。
+// 广告海报：把“快乐的动物”放进阳光、草地和花丛里拍一张“产品照”，再排上广告字.
+// 海报底部的小字说明一切：“图片仅为示意，产品由细胞培养而成，与图中动物无直接关联”.
+// 同一张渲染图也裁成方形，当作告示栏上“Donor”的照片.
 import * as THREE from 'three';
 import { makeAnimal } from './animals.js';
 import { SPECIES, DONOR_PR } from './data.js';
@@ -10,10 +10,10 @@ const SANS = '"Inter", "Noto Sans SC", "Microsoft YaHei", sans-serif';
 const MONO = '"IBM Plex Mono", Consolas, monospace';
 
 export const POSTER_COPY = {
-  beef: { head: ['快乐，', '是最好的调味料。'], animal: 'cow', sky: ['#9fc7e6', '#fdf1d8'] },
-  pork: { head: ['听着音乐', '长大的味道。'], animal: 'pig', sky: ['#b9d6e8', '#fbeede'] },
-  chicken: { head: ['每天晒足', '8 小时太阳。'], animal: 'hen', sky: ['#a8d0e6', '#fff3d6'] },
-  fish: { head: ['深海的鲜，', '不必去深海。'], animal: 'fish', sky: ['#1d5f86', '#7fc4d8'] },
+  beef: { head: ['Cultivated steak,', 'No slaughter.'], animal: 'cow', sky: ['#9fc7e6', '#fdf1d8'] },
+  pork: { head: ['Cultivated pork chop,', 'Fat or lean, your pick.'], animal: 'pig', sky: ['#b9d6e8', '#fbeede'] },
+  chicken: { head: ['Cultivated chicken breast,', 'High protein, low fat.'], animal: 'hen', sky: ['#a8d0e6', '#fff3d6'] },
+  fish: { head: ['Cultivated yellow croaker,', 'No bones.'], animal: 'fish', sky: ['#1d5f86', '#7fc4d8'] },
 };
 
 function gradientTexture(top, bottom) {
@@ -114,7 +114,7 @@ function compose(species, img) {
   const ink = dark ? '#ffffff' : '#2a2b2d';
   g.fillStyle = dark ? 'rgba(255,255,255,.8)' : '#b3262d';
   g.font = `500 15px ${MONO}`; g.textAlign = 'left';
-  g.fillText('FUTURE MEAT · GROWN, NOT RAISED.', 44, 62);
+  g.fillText('FUTURE MEAT · CULTIVATED MEAT', 44, 62);
   g.fillStyle = ink; g.font = `600 56px ${SERIF}`;
   cp.head.forEach((t, i) => g.fillText(t, 40, 140 + i * 70));
   g.font = `400 19px ${SANS}`; g.fillStyle = dark ? 'rgba(255,255,255,.85)' : '#4b4844';
@@ -124,11 +124,11 @@ function compose(species, img) {
   g.fillStyle = '#2a2b2d'; g.font = `500 26px ${SANS}`; g.fillText(s.title, 40, 744);
   g.fillStyle = '#b3262d'; g.font = `500 26px ${SANS}`; g.textAlign = 'right'; g.fillText('¥' + s.price, 560, 744);
   g.textAlign = 'left'; g.fillStyle = '#8a8580'; g.font = `400 12.5px ${SANS}`;
-  g.fillText('*图片仅为示意。产品由细胞培养而成，与图中动物无直接关联。', 40, 776);
+  g.fillText('*Image for illustration only. The product is grown from cells and has no direct link to the animal shown.', 40, 776);
   return c;
 }
 
-// 用主渲染器离屏拍照（启动时、加载画面后面完成），返回海报和“供体照片”
+// 用主渲染器离屏拍照 (启动时、加载画面后面完成），Back海报和“Donor照片”
 export function renderPosters(renderer, env) {
   const out = { posters: {}, photos: {} };
   const pr = renderer.getPixelRatio();

@@ -1,6 +1,6 @@
-// 装饰用的动物（陶瓷摆件、毛绒公仔、广告海报里的“快乐动物”）。
-// 不再用几个球拼凑，而是像雕塑一样：用一组椭球、胶囊做出解剖结构，再平滑融合成一整块（有符号距离场 + 移动立方体），
-// 最后按部位上色（荷斯坦牛的黑白花、猪鼻盘、鸡冠、鱼的金黄腹部）。所有动物都朝 +x 方向，脚踩在 y = 0。
+// 装饰用的动物 (陶瓷摆件、毛绒公仔、广告海报里的“快乐动物”）.
+// 不再用几个球拼凑，而是像雕塑一样：用一组椭球、胶囊做出解剖结构，再平滑融合成一整块 (有符号距离场 + 移动立方体），
+// 最后按部位上色 (荷斯坦牛的黑白花、猪鼻盘、鸡冠、鱼的金黄腹部）.所有动物都朝 +x 方向，脚踩在 y = 0.
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js';
 
@@ -45,7 +45,7 @@ function smin(a, b, k) {
 }
 function smax(a, b, k) { return -smin(-a, -b, k); }
 
-// ------------------------------------------------------------------ 噪声（牛的花斑）
+// ------------------------------------------------------------------ 噪声 (牛的花斑）
 function hash3(x, y, z) {
   let h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
   return h - Math.floor(h);
@@ -63,7 +63,7 @@ const fbm = (x, y, z) => vnoise(x, y, z) * 0.6 + vnoise(x * 2.1 + 5, y * 2.1, z 
 // ------------------------------------------------------------------ 各物种的解剖结构
 const C = (hex) => new THREE.Color(hex);
 const SPECS = {
-  // 荷斯坦公牛：肩高约 0.3（单位米，摆件会再整体缩放）
+  // 荷斯坦公牛：肩高约 0.3 (单位米，摆件会再整体缩放）
   cow: {
     center: [0.04, 0.17, 0], half: 0.27,
     prims: [
@@ -99,7 +99,7 @@ const SPECS = {
       if (part === 'tuft') return C(0x1f1f20);
       return C(0xf4f1ea);
     },
-    // 黑白花斑在着色器里逐像素计算（逐顶点会有锯齿），这里只标记哪些部位可以有花斑
+    // 黑白花斑在着色器里逐像素计算 (逐顶点会有锯齿），这里只标记哪些部位可以有花斑
     spot: (part) => (part === 'body' || part === 'head' || part === 'ear' ? 1 : 0),
   },
   // 粉色家猪：大耳朵向前耷拉，卷尾巴
@@ -185,7 +185,7 @@ const SPECS = {
   },
 };
 
-// ------------------------------------------------------------------ 生成几何体（每个物种只算一次）
+// ------------------------------------------------------------------ 生成几何体 (每个物种只算一次）
 const cache = {};
 function evalField(spec, x, y, z) {
   let d = 1e9;
@@ -213,7 +213,7 @@ export function animalGeometry(kind, res = 80) {
   const [cx, cy, cz] = spec.center, H = spec.half;
   const field = mc.field;
   const at = (i) => (i - res / 2) / (res / 2) * H;
-  // 先用粗网格算一遍：离表面很远的点只需要正负号，不必逐个精确计算（启动快好几倍）
+  // 先用粗网格算一遍：离表面很远的点只需要正负号，不必逐个精确计算 (启动快好几倍）
   const S = 4, cn = Math.ceil(res / S) + 1, coarse = new Float32Array(cn * cn * cn);
   for (let k = 0; k < cn; k++) for (let j = 0; j < cn; j++) for (let i = 0; i < cn; i++)
     coarse[i + j * cn + k * cn * cn] = evalField(spec, cx + at(i * S), cy + at(j * S), cz + at(k * S));
@@ -253,7 +253,7 @@ export function animalGeometry(kind, res = 80) {
   return g;
 }
 
-// ------------------------------------------------------------------ 三种质感：陶瓷（釉面）、毛绒、照片（广告用）
+// ------------------------------------------------------------------ 三种质感：陶瓷 (釉面）、毛绒、照片 (广告用）
 const MATS = {};
 function material(style) {
   if (MATS[style]) return MATS[style];

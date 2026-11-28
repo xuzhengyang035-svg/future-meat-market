@@ -1,128 +1,180 @@
-// 所有文案和热点都集中在这里，相当于参考网站从 CMS 拉下来的数据。
-// 热点位置用三维坐标（x, y, z）表示：换成 360° 全景照片后，方向仍然对应。
+// 所有文案和热点都集中在这里，相当于参考网站从 CMS 拉下来的数据.
+// 热点位置用三维坐标 (x, y, z）表示：换成 360° 全景照片后，方向仍然对应.
 
 export const ORDER = ['chicken', 'beef', 'pork', 'fish'];
 
 export const SPECIES = {
   chicken: {
-    zh: '鸡', en: 'CHICKEN', title: '培养鸡胸肉', id: 'G-0221', price: 68,
-    lead: '更轻盈的日常蛋白。由已授权供体的肌肉细胞培养而成。',
-    donor: '白羽肉鸡 · 雌性 · 2 岁',
+    zh: 'Chicken', en: 'CHICKEN', title: 'Cultivated chicken breast', id: 'G-0221', price: 68,
+    lead: 'Lighter everyday protein, grown from the muscle cells of an authorised donor.',
+    donor: 'White-feather broiler · female · 2 yrs',
   },
   beef: {
-    zh: '牛', en: 'BEEF', title: '培养牛排', id: 'B-0417', price: 168,
-    lead: '按你的口感、香气和颜色生长的牛排。',
-    donor: '荷斯坦公牛 · 3 岁',
+    zh: 'Cattle', en: 'BEEF', title: 'Cultivated steak', id: 'B-0417', price: 168,
+    lead: 'A steak grown to your texture, aroma and colour.',
+    donor: 'Holstein bull · 3 yrs',
   },
   pork: {
-    zh: '猪', en: 'PORK', title: '培养猪排', id: 'P-0932', price: 98,
-    lead: '肥瘦比例，由你决定。',
-    donor: '杜洛克母猪 · 4 岁',
+    zh: 'Pig', en: 'PORK', title: 'Cultivated pork chop', id: 'P-0932', price: 98,
+    lead: 'The fat-to-lean ratio is up to you.',
+    donor: 'Duroc sow · 4 yrs',
   },
   fish: {
-    zh: '大黄鱼', en: 'YELLOW CROAKER', title: '培养大黄鱼', id: 'F-1180', price: 128,
-    lead: '无刺、无腥，切成你需要的形态。',
-    donor: '养殖大黄鱼 · 2 龄',
+    zh: 'Yellow croaker', en: 'YELLOW CROAKER', title: 'Cultivated yellow croaker', id: 'F-1180', price: 128,
+    lead: 'No bones, no fishy taste, cut to the shape you need.',
+    donor: 'Farmed yellow croaker · 2 yrs',
   },
 };
 
-// 每一项定制背后都有一项“专利技术”，点进去是一篇技术报告（papers.js）
+// 每一项定制背后都有一项“专利技术”，点进去是一篇技术报告 (papers.js）
 const FAT = {
-  key: 'fat', label: '脂肪含量', choices: [['low', '少脂'], ['mid', '适中'], ['high', '丰润']],
-  tech: 'FatBlend™', techZh: '脂肪细胞共培养', paper: 'fatblend',
-  pitch: '肌肉细胞和脂肪细胞按比例一起培养。滑一下，就从健身餐变成五花肉。',
+  key: 'fat', label: 'Fat content', choices: [['low', 'Lean'], ['mid', 'Medium'], ['high', 'Rich']],
+  tech: 'FatBlend™', techZh: 'Fat-cell co-culture', paper: 'fatblend',
+  pitch: 'Muscle and fat cells grown together in proportion. One slide takes you from gym meal to pork belly.',
 };
 export const OPTIONS = {
   chicken: [FAT],
   pork: [FAT],
-  fish: [{ key: 'form', label: '产品形态', choices: [['fillet', '鱼片'], ['steak', '鱼排']],
-    tech: 'ShapeFab™', techZh: '细胞打印成型', paper: 'shapefab',
-    pitch: '同一批细胞，按你的需要打印成鱼片或鱼排。没有一根刺。' }],
+  fish: [{ key: 'form', label: 'Product form', choices: [['fillet', 'Fish fillet'], ['steak', 'Fish steak']],
+    tech: 'ShapeFab™', techZh: 'Cell printing', paper: 'shapefab',
+    pitch: 'One batch of cells, printed into fillets or steaks as you need. Not a single bone.' }],
   beef: [
-    { key: 'firm', label: '口感', choices: [['tender', '柔嫩'], ['firm', '紧实']],
-      tech: 'FlexScaffold™', techZh: '可调刚度支架', paper: 'scaffold',
-      pitch: '细胞长在可食用的支架上。软支架长出入口即化的嫩，硬支架长出有嚼劲的紧实。' },
-    { key: 'aroma', label: '烹饪香气', choices: [['base', '基础'], ['plus', '烤肉香增强']],
-      tech: 'AromaSwitch™', techZh: '温控风味释放', paper: 'aroma',
-      pitch: '风味前体预埋在肉里，只在 150 ℃ 以上释放。下锅的那一刻，炭烤香才出现。' },
-    { key: 'shade', label: '颜色', choices: [['light', '浅'], ['deep', '深']],
-      tech: 'MyoTone™', techZh: '肌红蛋白调色', paper: 'myotone',
-      pitch: '调节细胞里的肌红蛋白，从樱花粉到勃艮第红，任你挑选。' },
+    { key: 'firm', label: 'Texture', choices: [['tender', 'Tender'], ['firm', 'Firm']],
+      tech: 'FlexScaffold™', techZh: 'Tunable-stiffness scaffold', paper: 'scaffold',
+      pitch: 'Cells grow on an edible scaffold. A soft scaffold grows melt-in-the-mouth tenderness; a stiff one grows a firm chew.' },
+    { key: 'aroma', label: 'Cooking aroma', choices: [['base', 'Base'], ['plus', 'Enhanced roast aroma']],
+      tech: 'AromaSwitch™', techZh: 'Heat-triggered flavour', paper: 'aroma',
+      pitch: 'Flavour precursors are set into the meat and release only above 150 °C. The char-grilled aroma appears the moment it hits the pan.' },
+    { key: 'shade', label: 'Colour', choices: [['light', 'Light'], ['deep', 'Deep']],
+      tech: 'MyoTone™', techZh: 'Myoglobin colour', paper: 'myotone',
+      pitch: 'Tune the myoglobin in the cells, anywhere from blossom pink to burgundy red.' },
   ],
 };
 
 // 冷柜触摸屏上的广告词
 export const AD = {
-  beef: { slogan: '一块，会听你话的牛排。', copy: '柔嫩还是紧实，浓郁还是清爽，樱花粉还是勃艮第红。三项专利技术，把选择权交还给你。' },
-  chicken: { slogan: '比清晨还轻盈的蛋白质。', copy: '高蛋白、低脂肪，细嫩不柴。脂肪含量，由你一键设定。' },
-  pork: { slogan: '肥瘦，由你说了算。', copy: '五花的香，里脊的嫩，不必再二选一。每一块都刚刚好。' },
-  fish: { slogan: '没有刺，也不必有海。', copy: '鲜嫩的大黄鱼，无刺、无腥、不含重金属。鱼片还是鱼排，打印成你想要的样子。' },
+  beef: { slogan: 'A steak that does what you tell it.', copy: 'Tender or firm, rich or clean, blossom pink or burgundy red. Three patented technologies hand the choice back to you.' },
+  chicken: { slogan: 'Protein lighter than morning air.', copy: 'High protein, low fat, tender not dry. Set the fat content with one tap.' },
+  pork: { slogan: 'Fat or lean, you decide.', copy: 'The flavour of belly, the tenderness of loin: no need to choose. Every piece is just right.' },
+  fish: { slogan: 'No bones, and no need for the sea.', copy: 'Tender yellow croaker: no bones, no fishy taste, no heavy metals. Fillet or steak, printed the way you want.' },
 };
 
 export const GROWTH = {
-  cycle: [[14, '14 天'], [21, '21 天'], [28, '28 天']],
-  plan: { std: { label: '标准', x: 1, price: 1 }, a: { label: '配方 A', x: 3, price: 0.82 }, b: { label: '配方 B', x: 4, price: 0.74 } },
-  tech: 'Yield+™', techZh: '高产培养配方', paper: 'yield',
-  pitch: '同样 28 天，细胞量最多提高到 4 倍，价格反而更低。',
+  cycle: [[14, '14 days'], [21, '21 days'], [28, '28 days']],
+  plan: { std: { label: 'Standard', x: 1, price: 1 }, a: { label: 'Formula A', x: 3, price: 0.82 }, b: { label: 'Formula B', x: 4, price: 0.74 } },
+  tech: 'Yield+™', techZh: 'High-yield medium', paper: 'yield',
+  pitch: 'In the same 28 days, up to 4× the cells, and at a lower price.',
 };
 
-export const MARQUEE = '今日新鲜培养 · 零屠宰 · 下单即培养 · 每一份都来自同一个细胞系 · ';
+export const MARQUEE = 'Freshly grown today · zero slaughter · grown to order · every portion from one cell line · ';
 
 export const HOTSPOTS = [
-  { id: 'fridge', label: 'SMART FRIDGE · 智能鲜肉柜 · ', pos: [0, 1.25, -3.5], route: 'fridge',
-    marquee: '即选即定制 · 四种细胞系 · 下单后开始培养 · ' },
-  { id: 'brand', label: 'OUR STORY · 品牌故事 · ', pos: [2.55, 2.0, -3.88], route: 'brand',
-    marquee: 'GROWN, NOT RAISED. · 无需饲养 · 无需屠宰 · ' },
-  { id: 'pairings', label: 'PAIRINGS · 搭配好物 · ', pos: [-2.75, 1.5, -3.6], route: 'pairings',
-    marquee: '烧烤酱 · 香草海盐 · 初榨橄榄油 · 好肉配好料 · ' },
-  { id: 'ceramic', label: 'COLLECTION · 牧场陶瓷 · ', pos: [-4.45, 1.25, -1.9], route: 'ceramic',
-    marquee: '手工釉面 · 牧场系列 · 限量发售 · ' },
-  { id: 'tasting', label: 'FREE TASTING · 今日试吃 · ', pos: [-2.1, 1.35, -0.5], route: 'tasting',
-    marquee: '现煎培养牛排 · 免费试吃 · 扫码评价领券 · ' },
-  { id: 'merch', label: 'SHOP · 吉祥物周边 · ', pos: [-4.5, 1.6, 1.6], route: 'merch',
-    marquee: '牛牛 · 小猪 · 咯咯 · 把牧场带回家 · ' },
-  { id: 'live', label: 'WORKSHOP · 透明工坊 · ', pos: [4.9, 1.5, -0.3], route: 'lab',
-    marquee: '隔着玻璃，看你的那一份长大 · 24 小时开放 · ' },
-  { id: 'checkout', label: 'SELF CHECKOUT · 自助结算 · ', pos: [-3.0, 1.3, 3.0], route: 'checkout',
-    marquee: '扫码结算 · 附赠生物所有权证书 · ', needsOrder: true },
-  { id: 'donor', label: 'NOTICE · 告示栏 · ', pos: [1.95, 1.45, 4.8], route: 'donor',
-    marquee: '认识我们的供体 · ', subtle: true },
+  { id: 'fridge', label: 'FRESH MEAT · ', pos: [-2.5, 1.25, -3.5], route: 'fridge',
+    marquee: 'Pick and customise · four cell lines · growing starts when you order · ' },
+  { id: 'brand', label: 'NO KILL · BRAND FILM · ', pos: [-2.5, 2.62, -3.85], route: 'brand',
+    marquee: 'Meat without killing · no farming · no slaughter · ' },
+  { id: 'tasting', label: 'TASTING · AT THE WINDOW · ', pos: [0.45, 1.3, -2.3], route: 'tasting',
+    marquee: 'Seared cultivated steak · free for regulars · scan to review for a voucher · ' },
+  { id: 'checkout', label: 'PAY · AT THE WINDOW · ', pos: [2.35, 1.55, -2.25], route: 'checkout',
+    marquee: 'Regulars only · scan to pay · comes with a certificate of biological ownership · ', needsOrder: true },
+  { id: 'donor', label: 'NOTICE · FOR REGULARS · ', pos: [3.85, 1.45, -3.85], route: 'donor',
+    marquee: 'Meet our donors · don\'t ask where the meat comes from · ', subtle: true },
+  { id: 'live', label: 'WORKSHOP · ', pos: [4.9, 1.5, -0.3], route: 'lab',
+    marquee: 'Regulars\' visits by appointment · seeing is believing · ' },
+  { id: 'warehouse', label: 'STORAGE · ', pos: [4.9, 1.4, 2.6], route: 'warehouse',
+    marquee: 'Storage · staff only · ', subtle: true },
+  { id: 'street', label: 'EXIT · ', pos: [0.55, 1.5, 4.8], route: 'street',
+    marquee: 'Mind how you go · come again · don\'t tell anyone · ', subtle: true },
 ];
 
-// 品牌对外讲的供体故事（公关版本）。真实档案在细胞库里，对消费者是涂黑的。
+// ------------------------------------------------------------------ 店外：伪装成普通老肉铺
+export const STREET_MARQUEE = 'Chen\'s Fresh Meat · fresh · frozen · deli · honest trading for thirty years · ';
+export const STREET_HOTSPOTS = [
+  { id: 'enter', label: 'ENTER · ', pos: [-0.3, 1.5, 0.2], route: '',
+    marquee: 'Fresh pork · beef & lamb · frozen · regulars welcome · ' },
+  { id: 'window', label: 'WINDOW · ', pos: [-2.7, 1.3, 0.15], subtle: true,
+    marquee: 'Today\'s special · pork £0.99/lb · ',
+    info: [
+      { at: [-2.9, 1.5, 0.05], dx: 40, dy: -150, title: 'Today\'s special  pork £0.99/lb', line: 'Less than half the market price. No feed and no rearing time: the cost of meat is down to medium and electricity.' },
+      { at: [-3.4, 0.85, -0.3], dx: -280, dy: 20, title: 'Crates of vegetables', line: 'The window shows ordinary fresh produce: this shop needs to look like any other butcher\'s on the street.' },
+    ] },
+  { id: 'side', label: 'BACK DOOR · ', pos: [3.55, 1.5, 0.2], route: 'warehouse',
+    marquee: 'Deliveries · back door · staff only · ' },
+  { id: 'gas', label: 'CYLINDERS · ', pos: [4.2, 1.1, 0.5], subtle: true,
+    marquee: 'Why does a butcher need liquid nitrogen and CO₂? · ',
+    info: [
+      { at: [4.15, 1.2, 0.5], dx: -290, dy: -40, title: 'CO₂ cylinders × 3', line: 'Cell incubators must hold 5% CO₂, just like inside a body. A shop that only sells meat has no use for one.' },
+      { at: [2.6, 1.2, 0.75], dx: -300, dy: 90, title: 'LN₂ dewar', line: 'The cell bank is kept in liquid nitrogen at −196 °C. The tanks are labelled with cell-line numbers.' },
+      { at: [3.55, 3.7, 0.3], dx: -300, dy: -150, title: 'Steam from the extractor', line: 'The culture equipment out back runs 24 hours; the extractor never stops.' },
+    ] },
+];
+
+// ------------------------------------------------------------------ 仓库：所有东西都伪装成冻品
+export const WH_MARQUEE = 'Frozen dumplings · frozen seafood · soy protein · storage · staff only · ';
+export const WH_HOTSPOTS = [
+  { id: 'fbs', label: 'FROZEN · DUMPLINGS · ', pos: [-3.6, 1.0, -5.0],
+    marquee: 'Frozen dumplings · 20 kg/case · −18 °C · ',
+    info: [
+      { at: [-3.7, 0.65, -5.0], dx: 40, dy: -180, title: '"Frozen dumplings" · 30 cases', line: 'The opened case holds bottles of fetal bovine serum (FBS). It is taken from the unborn calves of cows pregnant at slaughter, the cheapest "feed" for growing cells.', fine: 'Serum-free media still cost several times more than serum-based formulas.' },
+      { at: [-6.6, 0.9, 1.7], dx: 40, dy: 20, title: '−20 °C freezer', line: 'Serum and growth factors must be stored frozen.' },
+    ] },
+  { id: 'media', label: 'MEDIA · ', pos: [5.0, 2.2, -4.5],
+    marquee: 'Single-use culture bags · 50 L × 4 · ',
+    info: [
+      { at: [5.2, 2.0, -3.4], dx: -300, dy: -160, title: 'Medium · single-use culture bags', line: 'Amino acids, glucose, vitamins, growth factors. Each kilo of meat needs dozens of litres of medium, the biggest cost.' },
+      { at: [-5.2, 3.5, -9.7], dx: 40, dy: -40, title: 'Soy protein isolate', line: 'Made into an edible scaffold so the cells grow along it into the shape of "meat".' },
+    ] },
+  { id: 'cold', label: 'CELL BANK · COLD ROOM · ', pos: [1.0, 2.0, -11.0],
+    marquee: 'Cell bank · liquid nitrogen −196 °C · asphyxiation hazard · ',
+    info: [
+      { at: [1.0, 1.4, -11.0], dx: 40, dy: -170, title: 'Cold room · cell bank MCB-07', line: 'The liquid-nitrogen dewar holds frozen seed cells for each cell line: B-0417, P-0932…' },
+      { at: [-3.0, 1.0, -10.4], dx: -320, dy: -20, title: 'Why live animals are still needed', line: 'Primary muscle stem cells age and stop dividing after a few dozen passages (the Hayflick limit). The cell bank runs out, so we must go back to the live donor for a fresh biopsy.' },
+    ] },
+  { id: 'crates', label: 'CRATES · ', pos: [5.4, 1.4, -10.6], subtle: true,
+    marquee: 'Live · disinfected · return → farm 7 · ',
+    info: [
+      { at: [5.5, 0.8, -10.0], dx: -320, dy: -150, title: 'Empty animal transport crates', line: 'The hay is still fresh. The label says "Live · disinfected · return → farm 7".' },
+      { at: [-2.7, 0.8, 2.6], dx: 40, dy: -120, title: 'Stock in / out ledger', line: '"11/13 IN live animals ×2 (farm 7)" sits in the same ledger as the "zero slaughter" slogan.' },
+    ] },
+  { id: 'back', label: 'BACK TO STORE · ', pos: [0, 1.5, 4.5], route: '',
+    marquee: 'Back to the shop · ' },
+];
+
+
+// 品牌对外讲的Donor故事 (公关版本）.真实档案在细胞库里，对消费者是涂黑的.
 export const DONOR_PR = {
-  chicken: '她在林下散养，每天晒足 8 小时太阳。',
-  beef: '他在草原上自由奔跑，从不缺少新鲜的牧草。',
-  pork: '她住在恒温猪舍，听着音乐长大。',
-  fish: '它生活在洁净的深海网箱里。',
+  chicken: 'She roams free under the trees and gets a full 8 hours of sun every day.',
+  beef: 'He runs free on the grassland and never lacks fresh grass.',
+  pork: 'She lives in a climate-controlled barn and grew up listening to music.',
+  fish: 'It lives in a clean deep-sea net pen.',
 };
 export const DONOR_STEPS = [
-  ['它们从哪里来', '来自通过认证的合作牧场，享有高福利养殖标准。'],
-  ['取样是怎样的', '只需一次温和的采集*，就能为成千上万个家庭提供美味。'],
-  ['它们现在怎么样', '它们回到了熟悉的牧场，继续快乐地生活。'],
+  ['Where they come from', 'From certified partner farms with high welfare standards.'],
+  ['What sampling looks like', 'One gentle collection* feeds thousands of families.'],
+  ['How they are now', 'They went back to their familiar pasture and live happily on.'],
 ];
 
-// ------------------------------------------------------------------ 生长观察室（透明工坊参观廊）
-export const LAB_MARQUEE = '透明工坊 · 看得见，才安心 · 每一份订单都在这里长大 · 参观廊请勿拍照 · ';
+// ------------------------------------------------------------------ 生长观察室 (透明工坊参观廊）
+export const LAB_MARQUEE = 'Open workshop · seeing is believing · every order grows up here · no photos in the gallery · ';
 
 export const LAB_HOTSPOTS = [
-  { id: 'batch', label: 'YOUR BATCH · 你的批次 · ', pos: [0.2, 1.68, -0.6], route: 'lab/batch',
-    marquee: '实时生长数据 · 细胞密度 · 存活率 · 倍增时间 · ' },
-  { id: 'hall', label: 'CULTIVATION HALL · 培养车间 · ', pos: [2.2, 3.3, -6.5], route: 'lab/hall',
-    marquee: '12 座 2,000 L 培养罐 · 全天候无菌运行 · ' },
-  { id: 'data', label: 'DATA WALL · 生长数据墙 · ', pos: [-4.9, 2.72, 1.6], route: 'lab/data',
-    marquee: '3,412 个批次 · 每个细胞都在记录之中 · ' },
-  { id: 'cellbank', label: 'CELL BANK · 细胞库 · ', pos: [-4.25, 1.6, -0.84], route: 'lab/cellbank', locked: true,
-    marquee: '禁止游客进入 · 仅限授权人员 · ' },
-  { id: 'notice', label: '参观须知 · NOTICE · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', subtle: true,
-    marquee: '请勿拍照 · 请勿拍打玻璃 · ' },
-  { id: 'ask', label: 'ASK US · 提问终端 · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask',
-    marquee: '有问必答 · 今日已回答 2,341 个问题 · ' },
-  { id: 'exit', label: 'BACK TO STORE · 返回门店 · ', pos: [3.6, 1.55, 3.9], route: '',
-    marquee: '回到门店 · 去结算 · ' },
+  { id: 'batch', label: 'YOUR BATCH · ', pos: [0.2, 1.68, -0.6], route: 'lab/batch',
+    marquee: 'Live growth data · cell density · viability · doubling time · ' },
+  { id: 'hall', label: 'CULTIVATION HALL · ', pos: [2.2, 3.3, -6.5], route: 'lab/hall',
+    marquee: '12 × 2,000 L bioreactors · sterile around the clock · ' },
+  { id: 'data', label: 'DATA WALL · ', pos: [-4.9, 2.72, 1.6], route: 'lab/data',
+    marquee: '3,412 batches · every cell on record · ' },
+  { id: 'cellbank', label: 'CELL BANK · ', pos: [-4.25, 1.6, -0.84], route: 'lab/cellbank', locked: true,
+    marquee: 'No visitors · authorised staff only · ' },
+  { id: 'notice', label: 'VISITOR NOTICE · ', pos: [4.95, 1.45, 2.45], route: 'lab/notice', subtle: true,
+    marquee: 'No photos · do not tap the glass · ' },
+  { id: 'ask', label: 'ASK US · ', pos: [3.9, 1.62, 0.35], route: 'lab/ask',
+    marquee: 'Ask anything · 2,341 questions answered today · ' },
+  { id: 'exit', label: 'BACK TO STORE · ', pos: [3.6, 1.55, 3.9], route: '',
+    marquee: 'Back to the shop · pay · ' },
 ];
 
-// 镜头聚焦的位置（观察室里的“子页面”）
+// 镜头聚焦的位置 (观察室里的“子页面”）
 export const LAB_FOCUS = {
   batch: { fov: 25 },
   data: { at: [-4.93, 1.5, 1.6], fov: 24.5 },
@@ -134,57 +186,39 @@ export const LAB_FOCUS = {
 
 // 细胞库：信息确实存在，只是“已向监管部门备案，不向消费者公开”
 export const CELLBANK_ROWS = [
-  ['主细胞库', 'MCB-07 · 工作细胞库 WCB-07-3'],
-  ['储存条件', '−196 ℃ 液氮'],
-  ['来源动物', null],
-  ['采集方式', null],
-  ['采集次数', null],
-  ['供体现状', null],
+  ['Master cell bank', 'MCB-07 · working cell bank WCB-07-3'],
+  ['Storage', '−196 °C liquid nitrogen'],
+  ['Source animal', null],
+  ['Collection method', null],
+  ['Collections', null],
+  ['Donor status', null],
 ];
 
-// 提问终端：预设问题和品牌的标准回答。和动物有关的问题，都会被礼貌地绕开。
+// 提问终端：预设问题和品牌的标准回答.和动物有关的问题，都会被礼貌地绕开.
 export const ASK = [
-  ['这块肉是怎么长出来的？', '我们从优质细胞出发，在 37 ℃ 的培养罐里为它们提供营养，大约 3–4 周就能长成你餐桌上的美味。整个过程你都可以隔着玻璃看到。'],
-  ['培养基里有什么？', '我们使用专有的营养配方，包含氨基酸、糖、维生素和生长因子*。', '*具体配方属商业机密。'],
-  ['细胞最初是从哪里来的？', '我们的种子细胞来自通过认证的合作牧场的优质供体。如需了解更多，欢迎联系客服。'],
-  ['供体动物现在还活着吗？', '感谢你的关注！这个问题已经记录，我们会转交相关部门。'],
-  ['一个细胞系能用多久？', '理论上可以长期传代。细胞系 B-0417 已经连续为我们的顾客供应 1,300 多天。'],
-  ['我可以进细胞库看看吗？', '为保障生物安全与商业机密，细胞库禁止游客进入。你可以在数据墙上查看所有批次的实时数据。'],
+  ['How is this meat grown?', 'We start from premium cells and feed them in a 37 °C bioreactor; in about 3–4 weeks they become the dish on your table. You can watch the whole process through the glass.'],
+  ['What\'s in the growth medium?', 'We use a proprietary nutrient formula of amino acids, sugars, vitamins and growth factors*.', '*The exact formula is a trade secret.'],
+  ['Where did the cells come from in the first place?', 'Our seed cells come from premium donors at certified partner farms. For more, please contact customer service.'],
+  ['Is the donor animal still alive?', 'Thank you for your interest! Your question has been logged and passed to the right team.'],
+  ['How long does one cell line last?', 'In theory it can be passaged indefinitely. Cell line B-0417 has supplied our customers for over 1,300 days.'],
+  ['Can I visit the cell bank?', 'For biosafety and trade secrets, visitors may not enter the cell bank. Live data for every batch is on the data wall.'],
 ];
-export const ASK_FALLBACK = '感谢你的提问！这个问题暂时无法在终端回答，我们已转交客服。';
-export const ASK_ANIMAL = /供体|动物|屠宰|牛|猪|鸡|鱼|活检|取样|采集|痛|死|活着|农场|牧场|福利/;
+export const ASK_FALLBACK = 'Thanks for asking! The terminal can\'t answer this one; we have passed it to customer service.';
+export const ASK_ANIMAL = /Donor|动物|屠宰|牛|猪|鸡|鱼|活检|取样|采集|痛|死|活着|农场|牧场|福利/;
 
-// ------------------------------------------------------------------ 门店：走近之后的标注（像观察室里“你的批次”那样，用引线指向实物）
-// at 是三维锚点，dx/dy 是标注框相对锚点的屏幕偏移（像素）
+// ------------------------------------------------------------------ Shop：走近之后的标注 (像观察室里“Your batch”那样，用引线指向实物）
+// at 是三维锚点，dx/dy 是标注框相对锚点的屏幕偏移 (像素）
 export const CALLOUTS = {
-  pairings: [
-    { at: [-3.7, 1.84, -3.7], dx: 40, dy: -120, title: '辣椒酱', price: 26, line: '配猪排，越吃越香。', buy: '辣椒酱' },
-    { at: [-1.8, 1.47, -3.7], dx: -290, dy: -120, title: '初榨橄榄油', price: 68, line: '冷压初榨，煎鸡胸不粘锅。', buy: '橄榄油' },
-    { at: [-3.7, 1.0, -3.7], dx: 40, dy: -30, title: '香草海盐', price: 28, line: '迷迭香和百里香，撒一点，像在牧场里烤肉。', buy: '香草海盐' },
-    { at: [-1.8, 0.63, -3.7], dx: -290, dy: 10, title: '烧烤酱 BBQ', price: 32, line: '慢熬 12 小时的烟熏风味，和培养牛排是绝配。', buy: '烧烤酱' },
-  ],
-  merch: [
-    { at: [-4.6, 1.45, 1.1], dx: 60, dy: -70, title: '毛绒公仔 · 牛牛', price: 89, line: '品牌大使。软软的，抱着睡觉刚刚好。', buy: '牛牛' },
-    { at: [-4.6, 1.45, 1.6], dx: -60, dy: -160, title: '毛绒公仔 · 小猪', price: 89, line: '最受小朋友欢迎的吉祥物。', buy: '小猪' },
-    { at: [-4.6, 1.47, 2.1], dx: -290, dy: -60, title: '毛绒公仔 · 咯咯', price: 79, line: '“每天晒足 8 小时太阳”的那只。', buy: '咯咯' },
-    { at: [-4.58, 0.68, 1.1], dx: 90, dy: 20, title: '帆布袋 · GROWN NOT RAISED', price: 59, line: '买肉的时候，记得带上它。', buy: '帆布袋' },
-    { at: [-4.6, 0.68, 2.1], dx: -310, dy: 30, note: true, line: '每售出一件周边，我们将捐出 ¥1 用于“动物友好”公益项目*。', fine: '*项目详情以品牌官方公告为准。' },
-  ],
-  ceramic: [
-    { at: [-4.45, 1.1, -3.0], dx: -150, dy: 130, title: '荷斯坦奶牛', price: 129, line: '手工釉面陶瓷 · 牧场系列 No.1', flip: 0 },
-    { at: [-4.45, 1.28, -1.9], dx: 110, dy: -170, title: '粉猪', price: 129, line: '手工釉面陶瓷 · 牧场系列 No.2', flip: 1 },
-    { at: [-4.45, 1.0, -0.8], dx: 60, dy: 90, title: '白羽母鸡', price: 99, line: '手工釉面陶瓷 · 牧场系列 No.3', flip: 2 },
-  ],
   tasting: [
-    { at: [-2.1, 1.0, -0.05], dx: 40, dy: -190, title: '香煎培养牛排', line: '五分熟 · 现煎现切 · 细胞系 B-0417' },
-    { at: [-2.1, 0.97, -0.75], dx: -300, dy: 90, title: '试吃块', line: '每人限取 2 块。请使用牙签。' },
+    { at: [0.05, 1.12, -2.9], dx: -300, dy: -170, title: 'Seared cultivated steak', line: 'Medium · seared behind the window · cell line B-0417' },
+    { at: [0.45, 1.08, -2.32], dx: 60, dy: 60, title: 'Tasting pieces', line: 'Handed out from the tray. Two pieces per person.' },
   ],
   checkout: [],
   donor: [],
   brand: [],
 };
 
-// 陶瓷摆件底部的刻字（只有把它翻过来才看得到）
+// 陶瓷摆件底部的刻字 (只有把它翻过来才看得到）
 export const CERAMIC_BASE = [
   ['No.0001', 'B-0417', '2021.03.14'],
   ['No.0002', 'P-0932', '2021.05.02'],
@@ -193,9 +227,9 @@ export const CERAMIC_BASE = [
 
 // 广告屏：品牌片，一页一页播放
 export const BRAND_FILM = [
-  { big: 'GROWN,<br>NOT RAISED.', small: '无需饲养 · 无需屠宰' },
-  { big: '0', unit: '头', small: '动物因你的晚餐被屠宰<sup>*1</sup>' },
-  { big: '24', unit: 'h', small: '透明工坊全天开放参观<sup>*2</sup>' },
-  { big: '来自阳光牧场的<br>每一个细胞', small: '每一份美味，都始于一段美好的生活。', poster: 'beef' },
+  { big: 'GROWN,<br>NOT RAISED.', small: 'No farming · no slaughter' },
+  { big: '0', unit: '', small: 'animals slaughtered for your dinner<sup>*1</sup>' },
+  { big: '24', unit: 'h', small: 'Open workshop, open all day<sup>*2</sup>' },
+  { big: 'Every cell from<br>Sunshine Farm', small: 'Every delicious bite begins with a good life.', poster: 'beef' },
 ];
-export const BRAND_FINE = '*1 指培养生产环节不涉及屠宰，不包括供体动物的选育、取样与饲养。 *2 参观范围为细胞培养车间。';
+export const BRAND_FINE = '*1 Refers only to the cultivation stage, which involves no slaughter; excludes breeding, sampling and keeping of donor animals. *2 Visits cover the cell-culture hall only.';
