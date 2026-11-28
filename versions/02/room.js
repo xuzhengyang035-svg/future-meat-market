@@ -104,6 +104,8 @@ const sign = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
   if (o.border) { g.strokeStyle = o.border; g.lineWidth = 4; g.strokeRect(8, 8, W - 16, H - 16); }
   for (const [txt, size, color, y, weight = 400, font = SANS, align = 'center', x = 0.5] of lines) {
     g.font = `${weight} ${size}px ${font}`; g.fillStyle = color; g.textAlign = align;
+    const room = (align === 'center' ? Math.min(x, 1 - x) * 2 : align === 'left' ? 1 - x : x) * W - 16; let s = size;   // English is longer than the Chinese was: shrink a line that wouldn't fit
+    while (s > 8 && g.measureText(txt).width > room) { s -= 2; g.font = `${weight} ${s}px ${font}`; }
     g.fillText(txt, W * x, H * y);
   }
   if (!o.clean) ageCanvas(g, W, H, { amount: 0.55, seed: W + H, drips: H > 200 });   // 标牌也都旧了
@@ -258,7 +260,8 @@ export function createRoom(env) {
     for (const y of levels) { box(w, 0.012, d, M.steel, 0, y, 0, parent); for (const z of [-d / 2, d / 2]) box(w, 0.025, 0.006, M.steel, 0, y + 0.01, z, parent); }
   };
   const neon = (text, w, h, size, color) => canvasTexture(w, h, (g, W, H) => {
-    g.clearRect(0, 0, W, H); g.font = `700 ${size}px ${SERIF}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.clearRect(0, 0, W, H); g.font = `700 ${size}px ${SERIF}`; const fit = g.measureText(text).width; if (fit > W * 0.9) { size = Math.floor(size * W * 0.9 / fit); g.font = `700 ${size}px ${SERIF}`; }   // English runs longer than the Chinese did: shrink to fit
+    g.textAlign = 'center'; g.textBaseline = 'middle';
     g.shadowColor = color; g.shadowBlur = size * 0.35; g.fillStyle = '#fff'; g.fillText(text, W / 2, H / 2);
     g.shadowBlur = 0; g.lineWidth = size * 0.06; g.strokeStyle = color; g.strokeText(text, W / 2, H / 2);
   });

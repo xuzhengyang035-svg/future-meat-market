@@ -75,6 +75,8 @@ const sign = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
   if (o.border) { g.strokeStyle = o.border; g.lineWidth = 4; g.strokeRect(8, 8, W - 16, H - 16); }
   for (const [txt, size, color, y, weight = 400, font = SANS, align = 'center', x = 0.5] of lines) {
     g.font = `${weight} ${size}px ${font}`; g.fillStyle = color; g.textAlign = align;
+    const room = (align === 'center' ? Math.min(x, 1 - x) * 2 : align === 'left' ? 1 - x : x) * W - 16; let s = size;   // English is longer than the Chinese was: shrink a line that wouldn't fit
+    while (s > 8 && g.measureText(txt).width > room) { s -= 2; g.font = `${weight} ${s}px ${font}`; }
     g.fillText(txt, W * x, H * y);
   }
 });

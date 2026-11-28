@@ -83,6 +83,8 @@ const textSign = (lines, w, h, o = {}) => canvasTexture(w, h, (g, W, H) => {
   for (const [txt, size, color, y, weight = 400, font = SANS, align = 'left', x = 0.06] of lines) {
     g.font = `${weight} ${size}px ${font}`;
     g.fillStyle = color; g.textAlign = align;
+    const room = (align === 'center' ? 1 : 1 - x) * W - 16; let s = size;   // shrink an English line that wouldn't fit
+    while (s > 8 && g.measureText(txt).width > room) { s -= 2; g.font = `${weight} ${s}px ${font}`; }
     g.fillText(txt, align === 'center' ? W / 2 : W * x, H * y);
   }
 });
